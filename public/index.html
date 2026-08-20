@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171817">
+  <title>Рынок. Симулятор перекупа</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="join-screen" class="join-screen">
+    <div class="join-visual" aria-hidden="true">
+      <img src="garage-scene.svg" alt="">
+      <div class="join-brand">РЫНОК<span>.</span></div>
+    </div>
+    <main class="join-panel">
+      <p class="eyebrow">Мультиплеерный автобазар</p>
+      <h1>Купи дешевле.<br>Продай дороже.</h1>
+      <p class="join-copy">Один рынок для всех игроков. Осматривай машины, рискуй, ремонтируй и собирай самый прибыльный гараж.</p>
+      <form id="join-form">
+        <div class="auth-fields">
+          <label for="player-name">Имя на рынке<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
+          <label for="player-pin">PIN-код<input id="player-pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="4–12 цифр" required></label>
+        </div>
+        <div class="auth-actions">
+          <button type="submit" data-auth-action="login">Войти <span aria-hidden="true">→</span></button>
+          <button type="submit" data-auth-action="register" class="auth-secondary">Создать аккаунт</button>
+        </div>
+        <p id="join-error" class="form-error" role="alert"></p>
+      </form>
+      <div class="join-stats">
+        <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>
+        <div><strong>4 места</strong><span>в первом гараже</span></div>
+        <div><strong>навсегда</strong><span>сохранение прогресса</span></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="game" class="game" hidden>
+    <header class="topbar">
+      <a class="logo" href="#market" aria-label="Рынок, главная">РЫНОК<span>.</span></a>
+      <nav class="tabs" aria-label="Разделы игры">
+        <button class="tab active" data-view="market">Рынок <span id="market-count" class="badge">0</span></button>
+        <button class="tab" data-view="garage">Гараж <span id="garage-count" class="badge">0/4</span></button>
+        <button class="tab" data-view="deals">Торг <span id="offers-count" class="badge">0</span></button>
+        <button class="tab" data-view="chat">Чат <span id="chat-count" class="badge">0</span></button>
+        <button class="tab" data-view="rating">Рейтинг</button>
+        <button class="tab" data-view="profile">Профиль</button>
+      </nav>
+      <div class="wallet">
+        <span>Баланс</span>
+        <strong id="cash">0 ₽</strong>
+      </div>
+      <button id="profile-button" class="profile-button" title="Открыть профиль"><span id="avatar">В</span><span><b id="profile-name">Игрок</b><small id="profile-level">1 уровень</small></span></button>
+    </header>
+
+    <main class="content">
+      <section id="market-view" class="view active-view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Объявления обновляются в реальном времени</p>
+            <h2>Общий рынок</h2>
+          </div>
+          <div class="market-pulse"><i></i><span id="online-label">Рынок онлайн</span><b id="rotation-label">Новый завоз через 00:45</b></div>
+        </div>
+        <section class="market-index">
+          <div class="market-index-head"><div><p class="eyebrow">Цены на основе объявлений и завершённых сделок</p><h3>Индекс рынка</h3></div><span>Последние 20 сделок по модели</span></div>
+          <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
+          <div id="market-stats-list" class="market-stats-list"></div>
+        </section>
+        <form id="market-filters" class="market-filters">
+          <label>Цена от<input id="price-min" name="min" type="number" min="1" step="1000" placeholder="1 ₽"></label>
+          <label>Цена до<input id="price-max" name="max" type="number" min="1" step="1000" placeholder="5 000 000 ₽"></label>
+          <label>Тип<select id="sale-filter" name="saleType"><option value="all">Все лоты</option><option value="fixed">Обычная продажа</option><option value="auction">Аукционы</option></select></label>
+          <label>Относительно рынка<select id="price-band-filter" name="priceBand"><option value="all">Любая цена</option><option value="below">Ниже рынка</option><option value="fair">В рынке</option><option value="above">Выше рынка</option></select></label>
+          <label>Сортировка<select id="market-sort" name="sort"><option value="new">Сначала новые</option><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option></select></label>
+          <button class="primary-button" type="submit">Применить</button>
+          <button class="secondary-button" type="reset">Сбросить</button>
+          <span id="filter-result" class="filter-result"></span>
+        </form>
+        <div id="market-grid" class="car-grid"></div>
+      </section>
+
+      <section id="garage-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Диагностика, ремонт и подготовка</p>
+            <h2>Мой гараж</h2>
+          </div>
+          <div class="garage-value"><span>Вложено в авто</span><strong id="garage-value">0 ₽</strong></div>
+        </div>
+        <div class="progress-strip">
+          <div class="level-block"><span>Уровень <b id="level-number">1</b></span><strong id="xp-label">0 / 150 XP</strong></div>
+          <div class="xp-track"><i id="xp-progress"></i></div>
+          <div class="skill-points">Очки навыков: <strong id="skill-points">0</strong></div>
+        </div>
+        <div class="garage-management">
+          <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
+          <div><span>Обычные запчасти</span><strong id="common-parts">0 комплектов</strong><button class="secondary-button" data-buy-parts="common">Купить · 18 000 ₽</button></div>
+          <div><span>Премиальные запчасти</span><strong id="premium-parts">0 комплектов</strong><button class="secondary-button" data-buy-parts="premium">Купить · 42 000 ₽</button></div>
+        </div>
+        <section class="parts-market-panel">
+          <div class="workshop-heading"><div><p class="eyebrow">Детали после разбора и покупок</p><h3>Мой склад</h3></div></div><div id="parts-inventory-list" class="parts-market-list"></div>
+          <div class="workshop-heading parts-market-heading"><div><p class="eyebrow">Новые и б/у детали</p><h3>Биржа запчастей</h3></div></div><div id="parts-market-list" class="parts-market-list"></div>
+        </section>
+        <div class="workshop-grid">
+          <section class="workshop-section">
+            <div class="workshop-heading"><div><p class="eyebrow">Учись находить сложные дефекты</p><h3>Навыки осмотра</h3></div></div>
+            <div id="skills-grid" class="upgrade-grid"></div>
+          </section>
+          <section class="workshop-section">
+            <div class="workshop-heading"><div><p class="eyebrow">Инструменты открывают глубокие проверки</p><h3>Оборудование</h3></div></div>
+            <div id="equipment-grid" class="upgrade-grid"></div>
+          </section>
+        </div>
+        <div id="garage-grid" class="garage-list"></div>
+        <div id="empty-garage" class="empty-state" hidden>
+          <div class="empty-icon">P</div>
+          <h3>В гараже пока пусто</h3>
+          <p>Выбери первую машину на общем рынке. Начинать лучше с недорогих вариантов.</p>
+          <button data-go-market>Открыть рынок</button>
+        </div>
+      </section>
+
+      <section id="deals-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Игроки и NPC могут предложить свою цену</p>
+            <h2>Переговоры</h2>
+          </div>
+        </div>
+        <div class="deals-columns">
+          <section class="deals-section">
+            <h3>Предложения вам</h3>
+            <div id="incoming-offers" class="offers-list"></div>
+          </section>
+          <section class="deals-section">
+            <h3>Ваши предложения</h3>
+            <div id="outgoing-offers" class="offers-list"></div>
+          </section>
+        </div>
+        <section class="contracts-section">
+          <div class="workshop-heading"><div><p class="eyebrow">Дополнительный заработок и репутация</p><h3>Контракты</h3></div><div id="reputation-badge" class="reputation-badge">Репутация 50</div></div>
+          <div id="contracts-list" class="contracts-list"></div>
+        </section>
+      </section>
+
+      <section id="chat-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Общий канал игроков</p><h2>Чат рынка</h2></div>
+          <div class="market-pulse"><i></i><span>Модерация включена</span></div>
+        </div>
+        <div class="chat-shell">
+          <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Сообщение игрокам" required>
+            <button class="primary-button" type="submit">Отправить</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="rating-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Лучшие сделки текущей сессии</p>
+            <h2>Таблица перекупов</h2>
+          </div>
+          <div class="my-profit"><span>Твоя прибыль</span><strong id="my-profit">0 ₽</strong></div>
+        </div>
+        <div class="leaderboard">
+          <div class="leader-head"><span>Место и игрок</span><span>Сделки</span><span>Прибыль</span></div>
+          <div id="leader-list"></div>
+        </div>
+      </section>
+
+      <section id="profile-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Карьера на авторынке</p><h2>Профиль</h2></div>
+          <button class="secondary-button" data-logout>Выйти из аккаунта</button>
+        </div>
+        <div class="profile-hero">
+          <div class="profile-monogram" id="profile-monogram">P</div>
+          <div><p class="eyebrow">Перекуп</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p></div>
+          <div class="profile-capital"><span>Капитал</span><strong id="profile-cash">0 ₽</strong></div>
+          <div class="profile-reputation"><span>Репутация</span><strong id="profile-reputation">50/100</strong></div>
+        </div>
+        <div id="profile-stats" class="profile-stats"></div>
+        <section class="group-panel"><div class="workshop-heading"><div><p class="eyebrow">Совместная касса, роли и автомобили</p><h3>Группа</h3></div></div><div id="group-content"></div><div id="group-members" class="group-members"></div><div id="group-garage" class="group-garage"></div><div id="group-employees" class="group-employees"></div></section>
+        <section class="npc-panel"><div class="workshop-heading"><div><p class="eyebrow">Кому доверять сделку</p><h3>Рейтинг NPC</h3></div></div><div id="npc-list" class="npc-list"></div></section>
+        <div class="profile-columns">
+          <section><p class="eyebrow">Профессиональное развитие</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
+          <section><p class="eyebrow">Оснащение гаража</p><h3>Инструменты</h3><div id="profile-equipment" class="profile-list"></div></section>
+        </div>
+      </section>
+    </main>
+
+    <div id="car-modal" class="modal" hidden>
+      <button class="modal-backdrop" data-close-modal aria-label="Закрыть окно"></button>
+      <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="icon-button close-button" data-close-modal title="Закрыть" aria-label="Закрыть">×</button>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

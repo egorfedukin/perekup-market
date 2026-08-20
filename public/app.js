@@ -1,0 +1,538 @@
+const $ = (selector) => document.querySelector(selector);
+const money = (value) => `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
+const number = (value) => new Intl.NumberFormat("ru-RU").format(value);
+const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+
+const categoryNames = { engine: "Двигатель", chassis: "Ходовая", body: "Кузов", electrics: "Электрика", tires: "Шины и колёса", documents: "Документы и VIN" };
+const severityNames = { 1: "незначительно", 2: "серьёзно", 3: "критично" };
+let token = localStorage.getItem("perekup-token") || "";
+let state = { player: null, market: [], leaderboard: [], skillInfo: {}, equipmentInfo: {}, marketStats: {}, inspectionCategories: [], inspectionRequirements: {}, chatMessages: [] };
+let marketFilters = { min: null, max: null, saleType: "all", priceBand: "all", sort: "new" };
+let modalCarId = null;
+let modalMode = null;
+let lastCheckResult = null;
+let events = null;
+let toastTimer = null;
+
+function carArt(car, extraClass = "") {
+  return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
+    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>
+    <i class="car-window"></i><i class="wheel left"></i><i class="wheel right"></i>
+  </div>`;
+}
+
+function conditionLabel(value) {
+  if (value >= 72) return ["Хорошее", ""];
+  if (value >= 52) return ["Есть нюансы", "mid"];
+  return ["Требует внимания", "low"];
+}
+
+function auctionTime(end) {
+  const seconds = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function updateAuctionTimers() {
+  document.querySelectorAll("[data-auction-end]").forEach((element) => {
+    element.textContent = auctionTime(Number(element.dataset.auctionEnd));
+  });
+}
+
+function updateMarketRotationTimer() {
+  const label = $("#rotation-label");
+  if (!label || !state.marketRotation) return;
+  const seconds = Math.max(0, Math.ceil((state.marketRotation.nextAt - Date.now()) / 1000));
+  label.textContent = `Новый завоз: ${state.marketRotation.replaceCount} авто через ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function priceBand(car) {
+  const stats = state.marketStats[car.model];
+  if (!stats) return "fair";
+  if (car.price < stats.normalLow) return "below";
+  if (car.price > stats.normalHigh) return "above";
+  return "fair";
+}
+
+function pricePosition(car) {
+  const stats = state.marketStats[car.model];
+  if (!stats || !stats.dealAverage) return ["Нет данных", "normal"];
+  if (car.price < stats.normalLow) return ["Ниже рынка", ""];
+  if (car.price > stats.normalHigh) return ["Выше рынка", "high"];
+  return ["В рынке", "normal"];
+}
+
+function renderMarketStats() {
+  const rows = Object.values(state.marketStats || {}).filter((stats) => stats.listings > 0);
+  $("#market-stats-list").innerHTML = rows.map((stats) => `<div class="market-stat-row">
+    <strong>${escapeHtml(stats.model)}<small>${stats.year} год · объявлений ${stats.listings}</small></strong>
+    <span>${money(stats.askingAverage)}<small>от ${money(stats.askingMin)} до ${money(stats.askingMax)}</small></span>
+    <span>${money(stats.marketPrice)} <b class="market-trend ${stats.trend > 0 ? "up" : stats.trend < 0 ? "down" : ""}">${stats.trend > 0 ? "+" : ""}${stats.trend}%</b><small>последняя сделка двигает индекс</small></span>
+    <span>${money(stats.normalLow)} — ${money(stats.normalHigh)}</span>
+  </div>`).join("");
+}
+
+function showToast(message, error = false) {
+  const toast = $("#toast");
+  toast.textContent = message;
+  toast.className = `toast visible${error ? " error" : ""}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.className = "toast"; }, 3200);
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Не удалось выполнить действие");
+  return data;
+}
+
+function renderMarket() {
+  $("#market-count").textContent = state.market.length;
+  const visible = state.market.filter((car) => (!marketFilters.min || car.price >= marketFilters.min) && (!marketFilters.max || car.price <= marketFilters.max) && (marketFilters.saleType === "all" || car.saleType === marketFilters.saleType) && (marketFilters.priceBand === "all" || priceBand(car) === marketFilters.priceBand));
+  if (marketFilters.sort === "new") visible.sort((a, b) => (b.listedAt || 0) - (a.listedAt || 0));
+  if (marketFilters.sort === "deal") visible.sort((a, b) => (a.price / (state.marketStats[a.model]?.marketPrice || a.price)) - (b.price / (state.marketStats[b.model]?.marketPrice || b.price)));
+  if (marketFilters.sort === "priceAsc") visible.sort((a, b) => a.price - b.price);
+  if (marketFilters.sort === "priceDesc") visible.sort((a, b) => b.price - a.price);
+  $("#filter-result").textContent = `Показано ${visible.length} из ${state.market.length}`;
+  $("#market-grid").innerHTML = visible.map((car) => {
+    const [label, className] = conditionLabel(car.condition);
+    const [priceLabel, priceClass] = pricePosition(car);
+    const own = car.sellerId === state.player.id;
+    const auction = car.saleType === "auction";
+    return `<button class="car-card" data-open-market="${car.id}" ${own ? 'title="Ваше объявление"' : ""}>
+      ${carArt(car)}
+      <div class="car-info">
+        <h3>${escapeHtml(car.model)}</h3>
+        <div class="car-meta"><span>${number(car.mileage)} км</span><span>${own ? "Ваше объявление" : escapeHtml(car.seller)}</span></div>
+        <div class="car-price-row"><strong>${money(car.price)}</strong><span class="condition ${className}">${label}</span></div>
+        <span class="price-signal ${priceClass}">${priceLabel}</span>
+        ${car.marketTag ? `<span class="market-tag">${escapeHtml(car.marketTag)}</span>` : ""}
+        ${auction ? `<div class="auction-note"><span>${car.bidCount ? `Ставок: ${car.bidCount}` : "Стартовая цена"}</span><span class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</span></div>` : car.offerCount ? `<div class="offer-note">Предложений: ${car.offerCount}</div>` : ""}
+      </div>
+    </button>`;
+  }).join("") || '<div class="empty-filter">По выбранной цене машин нет.</div>';
+}
+
+function renderProgression() {
+  const player = state.player;
+  const levelBase = (player.level - 1) * 150;
+  const needed = Math.max(1, player.nextLevelXp - levelBase);
+  const progress = player.level >= 30 ? 100 : Math.round(((player.xp - levelBase) / needed) * 100);
+  $("#level-number").textContent = player.level;
+  $("#profile-level").textContent = `${player.level} уровень`;
+  $("#xp-label").textContent = player.level >= 30 ? `${player.xp} XP · максимум` : `${player.xp} / ${player.nextLevelXp} XP`;
+  $("#xp-progress").style.width = `${progress}%`;
+  $("#skill-points").textContent = player.skillPoints;
+
+  $("#skills-grid").innerHTML = Object.entries(state.skillInfo).map(([key, info]) => {
+    const level = player.skills[key];
+    const maxLevel = info.maxLevel || 5;
+    return `<div class="upgrade-item">
+      <div class="upgrade-top"><strong>${escapeHtml(info.name)}</strong><span class="upgrade-level">${level}/${maxLevel}</span></div>
+      <p>${escapeHtml(info.description)}</p>
+      <button data-skill="${key}" ${level >= maxLevel || player.skillPoints < 1 ? "disabled" : ""}>${level >= maxLevel ? "Мастер" : "Повысить · 1 очко"}</button>
+    </div>`;
+  }).join("");
+
+  $("#equipment-grid").innerHTML = Object.entries(state.equipmentInfo).map(([key, info]) => {
+    const level = player.equipment[key];
+    const price = level < 3 ? info.prices[level + 1] : 0;
+    return `<div class="upgrade-item">
+      <div class="upgrade-top"><strong>${escapeHtml(info.name)}</strong><span class="upgrade-level">${level}/3</span></div>
+      <p>${escapeHtml(info.description || (level ? `Оборудование ${level} класса` : "Оборудование отсутствует"))}</p>
+      <button data-equipment="${key}" ${level >= 3 || player.cash < price ? "disabled" : ""}>${level >= 3 ? "Максимум" : `Улучшить · ${money(price)}`}</button>
+    </div>`;
+  }).join("");
+}
+
+function renderGarage() {
+  const garage = state.player.garage;
+  $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
+  $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
+  $("#common-parts").textContent = `${state.player.parts.common} комплектов`;
+  $("#premium-parts").textContent = `${state.player.parts.premium} комплектов`;
+  const qualityNames = { original: "Оригинал", analog: "Аналог", restored: "Восстановленная" };
+  $("#parts-inventory-list").innerHTML = (state.player.partInventory || []).map((part) => `<article class="part-lot inventory"><div><strong>${escapeHtml(part.name)}</strong><small>${qualityNames[part.quality] || part.quality} · ресурс ${part.conditionPct}% · ${part.compatibleClass === "all" ? "для всех классов" : `для ${escapeHtml(part.compatibleClass)}`}</small></div><span>${money(part.estimatedValue)}</span><div class="part-list-action"><input id="part-price-${part.id}" type="number" min="1" max="1000000" value="${part.estimatedValue}"><button class="secondary-button" data-list-part="${part.id}">Выставить</button></div></article>`).join("") || '<div class="no-offers">Предметных деталей пока нет. Разберите машину или купите комплект.</div>';
+  $("#parts-market-list").innerHTML = (state.partsMarket || []).slice(0, 24).map((lot) => `<article class="part-lot"><div><strong>${escapeHtml(lot.item?.name || (lot.type === "premium" ? "Премиальный комплект" : "Обычный комплект"))}</strong><small>${lot.item ? `${qualityNames[lot.item.quality] || lot.item.quality} · ресурс ${lot.item.conditionPct}% · ${lot.item.compatibleClass === "all" ? "универсально" : escapeHtml(lot.item.compatibleClass)}` : lot.condition === "used" ? "Б/у · проверено" : "Новый комплект"} · ${escapeHtml(lot.seller)}</small></div><span>${money(lot.price)}</span><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`).join("") || '<div class="no-offers">Рынок деталей пуст.</div>';
+  $("#garage-value").textContent = money(garage.reduce((sum, car) => sum + car.invested, 0));
+  $("#empty-garage").hidden = garage.length > 0;
+  $("#garage-grid").innerHTML = garage.map((car) => {
+    const open = car.defects.filter((defect) => !defect.repaired);
+    const checked = car.inspection?.checked || 0;
+    return `<article class="garage-car">
+      ${carArt(car)}
+      <div class="garage-main"><h3>${escapeHtml(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p></div>
+      <div class="garage-status">
+        <div class="status-line"><span>Состояние</span><strong>${car.condition}%</strong></div>
+        <div class="status-bar"><i style="width:${car.condition}%"></i></div>
+        <p class="defect-count">Проверено узлов: ${checked}/${state.inspectionCategories.length} · уверенность ${car.inspection?.confidence || 0}% · найдено проблем: ${open.length}</p>
+      </div>
+      <div class="garage-actions">
+        <button class="secondary-button" data-open-garage="${car.id}">Осмотр и ремонт</button>
+        <button class="primary-button" data-list-car="${car.id}">Выставить на рынок</button>
+        <button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>
+        ${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">В общий гараж</button>` : ""}
+      </div>
+    </article>`;
+  }).join("");
+  renderProgression();
+}
+
+function offerCard(offer, incoming) {
+  const car = offer.car || { model: "Проданный автомобиль", price: 0 };
+  const counter = offer.status === "counter";
+  return `<article class="offer-card ${offer.buyerType === "bot" ? "bot" : ""}">
+    <div class="offer-head"><div><strong>${escapeHtml(offer.buyerName)}</strong><p class="offer-car">${escapeHtml(car.model)} · цена ${money(car.price || offer.amount)}</p></div><span>${money(offer.amount)}</span></div>
+    <p class="offer-reason">${escapeHtml(offer.reason)}</p>
+    <div class="offer-actions">
+      ${incoming ? `
+        <button class="primary-button" data-offer-action="accept" data-offer-id="${offer.id}">Принять</button>
+        <button class="secondary-button" data-offer-action="reject" data-offer-id="${offer.id}">Отказать</button>
+        <div class="counter-row"><input id="counter-${offer.id}" type="number" step="1" min="1" max="${Math.max(1, (car.price || offer.amount) - 1)}" placeholder="Встречная цена"><button class="secondary-button" data-offer-action="counter" data-offer-id="${offer.id}">Ответить</button></div>
+      ` : counter ? `<button class="primary-button" data-accept-counter="${offer.id}">Принять встречную цену</button>` : `<span class="condition mid">Ожидает ответа продавца</span>`}
+    </div>
+  </article>`;
+}
+
+function renderOffers() {
+  const incoming = state.player.incomingOffers || [];
+  const outgoing = state.player.outgoingOffers || [];
+  $("#offers-count").textContent = incoming.length + outgoing.filter((offer) => offer.status === "counter").length;
+  $("#incoming-offers").innerHTML = incoming.length ? incoming.map((offer) => offerCard(offer, true)).join("") : '<div class="no-offers">Пока никто не торгуется по вашим объявлениям.</div>';
+  $("#outgoing-offers").innerHTML = outgoing.length ? outgoing.map((offer) => offerCard(offer, false)).join("") : '<div class="no-offers">Вы ещё не предлагали свою цену.</div>';
+  const reputation = state.player.reputation || { score: 50 };
+  $("#reputation-badge").textContent = `Репутация ${reputation.score}/100`;
+  $("#contracts-list").innerHTML = (state.player.contracts || []).map((contract) => `<article class="contract-card ${contract.status}">
+    <div><strong>${escapeHtml(contract.title)}</strong><p>${escapeHtml(contract.description)}</p><small>До ${new Date(contract.expiresAt).toLocaleDateString("ru-RU")}</small></div>
+    <span>${contract.status === "completed" ? "Выполнено" : contract.status === "failed" ? "Провалено" : `+${money(contract.reward)}`}</span>
+  </article>`).join("");
+}
+
+function renderLeaderboard() {
+  $("#my-profit").textContent = money(state.player.profit);
+  $("#leader-list").innerHTML = state.leaderboard.map((player, index) => `<div class="leader-row ${player.id === state.player.id ? "current" : ""}">
+    <div class="leader-player"><span class="place">${index + 1}</span><span>${escapeHtml(player.name)}${player.id === state.player.id ? " (ты)" : ""} · ур. ${player.level}</span></div>
+    <span>${player.deals}</span><span class="leader-profit">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</span>
+  </div>`).join("");
+}
+
+function groupRoleSelect(member, group) {
+  if (!group.permissions.roles || member.id === group.ownerId) return "";
+  const roles = ["Участник", "Управляющий", "Казначей", "Механик", "Оценщик"];
+  return `<select data-group-role="${member.id}">
+    ${roles.map((role) => `<option value="${role}" ${member.role === role ? "selected" : ""}>${role}</option>`).join("")}
+  </select>`;
+}
+
+function renderProfile() {
+  const player = state.player;
+  $("#profile-monogram").textContent = player.name[0].toUpperCase();
+  $("#profile-name-large").textContent = player.name;
+  $("#profile-career").textContent = `${player.level} уровень · ${player.xp} XP · ${player.deals} сделок`;
+  $("#profile-cash").textContent = money(player.cash);
+  $("#profile-reputation").textContent = `${player.reputation?.score || 50}/100`;
+  const stats = [
+    ["Покупки", player.stats.purchases], ["Прибыль", money(player.profit)],
+    ["Осмотры", player.stats.inspections], ["Диагностики в сервисе", player.stats.serviceDiagnostics],
+    ["Починил сам", player.stats.selfRepairs], ["С помощником", player.stats.assistedRepairs],
+    ["Ремонты в сервисе", player.stats.workshopRepairs],
+    ["Победы на аукционе", player.stats.auctionsWon], ["Ставки", player.stats.bids]
+  ];
+  $("#profile-stats").innerHTML = stats.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("#profile-skills").innerHTML = Object.entries(state.skillInfo).map(([key, info]) => `<div><span>${escapeHtml(info.name)}<small>${escapeHtml(info.description)}</small></span><strong>${player.skills[key]}/${info.maxLevel || 5}</strong></div>`).join("");
+  $("#profile-equipment").innerHTML = Object.entries(state.equipmentInfo).map(([key, info]) => `<div><span>${escapeHtml(info.name)}</span><strong>${player.equipment[key]}/3</strong></div>`).join("");
+  const group = player.group;
+  $("#group-content").innerHTML = group ? `<div class="group-summary"><strong>${escapeHtml(group.name)}</strong><span>Рейтинг ${Math.round(group.rating)}/100 · касса ${money(group.treasury)}</span><small>Ваша роль: ${escapeHtml(player.groupRole || "Участник")} · общий гараж ${group.garage.length}/${group.garageCapacity} · ID: ${escapeHtml(group.id)}</small><div><input id="group-transfer-amount" type="number" min="1" placeholder="Сумма в общую кассу"><button class="secondary-button" data-group-transfer>Внести деньги</button></div>${group.permissions.treasury ? `<div><select id="group-pay-player">${group.members.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join("")}</select><input id="group-pay-amount" type="number" min="1" placeholder="Сумма участнику"><button class="secondary-button" data-group-pay>Выдать из кассы</button></div>` : ""}</div>` : `<div class="group-create"><input id="group-name" maxlength="30" placeholder="Название новой группы"><button class="primary-button" data-group-create>Создать группу</button><input id="group-join-id" maxlength="40" placeholder="ID существующей группы"><button class="secondary-button" data-group-join>Вступить по ID</button><small>Владелец сможет назначать роли: управляющий, механик, оценщик или казначей.</small></div>`;
+  $("#group-members").innerHTML = group ? `<h4>Участники</h4>${group.members.map((member) => `<div class="group-member"><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></div>${groupRoleSelect(member, group)}</div>`).join("")}` : "";
+  $("#group-garage").innerHTML = group ? `<h4>Общий гараж</h4>${group.garage.length ? group.garage.map((car) => `<article class="group-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><small>${car.year} · вложено ${money(car.invested)} · передал ${escapeHtml(car.groupContributorName || "участник")}</small></div><button class="secondary-button" data-group-withdraw-car="${car.id}">Забрать</button></article>`).join("") : '<div class="no-offers">У группы пока нет общих автомобилей.</div>'}` : "";
+  const specialtyNames = { diagnostics: "Диагностика", mechanics: "Ремонт", appraisal: "Оценка", sales: "Продажи" };
+  $("#group-employees").innerHTML = group ? `<h4>Сотрудники</h4><div class="employee-grid">${group.employees.map((employee) => `<article class="employee-card hired"><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.title)} · рейтинг ${employee.rating}</span><small>Бонус: ${specialtyNames[employee.specialty]}</small></article>`).join("") || '<div class="no-offers">Сотрудников пока нет.</div>'}</div>${group.permissions.hire ? `<h4>Кандидаты</h4><div class="employee-grid">${(state.employeeCandidates || []).filter((candidate) => !group.employees.some((employee) => employee.id === candidate.id)).map((candidate) => `<article class="employee-card"><strong>${escapeHtml(candidate.name)}</strong><span>${escapeHtml(candidate.title)} · рейтинг ${candidate.rating}</span><small>${specialtyNames[candidate.specialty]} · найм ${money(candidate.hireCost)}</small><button class="secondary-button" data-hire-employee="${candidate.id}">Нанять</button></article>`).join("")}</div>` : ""}` : "";
+  $("#npc-list").innerHTML = (state.npcProfiles || []).map((npc) => `<div class="npc-row"><div><strong>${escapeHtml(npc.name)}</strong><small>${escapeHtml(npc.type)} · бюджет ${money(npc.budget)}</small></div><span>Рейтинг ${npc.rating}/100</span></div>`).join("");
+}
+
+function renderChat() {
+  const container = $("#chat-messages");
+  const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 90;
+  const messages = state.chatMessages || [];
+  $("#chat-count").textContent = messages.length;
+  container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
+    <div><strong>${escapeHtml(message.playerName)}</strong><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></div>
+    <p>${escapeHtml(message.text)}</p>
+  </div>`).join("") : '<div class="chat-empty">Сообщений пока нет.</div>';
+  if (nearBottom) container.scrollTop = container.scrollHeight;
+}
+
+function render() {
+  if (!state.player) return;
+  $("#cash").textContent = money(state.player.availableCash);
+  $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
+  $("#profile-name").textContent = state.player.name;
+  $("#avatar").textContent = state.player.name[0].toUpperCase();
+  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat();
+  if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
+}
+
+function setView(view) {
+  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
+  document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function marketModal(car) {
+  const own = car.sellerId === state.player.id;
+  const auction = car.saleType === "auction";
+  const [condition, conditionClass] = conditionLabel(car.condition);
+  const canOffer = car.sellerId && !own && !auction && car.price > 1;
+  const stats = state.marketStats[car.model];
+  const [priceLabel, priceClass] = pricePosition(car);
+  return `${carArt(car, "modal-car-art")}<div class="modal-body">
+    <p class="eyebrow">${own ? "Ваше объявление" : `Продавец: ${escapeHtml(car.seller)}`}</p>
+    <h2 id="modal-title">${escapeHtml(car.model)}</h2><p class="modal-subtitle">${car.year} год · ${number(car.mileage)} км</p>
+    <div class="inspection-grid">
+      <div><span>Состояние</span><strong class="condition ${conditionClass}">${condition}</strong></div>
+      <div><span>Пробег</span><strong>${number(car.mileage)} км</strong></div>
+      <div><span>Предложения</span><strong>${car.offerCount || 0}</strong></div>
+    </div>
+    <p class="description">«${escapeHtml(car.description)}»</p>
+    ${auction ? `<div class="auction-status"><strong>${car.highestBid ? `Текущая ставка ${money(car.highestBid)}` : `Стартовая цена ${money(car.startingPrice)}`}</strong><span>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)} · ` : ""}До завершения <b class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</b></span></div>` : ""}
+    ${stats ? `<div class="market-comparison">
+      <div><span>Индекс рынка</span><strong>${money(stats.marketPrice)} <b class="market-trend ${stats.trend > 0 ? "up" : stats.trend < 0 ? "down" : ""}">${stats.trend > 0 ? "+" : ""}${stats.trend}%</b></strong></div>
+      <div><span>Сейчас выставляют</span><strong>${money(stats.askingAverage)}</strong></div>
+      <div><span>Оценка цены</span><strong class="price-signal ${priceClass}">${priceLabel}</strong></div>
+    </div>` : ""}
+    <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
+      ${own ? `<button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}">Купить сейчас</button>`}
+    </div>
+    ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
+    ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">Предложить цену</button></form>` : ""}
+  </div>`;
+}
+
+function inspectionButton(car, category) {
+  const requirement = state.inspectionRequirements[category];
+  const skillLevel = state.player.skills[requirement.skill];
+  const equipmentLevel = state.player.equipment[requirement.equipment];
+  const score = skillLevel + equipmentLevel;
+  const record = car.inspectionRecords?.[category];
+  const canInspect = !car.serviceDiagnosed && (!record || score > record.bestScore);
+  const status = car.serviceDiagnosed ? "заключение сервиса" : record ? canInspect ? `можно углубить · было ${record.confidence}%` : `уверенность ${record.confidence}%` : "не проверено";
+  return `<button class="inspection-button" data-check="${category}" data-car-id="${car.id}" ${canInspect ? "" : "disabled"}>
+    <strong>${categoryNames[category]}</strong><small>${status}<br>${state.skillInfo[requirement.skill].name} ${skillLevel}/5 · ${state.equipmentInfo[requirement.equipment].name} ${equipmentLevel}/3</small>
+  </button>`;
+}
+
+function defectRow(car, defect) {
+  const skillName = state.skillInfo[defect.repairSkill]?.name || "Специалист";
+  const equipmentName = state.equipmentInfo[defect.repairEquipment]?.name || "Инструмент";
+  const canSelf = defect.selfRepairable && state.player.skills[defect.repairSkill] >= defect.repairSkillLevel && state.player.equipment[defect.repairEquipment] >= defect.repairEquipmentLevel;
+  const canAssisted = defect.selfRepairable && state.player.skills[defect.repairSkill] >= defect.assistedSkillLevel && state.player.equipment[defect.repairEquipment] >= defect.assistedEquipmentLevel;
+  const skillCurrent = state.player.skills[defect.repairSkill] || 0;
+  const equipmentCurrent = state.player.equipment[defect.repairEquipment] || 0;
+  const compatibleParts = (state.player.partInventory || []).filter((part) => [defect.category, "universal"].includes(part.component) && ["all", car.className].includes(part.compatibleClass));
+  return `<div class="defect-row ${defect.repaired ? "repaired" : ""}">
+    <strong>${escapeHtml(defect.name)} <span class="severity">${severityNames[defect.severity]}</span><small class="defect-detail">${escapeHtml(defect.symptom)}<br>Риск: ${escapeHtml(defect.consequence)}${defect.selfRepairable ? `<br>Готовность: ${skillName} ${skillCurrent}/5 · ${equipmentName} ${equipmentCurrent}/3` : "<br>Только специализированный сервис"}</small></strong>
+    ${defect.repaired ? "<span>Устранено</span>" : `<div class="repair-actions">${compatibleParts.length ? `<select data-part-select="${defect.code}"><option value="">Без складской детали</option>${compatibleParts.map((part) => `<option value="${part.id}">${escapeHtml(part.name)} · ${part.conditionPct}% · скидка до ${money(Math.round(part.estimatedValue * .65))}</option>`).join("")}</select>` : ""}<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop">Сервис · ${money(defect.repair)}</button><button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="assisted" ${canAssisted ? "" : "disabled"}>С помощником · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf ? "" : "disabled"}>Самостоятельно · ${money(defect.selfRepairCost)}</button></div>`}
+  </div>`;
+}
+
+function garageModal(car) {
+  const open = car.defects.filter((defect) => !defect.repaired);
+  const result = lastCheckResult && lastCheckResult.carId === car.id ? lastCheckResult : null;
+  return `${carArt(car, "modal-car-art")}<div class="modal-body">
+    <p class="eyebrow">Самостоятельный осмотр</p><h2 id="modal-title">${escapeHtml(car.model)}</h2>
+    <p class="modal-subtitle">Состояние ${car.condition}% · вложено ${money(car.invested)}</p>
+    ${!car.serviceDiagnosed ? `<div class="service-diagnostic"><div><strong>Полная диагностика в сервисе</strong><span>Заключение даёт 100% уверенности и повышает доверие покупателей. Выгодно, пока личный осмотр недостаточно глубокий.</span></div><button class="danger-button" data-service-diagnostic="${car.id}">${money(car.serviceDiagnosticCost)}</button></div>` : `<div class="inspection-summary"><strong>Диагностика сервиса завершена.</strong> Все неисправности известны, заключение увеличивает ликвидность машины.</div>`}
+    <div class="inspection-actions">${state.inspectionCategories.map((category) => inspectionButton(car, category)).join("")}</div>
+    ${result ? `<div class="inspection-summary"><strong>${categoryNames[result.category]}:</strong> новых проблем найдено ${result.found.length}. Уверенность проверки ${result.confidence}%. ${result.canImprove ? "После улучшения профессии или комплекта узел можно проверить глубже." : "Достигнута максимальная глубина личного осмотра."}</div>` : ""}
+    <div class="defect-list">${car.defects.length ? car.defects.map((defect) => defectRow(car, defect)).join("") : '<div class="defect-row"><strong>Обнаруженных неисправностей пока нет</strong><span>Проверяйте узлы</span></div>'}</div>
+    <section class="car-history"><h3>История автомобиля</h3>${(car.history || []).slice().reverse().map((entry) => `<div><time>${new Date(entry.at).toLocaleDateString("ru-RU")}</time><span>${escapeHtml(entry.text)}</span></div>`).join("")}</section>
+    <p class="description">Проверки находят только те дефекты, для которых хватает навыка и оборудования. Чистый результат не всегда означает исправную машину.</p>
+  </div>`;
+}
+
+function listModal(car) {
+  const estimate = car.saleEstimate;
+  const suggested = Math.max(1, estimate.recommendedLow);
+  const unresolvedText = estimate.unresolvedCount ? `${estimate.unresolvedCount} известных неисправностей` : "известных неисправностей нет";
+  return `${carArt(car, "modal-car-art")}<div class="modal-body"><p class="eyebrow">Новое объявление</p><h2 id="modal-title">Продать ${escapeHtml(car.model)}</h2>
+    <div class="seller-summary">
+      <div><span>Всего вложено</span><strong>${money(estimate.invested)}</strong></div>
+      <div><span>Индекс модели</span><strong>${money(estimate.marketPrice)}</strong></div>
+      <div><span>Техническая цена</span><strong>${money(estimate.technicalValue)}</strong></div>
+      <div><span>Ценность ремонта</span><strong>+${money(estimate.repairPremium + estimate.documentationPremium)}</strong></div>
+      <div><span>Рекомендация</span><strong>${money(estimate.recommendedLow)} — ${money(estimate.recommendedHigh)}</strong></div>
+      <div><span>Окупаемость</span><strong>${money(estimate.breakEven)}</strong></div>
+    </div>
+    <div class="seller-verdict"><span>${unresolvedText} · уверенность осмотра ${estimate.inspectionConfidence}%</span><strong id="npc-interest">—</strong><b id="projected-profit">—</b></div>
+    <form id="list-form" class="list-form" data-car-id="${car.id}">
+      <div class="sale-mode">
+        <label><input type="radio" name="saleType" value="fixed" checked><strong>Обычная продажа</strong><small>Покупка сразу или торг</small></label>
+        <label><input type="radio" name="saleType" value="auction"><strong>Аукцион</strong><small>Победит максимальная ставка</small></label>
+      </div>
+      <label>Цена продажи или стартовая ставка<input name="price" type="number" min="1" max="5000000" step="1" value="${suggested}" required></label>
+      <label class="auction-duration">Длительность аукциона<select name="durationSeconds"><option value="60">1 минута</option><option value="180">3 минуты</option><option value="300" selected>5 минут</option><option value="900">15 минут</option></select></label>
+      <label>Текст объявления<input name="description" maxlength="120" value="${car.repairs.length ? "Обслужена, список работ в истории." : "На ходу, разумный торг у капота."}" required></label>
+      <button class="danger-button" type="submit">Опубликовать объявление</button>
+    </form></div>`;
+}
+
+function updateListingSummary() {
+  if (modalMode !== "list") return;
+  const car = state.player.garage.find((item) => item.id === modalCarId);
+  const input = $("#list-form input[name='price']");
+  if (!car?.saleEstimate || !input) return;
+  const price = Math.max(1, Number(input.value) || 1);
+  const estimate = car.saleEstimate;
+  const profit = price - estimate.invested;
+  const interest = price <= estimate.expectedNpcPrice ? ["Высокий интерес NPC", "high-interest"] : price <= estimate.recommendedHigh ? ["Средний интерес NPC", "medium-interest"] : ["Низкий интерес NPC", "low-interest"];
+  $("#npc-interest").textContent = interest[0];
+  $("#npc-interest").className = interest[1];
+  $("#projected-profit").textContent = `${profit >= 0 ? "Прогноз прибыли +" : "Прогноз убытка "}${money(Math.abs(profit))}`;
+  $("#projected-profit").className = profit >= 0 ? "profit-positive" : "profit-negative";
+}
+
+function openModal(content, carId, mode) {
+  modalCarId = carId; modalMode = mode;
+  $("#modal-content").innerHTML = content;
+  $("#car-modal").hidden = false;
+  document.body.style.overflow = "hidden";
+  updateListingSummary();
+}
+function closeModal() { $("#car-modal").hidden = true; document.body.style.overflow = ""; modalCarId = null; modalMode = null; lastCheckResult = null; }
+function refreshOpenModal() {
+  const marketCar = state.market.find((car) => car.id === modalCarId);
+  const garageCar = state.player.garage.find((car) => car.id === modalCarId);
+  if (modalMode === "list" && garageCar) return;
+  else if (modalMode === "garage" && garageCar) $("#modal-content").innerHTML = garageModal(garageCar);
+  else if (modalMode === "market" && marketCar) $("#modal-content").innerHTML = marketModal(marketCar);
+  else closeModal();
+}
+
+function connectEvents() {
+  if (events) events.close();
+  events = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+  events.addEventListener("update", (event) => { state = JSON.parse(event.data); render(); });
+  events.onerror = () => { $("#online-label").textContent = "Переподключение…"; };
+  events.onopen = () => { $("#online-label").textContent = "Рынок онлайн"; };
+}
+
+async function enterGame(data) {
+  state = data; $("#join-screen").hidden = true; $("#game").hidden = false; render(); connectEvents();
+}
+
+$("#join-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const button = event.submitter; button.disabled = true; $("#join-error").textContent = "";
+  const action = event.submitter?.dataset.authAction || "login";
+  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, pin: $("#player-pin").value }) }); token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
+  catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
+});
+
+async function perform(path, body, success) {
+  try { state = await request(path, { method: "POST", body: JSON.stringify(body) }); render(); if (success) showToast(success); return true; }
+  catch (error) { showToast(error.message, true); return false; }
+}
+
+document.addEventListener("click", async (event) => {
+  const tab = event.target.closest("[data-view]"); if (tab) return setView(tab.dataset.view);
+  if (event.target.closest("[data-go-market]")) return setView("market");
+  if (event.target.closest("[data-close-modal]")) return closeModal();
+
+  const openMarket = event.target.closest("[data-open-market]");
+  if (openMarket) { const car = state.market.find((item) => item.id === openMarket.dataset.openMarket); if (car) openModal(marketModal(car), car.id, "market"); return; }
+  const openGarage = event.target.closest("[data-open-garage]");
+  if (openGarage) { const car = state.player.garage.find((item) => item.id === openGarage.dataset.openGarage); if (car) openModal(garageModal(car), car.id, "garage"); return; }
+  const listCar = event.target.closest("[data-list-car]");
+  if (listCar) { const car = state.player.garage.find((item) => item.id === listCar.dataset.listCar); if (car) openModal(listModal(car), car.id, "list"); return; }
+
+  const skill = event.target.closest("[data-skill]"); if (skill) return perform("/api/skill", { skill: skill.dataset.skill }, "Навык повышен");
+  const equipment = event.target.closest("[data-equipment]"); if (equipment) return perform("/api/equipment", { equipment: equipment.dataset.equipment }, "Оборудование куплено");
+  if (event.target.closest("[data-expand-garage]")) return perform("/api/garage/expand", {}, "В гараже появилось новое место");
+  const buyParts = event.target.closest("[data-buy-parts]"); if (buyParts) return perform("/api/parts/buy", { type: buyParts.dataset.buyParts }, "Комплект запчастей добавлен на склад");
+  const buyMarketPart = event.target.closest("[data-buy-part-market]"); if (buyMarketPart) return perform("/api/parts/buy-market", { partId: buyMarketPart.dataset.buyPartMarket }, "Запчасть куплена на рынке");
+  const listPart = event.target.closest("[data-list-part]"); if (listPart) return perform("/api/parts/list", { inventoryPartId: listPart.dataset.listPart, price: $(`#part-price-${listPart.dataset.listPart}`)?.value }, "Деталь выставлена на биржу");
+  if (event.target.closest("[data-group-create]")) return perform("/api/group/create", { name: $("#group-name")?.value }, "Группа создана");
+  if (event.target.closest("[data-group-join]")) return perform("/api/group/join", { groupId: $("#group-join-id")?.value }, "Вы вступили в группу");
+  if (event.target.closest("[data-group-transfer]")) return perform("/api/group/transfer", { amount: $("#group-transfer-amount")?.value }, "Взнос отправлен в общую кассу");
+  if (event.target.closest("[data-group-pay]")) return perform("/api/group/pay", { playerId: $("#group-pay-player")?.value, amount: $("#group-pay-amount")?.value }, "Деньги выданы участнику");
+  const groupDepositCar = event.target.closest("[data-group-deposit-car]"); if (groupDepositCar) return perform("/api/group/garage/deposit", { carId: groupDepositCar.dataset.groupDepositCar }, "Машина передана в общий гараж");
+  const groupWithdrawCar = event.target.closest("[data-group-withdraw-car]"); if (groupWithdrawCar) return perform("/api/group/garage/withdraw", { carId: groupWithdrawCar.dataset.groupWithdrawCar }, "Машина возвращена в личный гараж");
+  const hireEmployee = event.target.closest("[data-hire-employee]"); if (hireEmployee) return perform("/api/group/employee/hire", { employeeId: hireEmployee.dataset.hireEmployee }, "Сотрудник принят в группу");
+  const buy = event.target.closest("[data-buy]"); if (buy) { if (await perform("/api/buy", { carId: buy.dataset.buy }, "Машина отправлена в гараж")) { closeModal(); setView("garage"); } return; }
+  const dismantle = event.target.closest("[data-dismantle]"); if (dismantle) return perform("/api/car/dismantle", { carId: dismantle.dataset.dismantle }, "Машина разобрана, детали отправлены на склад");
+  const unlist = event.target.closest("[data-unlist]"); if (unlist) { if (await perform("/api/unlist", { carId: unlist.dataset.unlist }, "Объявление снято")) closeModal(); return; }
+  const repair = event.target.closest("[data-repair]"); if (repair) return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, partId: document.querySelector(`[data-part-select="${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? "Вы самостоятельно устранили неисправность" : repair.dataset.repairMode === "assisted" ? "Ремонт выполнен вместе с мастером" : "Ремонт выполнен в сервисе");
+  const serviceDiagnostic = event.target.closest("[data-service-diagnostic]");
+  if (serviceDiagnostic) return perform("/api/service-diagnostic", { carId: serviceDiagnostic.dataset.serviceDiagnostic }, "Сервис обнаружил все неисправности");
+  const check = event.target.closest("[data-check]");
+  if (check) {
+    try {
+      const data = await request("/api/check", { method: "POST", body: JSON.stringify({ carId: check.dataset.carId, category: check.dataset.check }) });
+      lastCheckResult = { ...data.checkResult, carId: check.dataset.carId }; state = data; render();
+      showToast(data.checkResult.found.length ? `Обнаружено неисправностей: ${data.checkResult.found.length}` : "Явных неисправностей не обнаружено");
+    } catch (error) { showToast(error.message, true); }
+    return;
+  }
+
+  const offerAction = event.target.closest("[data-offer-action]");
+  if (offerAction) {
+    const action = offerAction.dataset.offerAction;
+    const amount = action === "counter" ? $(`#counter-${offerAction.dataset.offerId}`)?.value : undefined;
+    return perform("/api/offer/respond", { offerId: offerAction.dataset.offerId, action, amount }, action === "accept" ? "Предложение принято" : action === "reject" ? "Предложение отклонено" : "Встречная цена отправлена");
+  }
+  const acceptCounter = event.target.closest("[data-accept-counter]");
+  if (acceptCounter) { if (await perform("/api/offer/accept-counter", { offerId: acceptCounter.dataset.acceptCounter }, "Машина куплена по встречной цене")) setView("garage"); }
+  if (event.target.closest("#profile-button")) return setView("profile");
+  if (event.target.closest("[data-logout]")) {
+    localStorage.removeItem("perekup-token");
+    if (events) events.close();
+    location.reload();
+  }
+});
+
+document.addEventListener("submit", async (event) => {
+  if (event.target.id === "market-filters") {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    marketFilters = { min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, saleType: data.get("saleType") || "all", priceBand: data.get("priceBand") || "all", sort: data.get("sort") || "new" };
+    renderMarket();
+    return;
+  }
+  if (event.target.id === "chat-form") {
+    event.preventDefault();
+    const input = $("#chat-input");
+    if (await perform("/api/chat", { message: input.value }, "Сообщение отправлено")) input.value = "";
+    return;
+  }
+  if (event.target.id === "list-form") {
+    event.preventDefault(); const form = event.target; const data = new FormData(form);
+    if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds") }, data.get("saleType") === "auction" ? "Аукцион запущен" : "Объявление опубликовано. NPC уже оценивают машину.")) { closeModal(); setView("market"); }
+  }
+  if (event.target.id === "offer-form") {
+    event.preventDefault(); const form = event.target; const data = new FormData(form);
+    if (await perform("/api/offer", { carId: form.dataset.carId, amount: data.get("amount") }, "Предложение отправлено продавцу")) { closeModal(); setView("deals"); }
+  }
+  if (event.target.id === "bid-form") {
+    event.preventDefault(); const form = event.target; const data = new FormData(form);
+    if (await perform("/api/bid", { carId: form.dataset.carId, amount: data.get("amount") }, "Ставка принята, сумма зарезервирована")) refreshOpenModal();
+  }
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target.matches("#list-form input[name='price']")) updateListingSummary();
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-group-role]")) perform("/api/group/role", { playerId: event.target.dataset.groupRole, role: event.target.value }, "Роль участника изменена");
+});
+
+$("#market-filters").addEventListener("reset", () => {
+  marketFilters = { min: null, max: null, saleType: "all", priceBand: "all", sort: "new" };
+  setTimeout(renderMarket, 0);
+});
+
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("#car-modal").hidden) closeModal(); });
+async function restore() { if (!token) return; try { await enterGame(await request("/api/state")); } catch { localStorage.removeItem("perekup-token"); token = ""; } }
+restore();
+setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); }, 1000);
+document.addEventListener("contextmenu", (event) => event.preventDefault());

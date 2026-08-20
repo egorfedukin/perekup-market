@@ -1,0 +1,8 @@
+data/
+*.log
+*-test.js
+*.bat
+*.zip
+.git/
+.gitignore
+node_modules/

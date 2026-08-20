@@ -1,0 +1,480 @@
+:root {
+  --ink: #1b1d1a;
+  --muted: #70746c;
+  --paper: #f2f0e9;
+  --surface: #fffef9;
+  --line: #d8d6cd;
+  --accent: #e25136;
+  --accent-dark: #b93725;
+  --green: #2b7953;
+  --yellow: #e6b83e;
+  --dark: #191b18;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--paper); }
+body { margin: 0; color: var(--ink); background: var(--paper); font-family: Arial, Helvetica, sans-serif; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+
+.join-screen { min-height: 100vh; display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(440px, .9fr); background: var(--dark); }
+.join-visual { position: relative; min-height: 660px; overflow: hidden; }
+.join-visual::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 65%, var(--dark)); }
+.join-visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.join-brand { position: absolute; z-index: 1; top: 34px; left: 42px; color: white; font-size: 28px; font-weight: 900; letter-spacing: 0; }
+.join-brand span, .logo span { color: var(--accent); }
+.join-panel { align-self: center; padding: 70px clamp(36px, 7vw, 110px) 70px 50px; color: #f8f4e9; }
+.eyebrow { margin: 0 0 11px; text-transform: uppercase; font-size: 11px; line-height: 1.4; font-weight: 800; color: var(--accent); }
+.join-panel h1 { margin: 0; max-width: 620px; font-size: clamp(46px, 5.3vw, 82px); line-height: .94; letter-spacing: 0; text-transform: uppercase; }
+.join-copy { max-width: 560px; margin: 27px 0 36px; color: #b9bcb4; font-size: 17px; line-height: 1.55; }
+.join-panel label { display: block; margin-bottom: 9px; color: #d7d8d2; font-size: 12px; font-weight: 700; }
+.auth-fields { display: grid; grid-template-columns: 1fr 160px; gap: 8px; }
+.auth-fields label { margin: 0; }
+.auth-fields input { display: block; width: 100%; height: 54px; margin-top: 9px; border: 1px solid #484b45; background: #242623; color: white; padding: 0 16px; outline: none; }
+.auth-fields input:focus { border-color: var(--accent); }
+.auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.auth-actions button, .empty-state button { height: 54px; padding: 0 20px; border: 0; background: var(--accent); color: white; font-weight: 800; }
+.auth-actions button:hover, .empty-state button:hover { background: #f05c40; }
+.auth-actions .auth-secondary { border: 1px solid #575b53; background: transparent; }
+.auth-actions .auth-secondary:hover { background: #30332e; }
+.form-error { min-height: 18px; margin: 8px 0 0; color: #ff8c78; font-size: 12px; }
+.join-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 42px; padding-top: 24px; border-top: 1px solid #373a35; gap: 16px; }
+.join-stats strong, .join-stats span { display: block; }
+.join-stats strong { font-size: 14px; }
+.join-stats span { margin-top: 5px; color: #858a81; font-size: 11px; }
+
+.game { min-height: 100vh; }
+.topbar { position: sticky; z-index: 20; top: 0; height: 72px; display: grid; grid-template-columns: 170px 1fr auto auto; align-items: center; gap: 24px; padding: 0 max(24px, calc((100vw - 1400px) / 2)); border-bottom: 1px solid #32342f; background: var(--dark); color: white; }
+.logo { color: white; text-decoration: none; font-weight: 900; font-size: 23px; }
+.tabs { align-self: stretch; display: flex; }
+.tab { position: relative; border: 0; padding: 0 20px; background: transparent; color: #92968e; font-size: 13px; font-weight: 700; }
+.tab:hover { color: white; }
+.tab.active { color: white; }
+.tab.active::after { content: ""; position: absolute; height: 3px; left: 20px; right: 20px; bottom: 0; background: var(--accent); }
+.badge { display: inline-grid; min-width: 21px; height: 21px; place-items: center; margin-left: 5px; padding: 0 5px; border-radius: 11px; background: #343731; color: #c2c5bd; font-size: 10px; }
+.wallet { padding-right: 24px; border-right: 1px solid #3a3c37; text-align: right; }
+.wallet span, .wallet strong { display: block; white-space: nowrap; }
+.wallet span { color: #777c73; font-size: 10px; text-transform: uppercase; }
+.wallet strong { margin-top: 3px; font-size: 16px; }
+.profile-button { display: flex; align-items: center; gap: 9px; border: 0; background: transparent; color: white; font-weight: 700; }
+.profile-button > span:first-child { width: 34px; height: 34px; display: grid; place-items: center; background: var(--accent); font-size: 13px; }
+.profile-button b, .profile-button small { display: block; text-align: left; }
+.profile-button small { margin-top: 2px; color: #858a81; font-size: 9px; font-weight: 600; }
+
+.content { width: min(1400px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0 80px; }
+.view { display: none; }
+.view.active-view { display: block; }
+.section-heading { min-height: 72px; display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.section-heading h2 { margin: 0; font-size: clamp(31px, 4vw, 48px); line-height: 1; text-transform: uppercase; }
+.market-pulse { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; color: var(--muted); font-size: 12px; }
+.market-pulse b { margin-left: 6px; color: var(--ink); font-size: 10px; font-variant-numeric: tabular-nums; }
+.market-pulse i { width: 8px; height: 8px; border-radius: 50%; background: #39a66d; box-shadow: 0 0 0 5px rgba(57,166,109,.13); }
+.garage-value, .my-profit { text-align: right; }
+.garage-value span, .garage-value strong, .my-profit span, .my-profit strong { display: block; }
+.garage-value span, .my-profit span { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+.garage-value strong, .my-profit strong { margin-top: 5px; font-size: 22px; }
+.market-index { margin-bottom: 24px; border-top: 2px solid var(--ink); background: var(--surface); }
+.market-index-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 18px 20px; }
+.market-index-head h3 { margin: 0; font-size: 21px; text-transform: uppercase; }
+.market-index-head > span { color: var(--muted); font-size: 10px; }
+.market-stats-head, .market-stat-row { display: grid; grid-template-columns: minmax(150px, 1.2fr) repeat(3, minmax(130px, 1fr)); align-items: center; gap: 14px; min-height: 43px; padding: 0 20px; border-top: 1px solid var(--line); }
+.market-stats-head { color: var(--muted); background: #ebe9e1; font-size: 9px; text-transform: uppercase; }
+.market-stat-row { font-size: 11px; }
+.market-stat-row strong { font-size: 12px; }
+.market-stat-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+.market-trend { margin-left: 4px; color: var(--muted); font-size: 9px; }
+.market-trend.up { color: var(--green); }
+.market-trend.down { color: var(--accent-dark); }
+.market-filters { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)) auto auto; align-items: end; gap: 8px; margin-bottom: 18px; padding: 14px; border-top: 2px solid var(--ink); background: var(--surface); }
+.market-filters label { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.market-filters input, .market-filters select { width: 100%; height: 40px; margin-top: 6px; border: 1px solid var(--line); background: white; padding: 0 10px; }
+.market-filters button { min-height: 40px; }
+.filter-result { grid-column: 1 / -1; color: var(--muted); font-size: 10px; }
+.empty-filter { grid-column: 1 / -1; padding: 55px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); text-align: center; }
+.price-signal { display: inline-block; margin-top: 8px; padding: 4px 6px; background: #e8eee8; color: var(--green); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.price-signal.high { background: #f7e6e1; color: var(--accent-dark); }
+.price-signal.normal { background: #f4edd8; color: #876a18; }
+.market-tag { display: inline-block; margin: 8px 0 0 5px; color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.offer-note { margin-top: 10px; color: var(--accent); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.auction-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); color: var(--accent-dark); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.auction-timer { font-variant-numeric: tabular-nums; }
+.progress-strip { display: grid; grid-template-columns: 170px 1fr auto; align-items: center; gap: 20px; margin-bottom: 20px; padding: 15px 18px; background: var(--dark); color: white; }
+.garage-management { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-bottom: 18px; background: var(--line); border-top: 2px solid var(--ink); }
+.garage-management > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 12px; padding: 14px; background: var(--surface); }
+.garage-management span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.garage-management strong { grid-column: 1; font-size: 15px; }
+.garage-management button { grid-column: 2; grid-row: 1 / 3; min-height: 38px; }
+.parts-market-panel, .group-panel, .npc-panel { margin: 18px 0; padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.parts-market-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.part-lot { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--line); }
+.part-lot strong, .part-lot small { display: block; }
+.part-lot strong { font-size: 11px; }
+.part-lot small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.part-lot > span { font-size: 12px; font-weight: 800; }
+.part-list-action { display: flex; gap: 5px; }
+.part-list-action input { width: 105px; height: 36px; border: 1px solid var(--line); padding: 0 7px; }
+.parts-market-heading { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.level-block { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+.level-block span { color: #9b9f96; }
+.xp-track { height: 6px; overflow: hidden; background: #3b3e38; }
+.xp-track i { display: block; width: 0; height: 100%; background: var(--accent); transition: width .25s; }
+.skill-points { color: #9b9f96; font-size: 11px; }
+.skill-points strong { color: var(--yellow); font-size: 17px; }
+.workshop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 32px; }
+.workshop-section { padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.workshop-heading h3, .deals-section h3 { margin: 0 0 16px; font-size: 20px; text-transform: uppercase; }
+.upgrade-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.upgrade-item { min-width: 0; padding: 13px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.upgrade-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.upgrade-top strong { font-size: 12px; }
+.upgrade-level { flex: 0 0 auto; padding: 3px 6px; background: #ece9df; color: var(--muted); font-size: 9px; font-weight: 800; }
+.upgrade-item p { min-height: 28px; margin: 7px 0 11px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.upgrade-item button { width: 100%; min-height: 33px; padding: 0 8px; border: 1px solid var(--ink); background: transparent; font-size: 10px; font-weight: 800; }
+.upgrade-item button:hover:not(:disabled) { background: var(--ink); color: white; }
+.upgrade-item button:disabled { cursor: not-allowed; border-color: var(--line); color: #a6aaa2; }
+
+.car-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.car-card { min-width: 0; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); text-align: left; padding: 0; transition: transform .15s, box-shadow .15s; }
+.car-card:hover { position: relative; z-index: 1; transform: translateY(-3px); box-shadow: 0 12px 30px rgba(31,33,29,.11); }
+.car-art { position: relative; height: 155px; overflow: hidden; background: #e8e5dc; }
+.car-art::before { content: ""; position: absolute; left: 50%; bottom: 18px; width: 72%; height: 39%; transform: translateX(-50%); border-radius: 45% 48% 18% 18% / 60% 60% 25% 25%; background: var(--car-color); box-shadow: inset 0 -10px rgba(0,0,0,.13); }
+.car-art::after { content: ""; position: absolute; left: 50%; bottom: 13px; width: 78%; height: 13px; transform: translateX(-50%); border-radius: 50%; background: rgba(0,0,0,.22); filter: blur(4px); }
+.car-window { position: absolute; z-index: 1; left: 50%; bottom: 56px; width: 37%; height: 32px; transform: translateX(-50%); clip-path: polygon(17% 0, 82% 0, 100% 100%, 0 100%); background: #6f8588; border: 5px solid var(--car-color); }
+.wheel { position: absolute; z-index: 2; bottom: 16px; width: 31px; height: 31px; border: 7px solid #20221f; border-radius: 50%; background: #8a8d84; }
+.wheel.left { left: 24%; } .wheel.right { right: 24%; }
+.vehicle-classic::before { width: 68%; height: 43%; border-radius: 9% 12% 8% 8%; clip-path: polygon(8% 38%, 25% 4%, 73% 4%, 92% 38%, 100% 48%, 96% 100%, 3% 100%, 0 49%); }
+.vehicle-classic .car-window { width: 34%; height: 36px; clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%); }
+.vehicle-hatch::before { width: 62%; height: 46%; border-radius: 32% 18% 15% 15%; clip-path: polygon(10% 34%, 30% 0, 78% 4%, 96% 40%, 100% 100%, 0 100%); }
+.vehicle-hatch .wheel.left { left: 29%; } .vehicle-hatch .wheel.right { right: 27%; }
+.vehicle-sedan::before { width: 76%; height: 39%; clip-path: polygon(4% 51%, 22% 43%, 35% 3%, 67% 3%, 78% 41%, 97% 48%, 100% 100%, 0 100%); }
+.vehicle-suv::before { width: 74%; height: 54%; border-radius: 12% 18% 8% 8%; clip-path: polygon(7% 24%, 22% 0, 78% 0, 95% 28%, 100% 100%, 0 100%, 0 39%); }
+.vehicle-suv .car-window { bottom: 67px; width: 40%; height: 45px; }
+.vehicle-suv .wheel { width: 36px; height: 36px; bottom: 12px; }
+.vehicle-coupe::before { width: 74%; height: 34%; border-radius: 55% 55% 13% 13%; clip-path: polygon(3% 58%, 25% 48%, 43% 0, 68% 5%, 80% 45%, 98% 54%, 100% 100%, 0 100%); }
+.vehicle-coupe .car-window { bottom: 50px; width: 29%; height: 26px; }
+.vehicle-van::before { width: 68%; height: 62%; border-radius: 8% 15% 6% 6%; clip-path: polygon(5% 7%, 70% 7%, 95% 34%, 100% 100%, 0 100%, 0 15%); }
+.vehicle-van .car-window { bottom: 72px; left: 62%; width: 23%; height: 48px; clip-path: polygon(0 0, 72% 0, 100% 100%, 0 100%); }
+.vehicle-electric::before { width: 74%; height: 37%; border-radius: 60% 45% 16% 16%; clip-path: polygon(2% 58%, 25% 48%, 39% 2%, 70% 2%, 82% 45%, 99% 56%, 100% 100%, 0 100%); }
+.vehicle-electric .car-window { width: 36%; background: #91b9c1; }
+.vehicle-premium::before { width: 82%; height: 38%; border-radius: 25% 34% 10% 10%; clip-path: polygon(1% 56%, 28% 45%, 39% 2%, 70% 2%, 82% 45%, 99% 52%, 100% 100%, 0 100%); }
+.vehicle-premium .wheel.left { left: 20%; } .vehicle-premium .wheel.right { right: 20%; }
+.vehicle-wagon::before { width: 78%; height: 48%; border-radius: 16% 20% 10% 10%; clip-path: polygon(4% 37%, 23% 4%, 76% 4%, 93% 37%, 100% 100%, 0 100%, 0 49%); }
+.vehicle-wagon .car-window { bottom: 62px; width: 45%; height: 40px; }
+.vehicle-pickup::before { width: 78%; height: 48%; border-radius: 10%; clip-path: polygon(2% 48%, 19% 42%, 27% 2%, 53% 2%, 64% 45%, 98% 45%, 100% 100%, 0 100%); }
+.vehicle-pickup .car-window { left: 43%; bottom: 62px; width: 24%; height: 38px; }
+.vehicle-roadster::before { width: 76%; height: 29%; border-radius: 62% 50% 13% 13%; clip-path: polygon(1% 52%, 34% 42%, 45% 3%, 65% 10%, 74% 43%, 98% 49%, 100% 100%, 0 100%); }
+.vehicle-roadster .car-window { left: 55%; bottom: 43px; width: 20%; height: 22px; border-width: 4px; }
+.car-year { position: absolute; z-index: 3; top: 12px; left: 12px; padding: 5px 7px; background: rgba(255,255,255,.9); font-size: 10px; font-weight: 800; }
+.seller-label { position: absolute; z-index: 3; top: 12px; right: 12px; max-width: 45%; overflow: hidden; padding: 5px 7px; color: white; background: rgba(27,29,26,.83); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.car-info { padding: 17px; }
+.car-info h3 { margin: 0; font-size: 18px; line-height: 1.2; }
+.car-meta { display: flex; justify-content: space-between; gap: 8px; margin: 9px 0 17px; color: var(--muted); font-size: 11px; }
+.car-price-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.car-price-row strong { font-size: 20px; }
+.condition { color: var(--green); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.condition.mid { color: #9a7216; } .condition.low { color: var(--accent-dark); }
+
+.garage-list { display: grid; gap: 16px; }
+.garage-car { display: grid; grid-template-columns: 260px minmax(230px, 1fr) minmax(250px, 1.2fr) auto; align-items: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
+.garage-car .car-art { height: 170px; }
+.garage-main, .garage-status, .garage-actions { padding: 22px; }
+.garage-main h3 { margin: 0 0 8px; font-size: 23px; }
+.garage-main p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.garage-status { border-left: 1px solid var(--line); }
+.status-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 11px; }
+.status-bar { height: 7px; overflow: hidden; background: #e5e3db; }
+.status-bar i { display: block; height: 100%; background: var(--green); }
+.defect-count { margin: 13px 0 0; color: var(--muted); font-size: 11px; }
+.garage-actions { display: grid; gap: 8px; min-width: 190px; }
+.primary-button, .secondary-button, .danger-button { min-height: 40px; border: 1px solid var(--ink); padding: 0 15px; font-weight: 800; font-size: 12px; }
+.primary-button { background: var(--ink); color: white; }
+.primary-button:hover { background: #353832; }
+.secondary-button { background: transparent; color: var(--ink); }
+.secondary-button:hover { background: #e8e6de; }
+.danger-button { border-color: var(--accent); background: var(--accent); color: white; }
+.empty-state { padding: 80px 20px; border: 1px dashed #c5c3ba; text-align: center; }
+.empty-icon { width: 58px; height: 58px; display: grid; place-items: center; margin: 0 auto 20px; background: var(--ink); color: white; font-size: 25px; font-weight: 900; }
+.empty-state h3 { margin: 0; font-size: 24px; }
+.empty-state p { max-width: 430px; margin: 10px auto 22px; color: var(--muted); line-height: 1.5; }
+
+.leaderboard { border-top: 2px solid var(--ink); background: var(--surface); }
+.leader-head, .leader-row { display: grid; grid-template-columns: 1fr 120px 180px; align-items: center; min-height: 64px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.leader-head { min-height: 42px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.leader-row.current { background: #f9eadf; }
+.leader-player { display: flex; align-items: center; gap: 15px; font-weight: 800; }
+.place { width: 28px; color: var(--muted); font-size: 12px; }
+.leader-profit { font-weight: 900; }
+.deals-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.deals-section { min-width: 0; padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.offers-list { display: grid; gap: 10px; }
+.offer-card { padding: 15px; border: 1px solid var(--line); }
+.offer-card.bot { border-left: 4px solid var(--yellow); }
+.offer-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.offer-head strong { font-size: 14px; }
+.offer-head span { flex: 0 0 auto; font-size: 17px; font-weight: 900; }
+.offer-car { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.offer-reason { margin: 12px 0; padding: 9px 11px; background: #f2f0e9; color: #555951; font-size: 11px; line-height: 1.45; }
+.offer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.offer-actions button { min-height: 34px; }
+.counter-row { display: flex; gap: 6px; width: 100%; }
+.counter-row input { min-width: 0; flex: 1; height: 34px; border: 1px solid var(--line); padding: 0 8px; }
+.no-offers { padding: 28px 12px; border: 1px dashed var(--line); color: var(--muted); text-align: center; font-size: 12px; }
+.contracts-section { margin-top: 22px; padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.contracts-section .workshop-heading { display: flex; align-items: end; justify-content: space-between; }
+.reputation-badge { padding: 7px 10px; background: #e8eee8; color: var(--green); font-size: 10px; font-weight: 800; }
+.contracts-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.contract-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 98px; padding: 13px; border: 1px solid var(--line); }
+.contract-card strong, .contract-card p, .contract-card small { display: block; }
+.contract-card strong { font-size: 12px; }
+.contract-card p { margin: 6px 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.contract-card small { color: var(--muted); font-size: 9px; }
+.contract-card > span { flex: 0 0 auto; color: var(--green); font-size: 11px; font-weight: 800; }
+.contract-card.completed { background: #e8eee8; }
+.contract-card.completed > span { color: var(--green); }
+.contract-card.failed { opacity: .55; }
+
+.modal { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 22px; }
+.modal-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: rgba(17,18,16,.72); backdrop-filter: blur(3px); }
+.modal-panel { position: relative; z-index: 1; width: min(720px, 100%); max-height: calc(100vh - 44px); overflow: auto; background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+.close-button { position: absolute; z-index: 2; top: 14px; right: 14px; }
+.icon-button { width: 36px; height: 36px; border: 0; background: var(--ink); color: white; font-size: 25px; line-height: 1; }
+.modal-car-art { height: 230px; }
+.modal-body { padding: 28px; }
+.modal-body h2 { margin: 0; font-size: 33px; text-transform: uppercase; }
+.modal-subtitle { margin: 7px 0 24px; color: var(--muted); }
+.inspection-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.inspection-grid div { padding: 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.inspection-grid span, .inspection-grid strong { display: block; }
+.inspection-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.inspection-grid strong { margin-top: 5px; }
+.description { margin: 22px 0; padding-left: 15px; border-left: 3px solid var(--yellow); color: #50534d; font-size: 14px; line-height: 1.5; }
+.modal-action-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.modal-price span, .modal-price strong { display: block; }
+.modal-price span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.modal-price strong { margin-top: 3px; font-size: 26px; }
+.modal-action-row button { min-height: 48px; padding: 0 24px; }
+.defect-list { display: grid; gap: 8px; margin: 20px 0; }
+.defect-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 14px; min-height: 50px; padding: 10px 12px 10px 14px; border: 1px solid var(--line); font-size: 12px; }
+.defect-row.repaired { color: var(--muted); text-decoration: line-through; }
+.defect-row button { min-height: 32px; }
+.repair-actions { display: grid; min-width: 170px; gap: 6px; }
+.repair-actions select { max-width: 245px; height: 35px; border: 1px solid var(--line); background: white; padding: 0 7px; font-size: 9px; }
+.repair-actions button:disabled { cursor: not-allowed; opacity: .4; }
+.defect-detail { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.35; }
+.severity { display: inline-block; margin-left: 6px; color: var(--accent); font-size: 9px; text-transform: uppercase; }
+.inspection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+.inspection-button { min-height: 55px; border: 1px solid var(--line); background: white; padding: 8px 10px; text-align: left; }
+.inspection-button:hover:not(:disabled) { border-color: var(--ink); }
+.inspection-button:disabled { color: #989c94; background: #efede6; cursor: not-allowed; }
+.inspection-button strong, .inspection-button small { display: block; }
+.inspection-button small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.inspection-summary { margin: 16px 0; padding: 12px; background: #f2f0e9; font-size: 11px; line-height: 1.5; }
+.service-diagnostic { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 18px 0; padding: 15px; border-left: 4px solid var(--accent); background: #f4e8e2; }
+.service-diagnostic strong, .service-diagnostic span { display: block; }
+.service-diagnostic span { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.market-comparison { display: grid; grid-template-columns: repeat(3, 1fr); margin: 20px 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.market-comparison div { padding: 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.market-comparison span, .market-comparison strong { display: block; }
+.market-comparison span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.market-comparison strong { margin-top: 5px; font-size: 13px; }
+.offer-form { display: flex; gap: 7px; margin-top: 12px; }
+.offer-form input { min-width: 0; flex: 1; height: 42px; border: 1px solid var(--line); padding: 0 10px; }
+.offer-form button { min-height: 42px; }
+.list-form { display: grid; gap: 13px; margin-top: 20px; }
+.list-form label { font-size: 11px; font-weight: 800; }
+.list-form input { width: 100%; height: 46px; margin-top: 7px; border: 1px solid var(--line); padding: 0 13px; background: white; outline: none; }
+.list-form input:focus { border-color: var(--ink); }
+.sale-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.sale-mode label { position: relative; margin: 0; padding: 13px; border: 1px solid var(--line); cursor: pointer; }
+.sale-mode label:has(input:checked) { border-color: var(--ink); background: #eceae2; }
+.sale-mode input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sale-mode strong, .sale-mode small { display: block; }
+.sale-mode small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.auction-duration { display: none; }
+.list-form:has(input[value="auction"]:checked) .auction-duration { display: block; }
+.seller-summary { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 20px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.seller-summary > div { min-width: 0; padding: 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.seller-summary span, .seller-summary strong { display: block; }
+.seller-summary span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.seller-summary strong { margin-top: 5px; font-size: 12px; overflow-wrap: anywhere; }
+.seller-verdict { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 16px; padding: 12px; background: #eceae2; }
+.seller-verdict span { color: var(--muted); font-size: 10px; }
+.seller-verdict strong { font-size: 11px; }
+.seller-verdict b { grid-column: 1 / -1; font-size: 13px; }
+.high-interest, .profit-positive { color: var(--green); }
+.medium-interest { color: #876a18; }
+.low-interest, .profit-negative { color: var(--accent-dark); }
+.auction-duration select { width: 100%; height: 46px; margin-top: 7px; border: 1px solid var(--line); padding: 0 13px; background: white; }
+.bid-form { display: flex; gap: 7px; margin-top: 14px; }
+.bid-form input { min-width: 0; flex: 1; height: 46px; border: 1px solid var(--line); padding: 0 10px; }
+.auction-status { margin: 18px 0; padding: 13px; border-left: 4px solid var(--accent); background: #f4e8e2; }
+.auction-status strong, .auction-status span { display: block; }
+.auction-status span { margin-top: 5px; color: var(--muted); font-size: 10px; }
+.profile-hero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px; padding: 28px; background: var(--dark); color: white; }
+.profile-monogram { width: 72px; height: 72px; display: grid; place-items: center; background: var(--accent); font-size: 30px; font-weight: 900; }
+.profile-hero h3 { margin: 0; font-size: 30px; text-transform: uppercase; }
+.profile-hero p:last-child { margin: 6px 0 0; color: #92968e; font-size: 11px; }
+.profile-capital { text-align: right; }
+.profile-capital span, .profile-capital strong { display: block; }
+.profile-capital span { color: #92968e; font-size: 9px; text-transform: uppercase; }
+.profile-capital strong { margin-top: 6px; font-size: 25px; }
+.profile-reputation { text-align: right; }
+.profile-reputation span, .profile-reputation strong { display: block; }
+.profile-reputation span { color: #92968e; font-size: 9px; text-transform: uppercase; }
+.profile-reputation strong { margin-top: 6px; color: var(--yellow); font-size: 22px; }
+.group-content { min-height: 50px; }
+.group-summary, .group-create { display: grid; gap: 7px; }
+.group-summary strong { font-size: 18px; }
+.group-summary span, .group-summary small, .group-create small { color: var(--muted); font-size: 10px; }
+.group-summary > div, .group-create { display: flex; gap: 7px; margin-top: 7px; }
+.group-summary input, .group-create input, .group-summary select { min-width: 0; flex: 1; height: 38px; border: 1px solid var(--line); background: white; padding: 0 9px; }
+.group-members, .group-garage, .group-employees { margin-top: 22px; }
+.group-members h4, .group-garage h4, .group-employees h4 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; }
+.group-member { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.group-member strong, .group-member small { display: block; }
+.group-member strong { font-size: 11px; }
+.group-member small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.group-member select { height: 34px; border: 1px solid var(--line); background: white; }
+.group-garage { display: grid; gap: 8px; }
+.group-garage h4 { grid-column: 1 / -1; }
+.group-car { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 12px; border: 1px solid var(--line); }
+.group-car .car-art { height: 90px; }
+.group-car strong, .group-car small { display: block; }
+.group-car strong { font-size: 12px; }
+.group-car small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.group-car button { margin-right: 10px; }
+.employee-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.employee-card { display: grid; gap: 5px; padding: 11px; border: 1px solid var(--line); }
+.employee-card.hired { border-left: 3px solid var(--green); background: #eef2ed; }
+.employee-card strong { font-size: 11px; }
+.employee-card span, .employee-card small { color: var(--muted); font-size: 9px; }
+.npc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.npc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--line); }
+.npc-row strong, .npc-row small { display: block; }
+.npc-row strong { font-size: 11px; }
+.npc-row small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.npc-row > span { color: var(--green); font-size: 10px; font-weight: 800; }
+.profile-stats { display: grid; grid-template-columns: repeat(4, 1fr); border-left: 1px solid var(--line); }
+.profile-stats div { min-height: 86px; padding: 17px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
+.profile-stats span, .profile-stats strong { display: block; }
+.profile-stats span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.profile-stats strong { margin-top: 10px; font-size: 20px; }
+.profile-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 28px; }
+.profile-columns > section { padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.profile-columns h3 { margin: 0 0 15px; font-size: 21px; text-transform: uppercase; }
+.profile-list { border-top: 1px solid var(--line); }
+.profile-list > div { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 47px; padding: 8px 4px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.profile-list small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+.profile-list strong { flex: 0 0 auto; }
+
+.chat-shell { border-top: 2px solid var(--ink); background: var(--surface); }
+.chat-messages { height: min(62vh, 650px); min-height: 360px; overflow-y: auto; padding: 18px; }
+.chat-message { max-width: 720px; margin: 0 0 10px; padding: 10px 12px; border-left: 3px solid var(--line); background: #f1efe8; }
+.chat-message.own { margin-left: auto; border-left-color: var(--accent); background: #f5e9e4; }
+.chat-message > div { display: flex; justify-content: space-between; gap: 18px; }
+.chat-message strong { font-size: 11px; }
+.chat-message time { color: var(--muted); font-size: 9px; }
+.chat-message p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.chat-empty { padding: 80px 20px; color: var(--muted); text-align: center; font-size: 12px; }
+.chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+.chat-form input { min-width: 0; height: 46px; border: 1px solid var(--line); padding: 0 13px; }
+.chat-form button { min-height: 46px; }
+.car-history { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.car-history h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; }
+.car-history div { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 11px; }
+.car-history time { flex: 0 0 72px; color: var(--muted); font-size: 9px; }
+
+.toast { position: fixed; z-index: 70; left: 50%; bottom: 24px; transform: translate(-50%, 120px); padding: 13px 18px; background: var(--ink); color: white; box-shadow: 0 8px 30px rgba(0,0,0,.25); font-size: 13px; opacity: 0; transition: .25s; }
+.toast.visible { transform: translate(-50%, 0); opacity: 1; }
+.toast.error { background: var(--accent-dark); }
+
+@media (max-width: 1050px) {
+  .market-filters { grid-template-columns: repeat(2, minmax(130px, 1fr)) auto auto; }
+  .car-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .garage-car { grid-template-columns: 210px 1fr 1fr; }
+  .garage-actions { grid-column: 2 / 4; grid-template-columns: 1fr 1fr; padding-top: 0; }
+  .workshop-grid { grid-template-columns: 1fr; }
+  .garage-management { grid-template-columns: 1fr; }
+  .parts-market-list, .npc-list { grid-template-columns: 1fr; }
+  .employee-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 760px) {
+  .join-screen { display: block; background: var(--dark); }
+  .join-visual { min-height: 38vh; height: 38vh; }
+  .join-visual::after { background: linear-gradient(0deg, var(--dark), transparent 55%); }
+  .join-panel { padding: 12px 22px 42px; }
+  .join-panel h1 { font-size: 43px; }
+  .join-copy { margin: 18px 0 24px; font-size: 14px; }
+  .auth-fields { grid-template-columns: 1fr; }
+  .join-stats { margin-top: 26px; }
+  .join-stats strong { font-size: 12px; }
+  .topbar { height: auto; grid-template-columns: 1fr auto; gap: 0; padding: 12px 16px 0; }
+  .wallet { grid-column: 2; grid-row: 1; border: 0; padding: 0; }
+  .profile-button { display: none; }
+  .tabs { grid-column: 1 / 3; grid-row: 2; height: 50px; overflow-x: auto; }
+  .tab { flex: 1; padding: 0 10px; white-space: nowrap; }
+  .tab.active::after { left: 10px; right: 10px; }
+  .content { width: calc(100% - 28px); padding: 32px 0 60px; }
+  .section-heading { align-items: start; }
+  .section-heading h2 { font-size: 31px; }
+  .market-pulse { flex-wrap: wrap; justify-content: flex-end; max-width: 220px; }
+  .car-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .market-index { overflow-x: auto; }
+  .market-stats-head, .market-stat-row { min-width: 660px; }
+  .car-art { height: 125px; }
+  .car-info { padding: 13px; }
+  .car-info h3 { font-size: 15px; }
+  .car-meta { display: block; line-height: 1.6; }
+  .car-meta span { display: block; }
+  .car-price-row { display: block; }
+  .car-price-row strong { font-size: 17px; }
+  .condition { margin-top: 6px; display: block; }
+  .garage-car { grid-template-columns: 1fr; }
+  .garage-car .car-art { height: 190px; }
+  .garage-status { border-left: 0; border-top: 1px solid var(--line); }
+  .garage-actions { grid-column: auto; grid-template-columns: 1fr 1fr; padding-top: 0; }
+  .progress-strip { grid-template-columns: 1fr auto; }
+  .xp-track { grid-column: 1 / 3; grid-row: 2; }
+  .deals-columns { grid-template-columns: 1fr; }
+  .contracts-list { grid-template-columns: 1fr; }
+  .profile-stats { grid-template-columns: repeat(2, 1fr); }
+  .profile-columns { grid-template-columns: 1fr; }
+  .group-car { grid-template-columns: 105px 1fr; }
+  .group-car button { grid-column: 1 / 3; margin: 0 10px 10px; }
+  .leader-head, .leader-row { grid-template-columns: 1fr 64px 100px; padding: 0 12px; font-size: 12px; }
+  .leader-head { font-size: 9px; }
+  .modal { padding: 10px; }
+  .modal-panel { max-height: calc(100vh - 20px); }
+  .modal-car-art { height: 180px; }
+  .modal-body { padding: 20px; }
+  .modal-body h2 { font-size: 27px; }
+  .inspection-grid { grid-template-columns: 1fr 1fr; }
+  .seller-summary { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 430px) {
+  .join-stats { grid-template-columns: 1fr 1fr; }
+  .join-stats div:last-child { display: none; }
+  .car-grid { grid-template-columns: 1fr; }
+  .car-art { height: 170px; }
+  .garage-actions { grid-template-columns: 1fr; }
+  .upgrade-grid, .inspection-actions { grid-template-columns: 1fr; }
+  .section-heading { display: block; }
+  .market-pulse { justify-content: flex-start; max-width: none; margin-top: 14px; }
+  .garage-value, .my-profit { margin-top: 15px; text-align: left; }
+  .modal-action-row { align-items: stretch; flex-direction: column; }
+  .service-diagnostic { align-items: stretch; flex-direction: column; }
+  .market-comparison { grid-template-columns: 1fr; }
+  .market-filters { grid-template-columns: 1fr 1fr; }
+  .market-filters button { width: 100%; }
+  .chat-form { grid-template-columns: 1fr; }
+  .profile-hero { grid-template-columns: auto 1fr; padding: 20px; }
+  .profile-capital { grid-column: 1 / 3; text-align: left; }
+  .profile-reputation { grid-column: 1 / 3; text-align: left; }
+  .repair-actions { min-width: 140px; }
+  .defect-row { grid-template-columns: 1fr auto; }
+  .defect-row span:nth-child(2) { display: none; }
+  .employee-grid { grid-template-columns: 1fr; }
+}
