@@ -12,7 +12,7 @@ let server;
 function startServer() {
   return new Promise((resolve, reject) => {
     server = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_FAST_JOBS: "1" },
+      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_FAST_JOBS: "1", PEREKUP_ADMIN_NAMES: "TestAdmin" },
       stdio: ["ignore", "pipe", "pipe"]
     });
     const timeout = setTimeout(() => reject(new Error("Server start timed out")), 5000);
@@ -81,6 +81,31 @@ async function run() {
   check(Object.keys(seller.skillInfo).length >= 8 && Object.keys(seller.equipmentInfo).length >= 8, "Expanded inspection and repair specializations are missing");
   check(seller.market.filter((car) => !car.sellerId && car.saleType === "auction").length >= 8, "NPC sellers did not publish enough car auctions");
   check(new Set(seller.containerAuctions.map((container) => container.tier)).size === 5, "Five distinct container tiers were not stocked");
+  check(seller.assetMarket.length >= 20 && seller.assetMarket.some((asset) => asset.type === "item") && seller.assetMarket.some((asset) => asset.type === "property"), "Item and property market was not stocked");
+  check(["assetTrading", "collectibles", "propertyAppraisal", "propertyManagement"].every((skill) => seller.skillInfo[skill]), "Non-vehicle skills are missing");
+  const auctionDisclosure = seller.market.find((car) => car.saleType === "auction" && car.defects.length);
+  check(auctionDisclosure && auctionDisclosure.condition > 0 && auctionDisclosure.defects.every((defect) => defect.name), "Car auction did not disclose condition and defects");
+
+  let assetTrader = await request("/api/register", null, { name: `AssetTrader${suffix}`, pin: "5566" });
+  const assetTraderToken = assetTrader.token;
+  const affordableAsset = assetTrader.assetMarket.filter((asset) => asset.type === "item" && asset.price < assetTrader.player.availableCash).sort((a, b) => a.price - b.price)[0];
+  assetTrader = await request("/api/assets/buy", assetTraderToken, { assetId: affordableAsset.id });
+  check(assetTrader.player.ownedAssets.length === 1 && assetTrader.player.stats.assetsBought === 1, "Purchased asset did not reach the portfolio");
+  assetTrader = await request("/api/assets/sell", assetTraderToken, { assetId: assetTrader.player.ownedAssets[0].id });
+  check(assetTrader.player.ownedAssets.length === 0 && assetTrader.player.stats.assetsSold === 1, "Asset resale did not complete");
+
+  const admin = await request("/api/register", null, { name: "TestAdmin", pin: "9900" });
+  const offender = await request("/api/register", null, { name: `Offender${suffix}`, pin: "9911" });
+  const reporter = await request("/api/register", null, { name: `Reporter${suffix}`, pin: "9922" });
+  const chatState = await request("/api/chat", offender.token, { message: "Проверочное сообщение для модерации" });
+  const reportedMessage = chatState.chatMessages.at(-1);
+  await request("/api/chat/report", reporter.token, { messageId: reportedMessage.id, reason: "Нарушение правил сообщества" });
+  let adminState = await request("/api/admin/state", admin.token);
+  check(adminState.reports.some((report) => report.accusedId === offender.player.id), "Chat report did not reach the admin queue");
+  await request("/api/admin/moderation", admin.token, { action: "ban", playerId: offender.player.id, durationMinutes: 60, reason: "Тестовая блокировка" });
+  check((await requestError("/api/state", offender.token)).includes("Аккаунт заблокирован"), "Banned player kept API access");
+  await request("/api/admin/moderation", admin.token, { action: "unban", playerId: offender.player.id });
+  check((await request("/api/state", offender.token)).player.id === offender.player.id, "Unbanned player did not regain access");
   const indexSeller = await request("/api/register", null, { name: `IndexSeller${suffix}`, pin: "1122" });
   const indexBuyer = await request("/api/register", null, { name: `IndexBuyer${suffix}`, pin: "3344" });
   const indexCarSeed = indexSeller.market.find((item) => item.saleType !== "auction" && item.price < 450000 && indexSeller.marketStats[item.model].marketPrice < 400000);

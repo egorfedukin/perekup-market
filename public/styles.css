@@ -379,7 +379,8 @@ button { cursor: pointer; }
 .modal { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 22px; }
 .modal-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: rgba(17,18,16,.72); backdrop-filter: blur(3px); }
 .modal-panel { position: relative; z-index: 1; width: min(720px, 100%); max-height: calc(100vh - 44px); overflow: auto; background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
-.close-button { position: absolute; z-index: 2; top: 14px; right: 14px; }
+.close-button { position: absolute; z-index: 8; top: 12px; right: 12px; background: var(--ink); color: white; }
+.modal-car-art .seller-label { right: 58px; }
 .modal.reward-modal .close-button { display: none; }
 .modal.reward-modal .modal-backdrop { cursor: default; }
 .icon-button { width: 36px; height: 36px; border: 0; background: var(--ink); color: white; font-size: 25px; line-height: 1; }
@@ -577,8 +578,10 @@ button { cursor: pointer; }
 .chat-message { max-width: 720px; margin: 0 0 10px; padding: 10px 12px; border-left: 3px solid var(--line); background: #f1efe8; }
 .chat-message.own { margin-left: auto; border-left-color: var(--accent); background: #f5e9e4; }
 .chat-message > div { display: flex; justify-content: space-between; gap: 18px; }
+.chat-message > div > span { display: flex; align-items: center; gap: 8px; }
 .chat-message strong { font-size: 11px; }
 .chat-message time { color: var(--muted); font-size: 9px; }
+.chat-report { border: 0; padding: 0; background: transparent; color: var(--accent); font-size: 8px; font-weight: 900; text-decoration: underline; }
 .chat-message p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .chat-empty { padding: 80px 20px; color: var(--muted); text-align: center; font-size: 12px; }
 .chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
@@ -637,6 +640,27 @@ button { cursor: pointer; }
 .outbid-lot .player-bid-status { background: var(--accent-dark); }
 .auction-section { margin-bottom: 36px; }
 .auction-section-head { margin-top: 0; }
+.auction-filters { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto auto; gap: 7px; margin: -2px 0 14px; }
+.auction-filters select, .auction-filters input { min-width: 0; height: 40px; border: 1px solid var(--line); padding: 0 9px; background: white; }
+.auction-filters button { min-height: 40px; }
+.auction-filters span { align-self: center; color: var(--muted); font-size: 9px; }
+.auction-car-grid { display: grid; gap: 10px; }
+.auction-car-lot { position: relative; display: grid; grid-template-columns: 280px 1fr; min-width: 0; border: 1px solid var(--line); background: var(--surface); }
+.auction-car-lot.player-lot { border-color: var(--ink); }
+.auction-car-lot.outbid-lot { border-color: var(--accent); }
+.auction-car-preview { min-width: 0; border: 0; padding: 0; background: #e9e7df; text-align: left; }
+.auction-car-preview .car-art { height: 190px; }
+.auction-details-link { display: block; padding: 10px 14px; color: var(--ink); font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.auction-car-content { display: grid; align-content: start; gap: 12px; padding: 15px; }
+.auction-car-title { display: flex; justify-content: space-between; gap: 16px; }
+.auction-car-title h3 { margin: 3px 0 5px; font-size: 20px; }
+.auction-car-title small { color: var(--muted); font-size: 9px; }
+.auction-defects { min-width: 0; padding: 10px 12px; background: #efede6; }
+.auction-defects strong, .auction-defects span { display: block; font-size: 9px; }
+.auction-defects ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin: 7px 0 0; padding-left: 16px; color: #555951; font-size: 9px; }
+.auction-car-content form { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.auction-car-content form input { min-width: 0; height: 42px; border: 1px solid var(--line); padding: 0 10px; }
+.auction-own-note { color: var(--muted); font-size: 9px; font-weight: 800; }
 .container-auction-section { padding-top: 6px; }
 .auction-notifications { display: grid; gap: 6px; margin: -8px 0 24px; }
 .auction-alert { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 15px; border-left: 4px solid var(--accent); background: #f5e8e3; }
@@ -670,13 +694,56 @@ button { cursor: pointer; }
 .admin-panel { margin-top: 22px; padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
 .admin-panel h3 { margin: 0 0 16px; font-size: 20px; text-transform: uppercase; }
 .admin-players { display: grid; gap: 7px; }
-.admin-player { display: grid; grid-template-columns: minmax(170px, 1fr) auto minmax(320px, 1.3fr); align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--line); }
+.admin-player { display: grid; grid-template-columns: minmax(170px, 1fr) auto minmax(430px, 1.6fr); align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--line); }
+.admin-player.banned { border-left: 4px solid var(--accent); background: #f5e8e3; }
 .admin-player strong, .admin-player small { display: block; }
+.admin-player b { display: block; margin-top: 6px; color: var(--accent); font-size: 9px; }
 .admin-player small { margin-top: 3px; color: var(--muted); font-size: 9px; }
 .admin-player > span { font-size: 14px; font-weight: 900; }
 .admin-actions { display: grid; grid-template-columns: 110px 1fr auto; gap: 6px; }
 .admin-actions input { min-width: 0; height: 36px; border: 1px solid var(--line); padding: 0 8px; }
 .admin-actions button { min-height: 36px; }
+.admin-player-tools { display: grid; gap: 6px; }
+.admin-ban-actions { display: grid; grid-template-columns: 110px 1fr auto; gap: 6px; }
+.admin-ban-actions select, .admin-ban-actions input { min-width: 0; height: 36px; border: 1px solid var(--line); padding: 0 8px; background: white; }
+.admin-ban-actions button { min-height: 36px; }
+.admin-reports { display: grid; gap: 8px; }
+.admin-report { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 13px; border: 1px solid var(--line); }
+.admin-report strong, .admin-report small, .admin-report span { display: block; }
+.admin-report small, .admin-report span { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.admin-report p { margin: 9px 0 0; font-size: 11px; }
+.admin-report > div:last-child { display: flex; flex-wrap: wrap; align-content: start; gap: 6px; }
+
+.asset-summary { margin-bottom: 14px; }
+.asset-summary button { margin-top: 6px; min-height: 30px; }
+.asset-filters { grid-template-columns: repeat(5, minmax(120px, 1fr)) auto auto; }
+.asset-section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 25px 0 12px; padding-top: 15px; border-top: 2px solid var(--ink); }
+.asset-section-head h3 { margin: 0; font-size: 20px; text-transform: uppercase; }
+.asset-section-head > span { color: var(--muted); font-size: 9px; }
+.asset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.asset-card { min-width: 0; border: 1px solid var(--line); background: var(--surface); }
+.asset-visual { display: flex; align-items: center; justify-content: space-between; height: 92px; padding: 14px; background: #292d28; color: white; }
+.asset-property .asset-visual { background: #42656b; }
+.asset-visual span { font-size: 8px; font-weight: 900; }
+.asset-visual strong { color: var(--yellow); font-size: 38px; }
+.asset-card-body { display: grid; gap: 9px; padding: 14px; }
+.asset-card-body h3 { min-height: 38px; margin: 0; font-size: 16px; }
+.asset-card-body > p:not(.eyebrow) { min-height: 46px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.asset-metrics { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); }
+.asset-metrics span { min-width: 0; padding: 8px; color: var(--muted); font-size: 7px; }
+.asset-metrics span + span { border-left: 1px solid var(--line); }
+.asset-metrics strong { display: block; margin-top: 4px; color: var(--ink); font-size: 10px; }
+.asset-estimate { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 8px; }
+.asset-buy { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.asset-buy > strong { font-size: 18px; }
+.asset-buy > small { grid-column: 1; color: var(--muted); font-size: 8px; }
+.asset-buy button { grid-column: 2; grid-row: 1 / span 2; }
+.owned-assets { display: grid; gap: 7px; }
+.owned-asset { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 13px 15px; border: 1px solid var(--line); }
+.owned-asset > div:last-child { display: grid; grid-template-columns: auto auto; align-items: center; gap: 3px 12px; text-align: right; }
+.owned-asset span, .owned-asset small { display: block; color: var(--muted); font-size: 8px; }
+.owned-asset strong { display: block; margin: 4px 0; font-size: 12px; }
+.owned-asset button { grid-column: 2; grid-row: 1 / span 2; }
 .known-defects { margin: 12px 0; padding: 10px 12px; background: #f5e9e4; color: var(--accent-dark); font-size: 11px; line-height: 1.45; }
 .market-inspection { margin-top: 18px; padding-top: 15px; border-top: 2px solid var(--ink); }
 .market-inspection .workshop-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
@@ -709,6 +776,9 @@ button { cursor: pointer; }
   .part-need-action { grid-column: 1 / -1; border-top: 1px solid var(--line); }
   .parts-inventory-grid { grid-template-columns: 1fr 1fr; }
   .admin-actions { grid-column: 1 / -1; }
+  .asset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .auction-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .auction-car-lot { grid-template-columns: 220px 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -753,6 +823,7 @@ button { cursor: pointer; }
   .market-quick-filters::-webkit-scrollbar { display: none; }
   .mobile-filter-toggle { display: block; width: 100%; min-height: 42px; margin: 8px 0 12px; }
   .market-filters { display: none; grid-template-columns: 1fr 1fr; padding: 12px; }
+  .asset-filters { display: grid; }
   .market-filters.mobile-open { display: grid; }
   .market-filters .market-search { grid-column: 1 / -1; }
   .ad-slot-market { display: none; }
@@ -796,6 +867,15 @@ button { cursor: pointer; }
   .container-info form { grid-template-columns: 1fr; }
   .container-info form button { min-height: 42px; }
   .auction-alert { align-items: start; padding: 11px; }
+  .auction-filters { grid-template-columns: 1fr 1fr; }
+  .auction-filters span { grid-column: 1 / -1; }
+  .auction-car-lot { grid-template-columns: 1fr; }
+  .auction-car-preview .car-art { height: 170px; }
+  .auction-defects ul { grid-template-columns: 1fr; }
+  .asset-grid { grid-template-columns: 1fr; }
+  .asset-section-head > span { display: none; }
+  .admin-report { grid-template-columns: 1fr; }
+  .admin-ban-actions { grid-template-columns: 1fr; }
   .garage-workshop > summary > span, .garage-cars-heading > span, .auction-section-head > span { display: none; }
   .training-strip { align-items: stretch; flex-direction: column; }
   .parts-purchase { grid-template-columns: 1fr; }
@@ -845,6 +925,13 @@ button { cursor: pointer; }
   .reward-market-note strong, .reward-market-note span { display: block; }
   .reward-market-note span { margin-top: 6px; }
   .chat-form { grid-template-columns: 1fr; }
+  .asset-filters { grid-template-columns: 1fr; }
+  .asset-section-head { align-items: start; }
+  .owned-asset { grid-template-columns: 1fr; }
+  .owned-asset > div:last-child { grid-template-columns: 1fr auto; text-align: left; }
+  .auction-filters { grid-template-columns: 1fr; }
+  .auction-car-title { align-items: start; flex-direction: column; }
+  .auction-car-content form { grid-template-columns: 1fr; }
   .profile-hero { grid-template-columns: auto 1fr; padding: 20px; }
   .profile-capital { grid-column: 1 / 3; text-align: left; }
   .profile-reputation { grid-column: 1 / 3; text-align: left; }

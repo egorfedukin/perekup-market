@@ -22,6 +22,8 @@ let shownNotificationId = null;
 let partsMode = "needs";
 let partsFilters = { component: "all", quality: "all", query: "" };
 let partsCarFilter = "all";
+let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
+let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -308,13 +310,22 @@ function renderContainers() {
 }
 
 function renderAuctions() {
-  const auctions = state.market.filter((car) => car.saleType === "auction").sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.auctionEnd - b.auctionEnd);
-  $("#auction-count").textContent = auctions.length + (state.containerAuctions?.length || 0);
+  const allAuctions = state.market.filter((car) => car.saleType === "auction");
+  const auctions = allAuctions.filter((car) => {
+    const conditionOk = auctionFilters.condition === "all" || (auctionFilters.condition === "good" && car.condition >= 72) || (auctionFilters.condition === "medium" && car.condition >= 52 && car.condition < 72) || (auctionFilters.condition === "low" && car.condition < 52);
+    const sellerOk = auctionFilters.seller === "all" || (auctionFilters.seller === "npc" ? !car.sellerId : Boolean(car.sellerId));
+    return conditionOk && sellerOk && (!auctionFilters.max || (car.highestBid || car.startingPrice) <= auctionFilters.max);
+  }).sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || (auctionFilters.sort === "price" ? (a.highestBid || a.startingPrice) - (b.highestBid || b.startingPrice) : auctionFilters.sort === "condition" ? b.condition - a.condition : a.auctionEnd - b.auctionEnd));
+  $("#auction-count").textContent = allAuctions.length + (state.containerAuctions?.length || 0);
+  if ($("#auction-filter-result")) $("#auction-filter-result").textContent = `Показано ${auctions.length} из ${allAuctions.length}`;
   $("#auction-car-grid").innerHTML = auctions.map((car) => {
     const [condition, conditionClass] = conditionLabel(car.condition);
     const status = car.viewerLeading ? "Вы лидируете" : car.viewerParticipated ? "Вашу ставку перебили" : car.sellerId === state.player.id ? "Ваш аукцион" : "";
-    return `<button class="car-card auction-car ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}" data-open-market="${car.id}">${status ? `<span class="player-bid-status">${status}</span>` : ""}${carArt(car)}<div class="car-info"><h3>${escapeHtml(car.model)}</h3><div class="car-meta"><span>${number(car.mileage)} км</span><span>${escapeHtml(car.seller)}</span></div><div class="car-price-row"><strong>${money(car.highestBid || car.startingPrice)}</strong><span class="condition ${conditionClass}">${condition}</span></div><div class="auction-note"><span>Ставок: ${car.bidCount}</span><span class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</span></div></div></button>`;
-  }).join("") || '<div class="empty-filter">Автомобильных аукционов сейчас нет.</div>';
+    const current = car.highestBid || car.startingPrice;
+    const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
+    const defects = car.defects || [];
+    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${escapeHtml(car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
+  }).join("") || '<div class="empty-filter">Автомобильных аукционов по этим фильтрам сейчас нет.</div>';
   const notifications = state.player.notifications || [];
   $("#auction-notifications").innerHTML = notifications.slice(0, 5).map((item) => `<article class="auction-alert ${item.read ? "read" : ""}"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></div><time>${new Date(item.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></article>`).join("");
   $("#auction-notifications").hidden = !notifications.length;
@@ -412,8 +423,9 @@ function renderAdmin() {
   $("#admin-tab").hidden = !state.player.isAdmin;
   if (!state.player.isAdmin || !adminState) return;
   const economy = adminState.economy;
-  $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Завершённых сделок", economy.deals], ["Активных предложений", economy.activeOffers], ["Оплаченных заказов", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
-  $("#admin-players").innerHTML = adminState.players.map((player) => `<article class="admin-player"><div><strong>${escapeHtml(player.name)}</strong><small>Уровень ${player.level} · сделок ${player.deals} · гараж ${player.garage} · репутация ${player.reputation}</small></div><span>${money(player.cash)}<small>куплено ${money(player.purchasedCash)}</small></span><div class="admin-actions"><input id="admin-cash-${player.id}" type="number" step="1000" placeholder="+/- сумма"><input id="admin-reason-${player.id}" maxlength="100" placeholder="Причина"><button class="secondary-button" data-admin-cash="${player.id}">Применить</button></div></article>`).join("");
+  $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Сделок", economy.deals], ["Предложений", economy.activeOffers], ["Жалоб", economy.openReports], ["Оплат", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("#admin-reports").innerHTML = adminState.reports.length ? adminState.reports.map((report) => `<article class="admin-report"><div><strong>${escapeHtml(report.accusedName)}</strong><small>Жалоба от ${escapeHtml(report.reporterName)} · ${new Date(report.createdAt).toLocaleString("ru-RU")}</small><p>«${escapeHtml(report.messageText)}»</p><span>${escapeHtml(report.reason)}</span></div><div><button class="danger-button" data-admin-report-ban="${report.id}" data-player-id="${report.accusedId}">Заблокировать</button><button class="secondary-button" data-admin-report="resolve" data-report-id="${report.id}">Закрыть</button><button class="secondary-button" data-admin-report="dismiss" data-report-id="${report.id}">Отклонить</button></div></article>`).join("") : '<div class="no-offers">Новых жалоб нет.</div>';
+  $("#admin-players").innerHTML = adminState.players.map((player) => { const banned = player.bannedUntil === -1 || player.bannedUntil > Date.now(); return `<article class="admin-player ${banned ? "banned" : ""}"><div><strong>${escapeHtml(player.name)}</strong><small>Уровень ${player.level} · сделок ${player.deals} · гараж ${player.garage} · репутация ${player.reputation}</small>${banned ? `<b>БАН: ${escapeHtml(player.banReason || "без причины")}</b>` : ""}</div><span>${money(player.cash)}<small>куплено ${money(player.purchasedCash)}</small></span><div class="admin-player-tools"><div class="admin-actions"><input id="admin-cash-${player.id}" type="number" step="1000" placeholder="+/- сумма"><input id="admin-reason-${player.id}" maxlength="100" placeholder="Причина корректировки"><button class="secondary-button" data-admin-cash="${player.id}">Баланс</button></div><div class="admin-ban-actions"><select id="admin-ban-duration-${player.id}"><option value="60">1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="-1">Навсегда</option></select><input id="admin-ban-reason-${player.id}" maxlength="160" placeholder="Причина блокировки"><button class="${banned ? "secondary-button" : "danger-button"}" data-admin-${banned ? "unban" : "ban"}="${player.id}">${banned ? "Разбанить" : "Бан"}</button></div></div></article>`; }).join("");
 }
 
 async function loadAdmin() {
@@ -428,10 +440,21 @@ function renderChat() {
   const messages = state.chatMessages || [];
   $("#chat-count").textContent = messages.length;
   container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
-    <div><strong>${escapeHtml(message.playerName)}</strong><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></div>
+    <div><strong>${escapeHtml(message.playerName)}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
     <p>${escapeHtml(message.text)}</p>
   </div>`).join("") : '<div class="chat-empty">Сообщений пока нет.</div>';
   if (nearBottom) container.scrollTop = container.scrollHeight;
+}
+
+function renderAssets() {
+  const listings = state.assetMarket || [];
+  const owned = state.player.ownedAssets || [];
+  const categories = state.assetCategories || {};
+  const filtered = listings.filter((asset) => (assetFilters.type === "all" || asset.type === assetFilters.type) && (assetFilters.category === "all" || asset.category === assetFilters.category) && (!assetFilters.min || asset.price >= assetFilters.min) && (!assetFilters.max || asset.price <= assetFilters.max)).sort((a, b) => assetFilters.sort === "priceAsc" ? a.price - b.price : assetFilters.sort === "priceDesc" ? b.price - a.price : assetFilters.sort === "income" ? (b.income || 0) - (a.income || 0) : (((b.estimateLow + b.estimateHigh) / 2) / b.price) - (((a.estimateLow + a.estimateHigh) / 2) / a.price));
+  $("#asset-summary").innerHTML = `<div><span>Доступно лотов</span><strong>${filtered.length}</strong><small>из ${listings.length}</small></div><div><span>Ваши активы</span><strong>${owned.length}</strong><small>вещи и объекты</small></div><div><span>Вложено</span><strong>${money(owned.reduce((sum, asset) => sum + asset.purchasePrice, 0))}</strong><small>капитал вне автомобилей</small></div><div><span>Доход к получению</span><strong>${money(state.player.assetIncomeAvailable || 0)}</strong><button class="secondary-button" data-asset-income ${(state.player.assetIncomeAvailable || 0) < 1 ? "disabled" : ""}>Получить</button></div>`;
+  $("#asset-filter-result").textContent = `Показано ${filtered.length} из ${listings.length}`;
+  $("#asset-market-grid").innerHTML = filtered.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${asset.type === "property" ? "НЕДВИЖИМОСТЬ" : escapeHtml(categories[asset.category] || "ВЕЩЬ")}</span><strong>${asset.type === "property" ? "▦" : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics"><span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span>${asset.income ? `<span>Доход / мин<strong>${money(asset.income)}</strong></span>` : `<span>Риск<strong>${asset.risk}/5</strong></span>`}</div><div class="asset-estimate"><span>Ваша оценка: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}% к оценке</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>${state.skillInfo[asset.skill]?.name || "Оценка"} ${asset.skillLevel}/5 · остаток ${asset.stock}</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>Купить</button></div></div></article>`; }).join("") || '<div class="empty-filter">Под эти фильтры активов нет.</div>';
+  $("#owned-assets").innerHTML = owned.length ? owned.map((asset) => `<article class="owned-asset"><div><span>${asset.type === "property" ? "Недвижимость" : escapeHtml(categories[asset.category] || "Вещь")}</span><strong>${escapeHtml(asset.name)}</strong><small>Куплено за ${money(asset.purchasePrice)} · состояние ${asset.condition}%</small></div><div><span>Продажа NPC</span><strong>${money(asset.resaleValue)}</strong><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`).join("") : '<div class="no-offers">Купленные вещи и недвижимость появятся здесь.</div>';
 }
 
 function captureActiveDraft() {
@@ -462,7 +485,7 @@ function render() {
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderGarage(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
+  renderMarketStats(); renderMarket(); renderGarage(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderAssets(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
   restoreActiveDraft(draft);
@@ -506,8 +529,8 @@ function marketModal(car) {
     <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
       ${own ? `<button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
     </div>
-    ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
-    ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">${car.sellerId ? "Предложить цену" : "Торговаться с NPC"}</button></form>` : ""}
+    ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input id="modal-bid-${car.id}" name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
+    ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input id="offer-amount-${car.id}" name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">${car.sellerId ? "Предложить цену" : "Торговаться с NPC"}</button></form>` : ""}
   </div>`;
 }
 
@@ -616,6 +639,7 @@ function connectEvents() {
   if (events) events.close();
   events = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
   events.addEventListener("update", (event) => { state = JSON.parse(event.data); render(); });
+  events.addEventListener("banned", (event) => { const data = JSON.parse(event.data); events.close(); localStorage.removeItem("perekup-token"); window.alert(data.error || "Аккаунт заблокирован"); location.reload(); });
   events.onerror = () => { $("#online-label").textContent = "Переподключение…"; };
   events.onopen = () => { $("#online-label").textContent = "Рынок онлайн"; };
 }
@@ -751,6 +775,29 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (event.target.closest("[data-admin-refresh]")) return loadAdmin();
+  const reportChat = event.target.closest("[data-report-chat]");
+  if (reportChat) {
+    const reason = window.prompt("Причина жалобы", "Оскорбление или нарушение правил");
+    if (reason) await perform("/api/chat/report", { messageId: reportChat.dataset.reportChat, reason }, "Жалоба отправлена модераторам");
+    return;
+  }
+  const buyAsset = event.target.closest("[data-buy-asset]");
+  if (buyAsset) return perform("/api/assets/buy", { assetId: buyAsset.dataset.buyAsset }, "Актив добавлен в ваш портфель");
+  const sellAsset = event.target.closest("[data-sell-asset]");
+  if (sellAsset) return perform("/api/assets/sell", { assetId: sellAsset.dataset.sellAsset }, "Актив продан NPC");
+  if (event.target.closest("[data-asset-income]")) return perform("/api/assets/income", {}, "Доход от недвижимости получен");
+  const reportAction = event.target.closest("[data-admin-report]");
+  if (reportAction) { if (await perform("/api/admin/moderation", { action: reportAction.dataset.adminReport, reportId: reportAction.dataset.reportId }, "Жалоба обработана")) await loadAdmin(); return; }
+  const reportBan = event.target.closest("[data-admin-report-ban]");
+  if (reportBan) {
+    const reason = window.prompt("Причина блокировки", "Нарушение правил чата");
+    if (reason && await perform("/api/admin/moderation", { action: "ban", playerId: reportBan.dataset.playerId, durationMinutes: 1440, reason }, "Игрок заблокирован")) { await perform("/api/admin/moderation", { action: "resolve", reportId: reportBan.dataset.adminReportBan }, "Жалоба закрыта"); await loadAdmin(); }
+    return;
+  }
+  const adminBan = event.target.closest("[data-admin-ban]");
+  if (adminBan) { const playerId = adminBan.dataset.adminBan; if (await perform("/api/admin/moderation", { action: "ban", playerId, durationMinutes: Number($(`#admin-ban-duration-${playerId}`)?.value), reason: $(`#admin-ban-reason-${playerId}`)?.value }, "Игрок заблокирован")) await loadAdmin(); return; }
+  const adminUnban = event.target.closest("[data-admin-unban]");
+  if (adminUnban) { if (await perform("/api/admin/moderation", { action: "unban", playerId: adminUnban.dataset.adminUnban }, "Блокировка снята")) await loadAdmin(); return; }
   const adminCash = event.target.closest("[data-admin-cash]");
   if (adminCash) {
     const playerId = adminCash.dataset.adminCash;
@@ -760,6 +807,11 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("submit", async (event) => {
+  const carBidForm = event.target.closest("[data-car-bid]");
+  if (carBidForm) {
+    event.preventDefault(); const data = new FormData(carBidForm);
+    return perform("/api/bid", { carId: carBidForm.dataset.carBid, amount: data.get("amount") }, "Ставка принята, сумма зарезервирована");
+  }
   const containerForm = event.target.closest("[data-container-bid]");
   if (containerForm) {
     event.preventDefault(); const data = new FormData(containerForm);
@@ -773,6 +825,16 @@ document.addEventListener("submit", async (event) => {
     document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.remove("active"));
     renderMarket();
     return;
+  }
+  if (event.target.id === "auction-filters") {
+    event.preventDefault(); const data = new FormData(event.target);
+    auctionFilters = { condition: data.get("condition") || "all", max: Number(data.get("max")) || null, seller: data.get("seller") || "all", sort: data.get("sort") || "ending" };
+    renderAuctions(); return;
+  }
+  if (event.target.id === "asset-filters") {
+    event.preventDefault(); const data = new FormData(event.target);
+    assetFilters = { type: data.get("type") || "all", category: data.get("category") || "all", min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, sort: data.get("sort") || "deal" };
+    renderAssets(); return;
   }
   if (event.target.id === "chat-form") {
     event.preventDefault();
@@ -810,6 +872,16 @@ $("#market-filters").addEventListener("reset", () => {
   marketVisibleCount = 24;
   document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.toggle("active", button.dataset.marketPreset === "all"));
   setTimeout(renderMarket, 0);
+});
+
+$("#asset-filters").addEventListener("reset", () => {
+  assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
+  setTimeout(renderAssets, 0);
+});
+
+$("#auction-filters").addEventListener("reset", () => {
+  auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
+  setTimeout(renderAuctions, 0);
 });
 
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("#car-modal").hidden) closeModal(); });

@@ -107,7 +107,11 @@ const skillInfo = {
   tireService: { name: "Шиномонтажник", description: "Ремонт, подбор и установка колёс и шин", maxLevel: 5 },
   electrics: { name: "Автоэлектрик", description: "Диагностика и ремонт электрооборудования", maxLevel: 5 },
   bodywork: { name: "Кузовной мастер", description: "Осмотр геометрии, сварка и окраска", maxLevel: 5 },
-  appraisal: { name: "Оценщик", description: "VIN, история, пробег и рыночная стоимость", maxLevel: 5 }
+  appraisal: { name: "Оценщик", description: "VIN, история, пробег и рыночная стоимость", maxLevel: 5 },
+  assetTrading: { name: "Товаровед", description: "Оценка техники, коллекционных вещей и быстрый перепродажный оборот", maxLevel: 5 },
+  collectibles: { name: "Эксперт редкостей", description: "Проверка подлинности часов, искусства и коллекционных предметов", maxLevel: 5 },
+  propertyAppraisal: { name: "Риелтор", description: "Оценка локации, состояния и справедливой цены недвижимости", maxLevel: 5 },
+  propertyManagement: { name: "Управляющий", description: "Повышает чистый пассивный доход от недвижимости", maxLevel: 5 }
 };
 
 const equipmentInfo = {
@@ -198,6 +202,24 @@ const groupJobCatalog = {
   sale: { key: "sale", specialty: "sales", name: "Продажа под ключ", description: "Подготовить объявление и провести переговоры", durationSeconds: 85, cost: 22000, rewardLow: 43000, rewardHigh: 68000, xp: 75, energy: 32 }
 };
 
+const assetCatalog = [
+  { key: "phone_lot", type: "item", category: "electronics", name: "Партия смартфонов", description: "Возвраты магазина: часть комплектов вскрыта, документы в порядке.", basePrice: 145000, liquidity: 92, risk: 2, skill: "assetTrading" },
+  { key: "gaming_pc", type: "item", category: "electronics", name: "Игровая рабочая станция", description: "Мощный компьютер после закрытия дизайн-студии.", basePrice: 310000, liquidity: 84, risk: 2, skill: "assetTrading" },
+  { key: "camera_kit", type: "item", category: "electronics", name: "Комплект фототехники", description: "Камера, три объектива и студийный свет одним лотом.", basePrice: 480000, liquidity: 76, risk: 3, skill: "assetTrading" },
+  { key: "watch", type: "item", category: "collectibles", name: "Механические часы 1987 года", description: "Редкая серия с сервисной историей, подлинность требует экспертизы.", basePrice: 1250000, liquidity: 61, risk: 4, skill: "collectibles" },
+  { key: "vinyl", type: "item", category: "collectibles", name: "Архив виниловых пластинок", description: "Коллекция из 240 изданий, среди которых встречаются редкие тиражи.", basePrice: 620000, liquidity: 68, risk: 3, skill: "collectibles" },
+  { key: "painting", type: "item", category: "collectibles", name: "Картина регионального авангарда", description: "Работа с аукционной историей и неподтверждённой атрибуцией.", basePrice: 3900000, liquidity: 43, risk: 5, skill: "collectibles" },
+  { key: "equipment", type: "item", category: "business", name: "Комплект кофейного оборудования", description: "Две кофемашины, кофемолки и холодильные витрины.", basePrice: 780000, liquidity: 73, risk: 2, skill: "assetTrading" },
+  { key: "tools", type: "item", category: "business", name: "Склад профессионального инструмента", description: "Ликвидный товар после закрытия строительной фирмы.", basePrice: 2100000, liquidity: 88, risk: 2, skill: "assetTrading" },
+  { key: "studio", type: "property", category: "residential", name: "Студия у университета", description: "Небольшая квартира с устойчивым спросом на аренду.", basePrice: 4200000, income: 42000, liquidity: 91, risk: 1, skill: "propertyAppraisal" },
+  { key: "apartment", type: "property", category: "residential", name: "Двухкомнатная квартира", description: "Жилой район, косметический ремонт и долгосрочный арендатор.", basePrice: 7800000, income: 68000, liquidity: 83, risk: 2, skill: "propertyAppraisal" },
+  { key: "country_house", type: "property", category: "residential", name: "Загородный дом", description: "Дом с участком, сезонная аренда даёт повышенную доходность.", basePrice: 14500000, income: 128000, liquidity: 57, risk: 3, skill: "propertyAppraisal" },
+  { key: "garage_block", type: "property", category: "commercial", name: "Блок из шести гаражей", description: "Полностью заняты арендаторами, минимальные расходы на содержание.", basePrice: 6100000, income: 74000, liquidity: 78, risk: 1, skill: "propertyManagement" },
+  { key: "office", type: "property", category: "commercial", name: "Офисное помещение", description: "Первый этаж бизнес-центра, договор аренды ещё на два года.", basePrice: 18500000, income: 195000, liquidity: 64, risk: 2, skill: "propertyManagement" },
+  { key: "warehouse", type: "property", category: "commercial", name: "Тёплый склад", description: "Промышленная зона, удобный подъезд и стабильный арендатор.", basePrice: 32000000, income: 365000, liquidity: 59, risk: 3, skill: "propertyManagement" },
+  { key: "retail", type: "property", category: "commercial", name: "Торговое помещение", description: "Угловой вход на первой линии, высокий трафик и дорогая эксплуатация.", basePrice: 68000000, income: 790000, liquidity: 52, risk: 4, skill: "propertyManagement" }
+];
+
 const players = new Map();
 const sessions = new Map();
 const market = [];
@@ -205,6 +227,8 @@ const salesHistory = [];
 const marketIndices = {};
 const offers = new Map();
 const chatMessages = [];
+const moderationReports = [];
+const assetMarket = [];
 const groups = new Map();
 const partsMarket = [];
 const partsSalesHistory = [];
@@ -225,7 +249,8 @@ let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
-    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions
+    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, moderationReports, assetMarket,
+    groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
@@ -243,6 +268,8 @@ function loadState() {
     for (const sale of saved.salesHistory || []) salesHistory.push(sale);
     Object.assign(marketIndices, saved.marketIndices || {});
     chatMessages.push(...(saved.chatMessages || []).slice(-100));
+    moderationReports.push(...(saved.moderationReports || []).slice(-500));
+    assetMarket.push(...(saved.assetMarket || []));
     for (const [key, value] of saved.groups || []) { ensureGroupDefaults(value); groups.set(key, value); }
     partsMarket.push(...(saved.partsMarket || []).map(ensurePartLot));
     partsSalesHistory.push(...(saved.partsSalesHistory || []).slice(-500));
@@ -278,8 +305,12 @@ function ensurePlayerDefaults(player) {
   for (const key of Object.keys(skillInfo)) player.skills[key] ??= 0;
   for (const key of Object.keys(equipmentInfo)) player.equipment[key] ??= 0;
   player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0, partsSold: 0, partsBought: 0, upgrades: 0 };
-  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades"]) player.stats[key] ??= 0;
+  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades", "assetsBought", "assetsSold"]) player.stats[key] ??= 0;
   player.chatState ||= { sentAt: [], lastNormalized: "", lastDuplicateAt: 0, violations: 0, mutedUntil: 0 };
+  player.bannedUntil ??= 0;
+  player.banReason ||= "";
+  player.ownedAssets ||= [];
+  player.assetIncomeLastAt ??= Date.now();
   player.reputation ||= { score: 50, completed: 0, failed: 0 };
   player.garageCapacity = Math.max(MAX_GARAGE, Math.min(GARAGE_CAPACITY_MAX, Number(player.garageCapacity) || MAX_GARAGE));
   player.parts ||= { common: 0, premium: 0 };
@@ -300,6 +331,16 @@ function ensurePlayerDefaults(player) {
 
 function isAdmin(player) {
   return Boolean(player && ADMIN_NAMES.has(String(player.normalizedName || player.name).toLocaleLowerCase("ru-RU")));
+}
+
+function banMessage(player) {
+  if (!player || isAdmin(player) || !player.bannedUntil) return "";
+  if (player.bannedUntil !== -1 && player.bannedUntil <= Date.now()) {
+    player.bannedUntil = 0; player.banReason = "";
+    return "";
+  }
+  const period = player.bannedUntil === -1 ? "навсегда" : `до ${new Date(player.bannedUntil).toLocaleString("ru-RU")}`;
+  return `Аккаунт заблокирован ${period}. Причина: ${player.banReason || "решение модератора"}`;
 }
 
 function ensureCarDefaults(car) {
@@ -721,7 +762,11 @@ function publicDefect(defect, car = null) {
 
 function publicCar(car, ownerView = false, viewer = null) {
   ensureCarDefaults(car);
-  const visibleCodes = new Set([...(car.publicDiscovered || []), ...(ownerView ? car.discovered : [])]);
+  const visibleCodes = new Set([
+    ...(car.publicDiscovered || []),
+    ...(ownerView ? car.discovered : []),
+    ...(car.saleType === "auction" ? car.defects.filter((defect) => !defect.repaired).map((defect) => defect.code) : [])
+  ]);
   const result = {
     id: car.id, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
@@ -781,6 +826,46 @@ function offerView(offer) {
   return { ...offer, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
 }
 
+function assetResaleValue(asset, player) {
+  const skill = player.skills[asset.skill] || 0;
+  const base = asset.fairValue || asset.basePrice || asset.purchasePrice;
+  return Math.max(1, Math.round(base * (0.76 + skill * 0.045) / 1000) * 1000);
+}
+
+function assetIncomeAvailable(player, now = Date.now()) {
+  const elapsedCycles = Math.min(10, Math.floor((now - player.assetIncomeLastAt) / 60000));
+  if (elapsedCycles < 1) return 0;
+  const managementBonus = 1 + (player.skills.propertyManagement || 0) * 0.06;
+  return Math.round(player.ownedAssets.filter((asset) => asset.type === "property").reduce((sum, asset) => sum + (asset.income || 0), 0) * managementBonus * elapsedCycles);
+}
+
+function publicAssetListing(listing, player) {
+  const skillLevel = player?.skills?.[listing.skill] || 0;
+  const spread = Math.max(0.04, 0.2 - skillLevel * 0.03);
+  const { fairValue, ...publicListing } = listing;
+  return {
+    ...publicListing,
+    estimateLow: Math.round(listing.fairValue * (1 - spread) / 1000) * 1000,
+    estimateHigh: Math.round(listing.fairValue * (1 + spread) / 1000) * 1000,
+    skillLevel
+  };
+}
+
+function createAssetListing(template) {
+  const condition = template.type === "property" ? randomInt(58, 96) : randomInt(62, 100);
+  const fairValue = Math.max(1000, Math.round(template.basePrice * (0.72 + condition / 350) / 1000) * 1000);
+  const price = Math.max(1000, Math.round(fairValue * (0.82 + Math.random() * 0.34) / 1000) * 1000);
+  return { ...template, id: id("asset_"), condition, fairValue, price, stock: template.type === "property" ? 1 : randomInt(1, 4), seller: template.type === "property" ? "Агентство Капитал" : "Ликвидационный склад", listedAt: Date.now() };
+}
+
+function restockAssetMarket() {
+  for (const template of assetCatalog) {
+    const active = assetMarket.filter((listing) => listing.key === template.key && listing.stock > 0).length;
+    for (let index = active; index < 2; index += 1) assetMarket.push(createAssetListing(template));
+  }
+  if (assetMarket.length > assetCatalog.length * 3) assetMarket.splice(0, assetMarket.length - assetCatalog.length * 3);
+}
+
 function publicGroupView(group, viewer) {
   ensureGroupDefaults(group);
   return {
@@ -810,6 +895,8 @@ function playerView(player) {
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory,
+    ownedAssets: player.ownedAssets.map((asset) => ({ ...asset, resaleValue: assetResaleValue(asset, player) })),
+    assetIncomeAvailable: assetIncomeAvailable(player),
     incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
@@ -840,6 +927,8 @@ function snapshot(player) {
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
     catalogCount: catalog.length,
     containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
+    assetMarket: assetMarket.filter((listing) => listing.stock > 0).map((listing) => publicAssetListing(listing, player)),
+    assetCategories: { electronics: "Техника", collectibles: "Коллекции", business: "Оборудование", residential: "Жилая недвижимость", commercial: "Коммерческая недвижимость" },
     leaderboard: [...players.values()].sort((a, b) => b.profit - a.profit).slice(0, 8)
       .map((p) => ({ id: p.id, name: p.name, profit: p.profit, deals: p.deals, level: levelForXp(p.xp) }))
   };
@@ -904,6 +993,7 @@ if (!loadState()) {
   seedMarket();
   persistState();
 }
+restockAssetMarket();
 initializeMarketIndices();
 restock();
 rebalanceNpcMarket();
@@ -1405,6 +1495,8 @@ async function api(req, res, pathname) {
     const pin = String(body.pin || "");
     const player = [...players.values()].find((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === name && item.pinHash);
     if (!player || !verifyPin(pin, player)) return json(res, 401, { error: "Неверное имя или PIN" });
+    const blocked = banMessage(player);
+    if (blocked) return json(res, 403, { error: blocked });
     const token = id("session_");
     sessions.set(token, player.id);
     persistState();
@@ -1425,12 +1517,15 @@ async function api(req, res, pathname) {
 
   const player = getPlayer(req);
   if (!player) return json(res, 401, { error: "Сессия не найдена" });
+  const blocked = banMessage(player);
+  if (blocked) return json(res, 403, { error: blocked });
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     return json(res, 200, {
-      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0 })),
-      economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length }
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "" })),
+      reports: moderationReports.filter((report) => report.status === "open").slice().reverse(),
+      economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length }
     });
   }
   if (req.method === "GET" && pathname === "/api/events") {
@@ -1480,6 +1575,41 @@ async function api(req, res, pathname) {
     target.adminNotes.push({ adminId: player.id, delta, reason: String(body.reason || "Корректировка администратора").slice(0, 100), at: Date.now() });
     broadcast(); return json(res, 200, snapshot(player));
   }
+  if (req.method === "POST" && pathname === "/api/chat/report") {
+    const message = chatMessages.find((item) => item.id === String(body.messageId || ""));
+    if (!message) return json(res, 404, { error: "Сообщение уже недоступно" });
+    if (message.playerId === player.id) return json(res, 400, { error: "Нельзя пожаловаться на своё сообщение" });
+    const reason = normalizeChatText(body.reason).slice(0, 160);
+    if (reason.length < 5) return json(res, 400, { error: "Кратко укажите причину жалобы" });
+    if (moderationReports.some((report) => report.messageId === message.id && report.reporterId === player.id && report.status === "open")) return json(res, 409, { error: "Вы уже отправили жалобу на это сообщение" });
+    moderationReports.push({ id: id("report_"), messageId: message.id, messageText: message.text, accusedId: message.playerId, accusedName: message.playerName, reporterId: player.id, reporterName: player.name, reason, status: "open", createdAt: Date.now() });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/admin/moderation") {
+    if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
+    const target = players.get(String(body.playerId || ""));
+    const action = String(body.action || "");
+    if (["ban", "unban"].includes(action)) {
+      if (!target) return json(res, 404, { error: "Игрок не найден" });
+      if (isAdmin(target)) return json(res, 400, { error: "Нельзя заблокировать администратора" });
+      if (action === "unban") { target.bannedUntil = 0; target.banReason = ""; }
+      else {
+        const duration = Number(body.durationMinutes);
+        if (![-1, 60, 1440, 10080, 43200].includes(duration)) return json(res, 400, { error: "Недопустимый срок блокировки" });
+        target.bannedUntil = duration === -1 ? -1 : Date.now() + duration * 60000;
+        target.banReason = String(body.reason || "Нарушение правил сообщества").trim().slice(0, 160) || "Нарушение правил сообщества";
+        for (const client of [...clients]) if (client.player.id === target.id) {
+          client.res.write(`event: banned\ndata: ${JSON.stringify({ error: banMessage(target) })}\n\n`);
+          client.res.end(); clients.delete(client);
+        }
+      }
+    } else if (["resolve", "dismiss"].includes(action)) {
+      const report = moderationReports.find((item) => item.id === String(body.reportId || "") && item.status === "open");
+      if (!report) return json(res, 404, { error: "Жалоба уже обработана" });
+      report.status = action === "resolve" ? "resolved" : "dismissed"; report.moderatorId = player.id; report.resolvedAt = Date.now();
+    } else return json(res, 400, { error: "Неизвестное действие модерации" });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/chat") {
     try {
       const text = moderateChat(player, body.message);
@@ -1491,6 +1621,29 @@ async function api(req, res, pathname) {
       persistState();
       return json(res, 429, { error: error.message });
     }
+  }
+  if (req.method === "POST" && pathname === "/api/assets/buy") {
+    const listing = assetMarket.find((item) => item.id === String(body.assetId || "") && item.stock > 0);
+    if (!listing) return json(res, 404, { error: "Лот уже продан" });
+    if (listing.price > player.cash - reservedCash(player)) return json(res, 400, { error: "Недостаточно свободных денег" });
+    player.cash -= listing.price;
+    player.ownedAssets.push({ ...listing, id: id("owned_asset_"), listingId: listing.id, purchasePrice: listing.price, acquiredAt: Date.now(), stock: 1 });
+    player.stats.assetsBought += 1; listing.stock -= 1; addXp(player, listing.type === "property" ? 70 : 30);
+    restockAssetMarket(); broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/assets/sell") {
+    const index = player.ownedAssets.findIndex((item) => item.id === String(body.assetId || ""));
+    if (index < 0) return json(res, 404, { error: "Актив не найден" });
+    const [asset] = player.ownedAssets.splice(index, 1);
+    const value = assetResaleValue(asset, player);
+    player.cash += value; player.profit += value - asset.purchasePrice; player.stats.assetsSold += 1; addXp(player, asset.type === "property" ? 55 : 24);
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/assets/income") {
+    const income = assetIncomeAvailable(player);
+    if (income < 1) return json(res, 400, { error: "Доход ещё не накопился. Начисление происходит каждую минуту" });
+    player.cash += income; player.profit += income; player.assetIncomeLastAt = Date.now(); addXp(player, 18);
+    broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/group/create") {
     if (player.groupId) return json(res, 400, { error: "Вы уже состоите в группе" });
