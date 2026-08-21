@@ -12,6 +12,15 @@ const GARAGE_CAPACITY_MAX = 10;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
 const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
 const NPC_ROTATION_COUNT = 10;
+const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
+const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
+const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
+const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market-production.up.railway.app").replace(/\/$/, "");
+const cashPackages = [
+  { id: "starter", rubles: 59, cash: 75000, name: "Быстрый старт" },
+  { id: "dealer", rubles: 149, cash: 220000, name: "Капитал дилера" },
+  { id: "business", rubles: 299, cash: 500000, name: "Развитие бизнеса" }
+];
 const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, "game.db"));
@@ -137,6 +146,7 @@ const groups = new Map();
 const partsMarket = [];
 const partsSalesHistory = [];
 const partIndices = {};
+const paymentOrders = new Map();
 const clients = new Set();
 let revision = 0;
 let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
@@ -144,7 +154,7 @@ let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
-    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices
+    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()]
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
@@ -166,6 +176,7 @@ function loadState() {
     partsMarket.push(...(saved.partsMarket || []).map(ensurePartLot));
     partsSalesHistory.push(...(saved.partsSalesHistory || []).slice(-500));
     Object.assign(partIndices, saved.partIndices || {});
+    for (const [key, value] of saved.paymentOrders || []) paymentOrders.set(key, value);
     return market.length > 0;
   } catch (error) {
     console.error("Failed to load saved game:", error.message);
@@ -199,9 +210,15 @@ function ensurePlayerDefaults(player) {
   player.groupId ??= null;
   player.groupRole ??= null;
   player.contracts ||= [];
+  player.purchasedCash ||= 0;
+  player.adminNotes ||= [];
   if (!player.contracts.length) player.contracts = generateContracts(player);
   player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
+}
+
+function isAdmin(player) {
+  return Boolean(player && ADMIN_NAMES.has(String(player.normalizedName || player.name).toLocaleLowerCase("ru-RU")));
 }
 
 function ensureCarDefaults(car) {
@@ -597,7 +614,7 @@ function publicGroupView(group, viewer) {
 function playerView(player) {
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals,
+    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
@@ -626,6 +643,7 @@ function snapshot(player) {
     groups: [...groups.values()].map((group) => ({ id: group.id, name: group.name, rating: group.rating, members: group.members.length })),
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
     employeeCandidates,
+    store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
     leaderboard: [...players.values()].sort((a, b) => b.profit - a.profit).slice(0, 8)
       .map((p) => ({ id: p.id, name: p.name, profit: p.profit, deals: p.deals, level: levelForXp(p.xp) }))
   };
@@ -756,6 +774,33 @@ function getPlayer(req) {
 function json(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   res.end(JSON.stringify(data));
+}
+
+async function yookassaRequest(pathname, options = {}) {
+  const authorization = Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString("base64");
+  const response = await fetch(`https://api.yookassa.ru/v3${pathname}`, {
+    ...options,
+    headers: { Authorization: `Basic ${authorization}`, "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.description || "Платёжный сервис временно недоступен");
+  return data;
+}
+
+async function confirmPayment(paymentId) {
+  const order = paymentOrders.get(paymentId);
+  if (!order || order.status === "succeeded" || !YOOKASSA_SHOP_ID) return false;
+  const payment = await yookassaRequest(`/payments/${encodeURIComponent(paymentId)}`);
+  if (payment.status !== "succeeded" || payment.paid !== true || payment.metadata?.orderId !== order.orderId) return false;
+  const player = players.get(order.playerId);
+  if (!player) return false;
+  player.cash += order.cash;
+  player.purchasedCash += order.cash;
+  order.status = "succeeded";
+  order.paidAt = Date.now();
+  persistState();
+  broadcast();
+  return true;
 }
 
 async function readBody(req) {
@@ -983,6 +1028,14 @@ async function api(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/health") {
     return json(res, 200, { status: "ok", service: "perekup-market", revision, uptimeSeconds: Math.round(process.uptime()) });
   }
+  if (req.method === "POST" && pathname === "/api/payments/webhook") {
+    if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) return json(res, 503, { error: "Платежи не настроены" });
+    const payload = await readBody(req);
+    const paymentId = String(payload.object?.id || "");
+    if (!paymentId) return json(res, 400, { error: "Некорректное уведомление" });
+    try { await confirmPayment(paymentId); return json(res, 200, { ok: true }); }
+    catch (error) { return json(res, 502, { error: "Не удалось проверить платёж" }); }
+  }
   if (req.method === "POST" && pathname === "/api/register") {
     const body = await readBody(req);
     const name = String(body.name || "").trim().slice(0, 20);
@@ -1028,6 +1081,13 @@ async function api(req, res, pathname) {
   const player = getPlayer(req);
   if (!player) return json(res, 401, { error: "Сессия не найдена" });
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
+  if (req.method === "GET" && pathname === "/api/admin/state") {
+    if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
+    return json(res, 200, {
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0 })),
+      economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length }
+    });
+  }
   if (req.method === "GET" && pathname === "/api/events") {
     res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive" });
     res.write(`event: update\ndata: ${JSON.stringify(snapshot(player))}\n\n`);
@@ -1038,6 +1098,31 @@ async function api(req, res, pathname) {
   }
 
   const body = await readBody(req);
+  if (req.method === "POST" && pathname === "/api/store/create-payment") {
+    if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) return json(res, 503, { error: "Приём рублей ещё не подключён. Нужны ключи YooKassa." });
+    const pack = cashPackages.find((item) => item.id === body.packageId);
+    if (!pack) return json(res, 404, { error: "Пакет не найден" });
+    const orderId = id("order_");
+    try {
+      const payment = await yookassaRequest("/payments", {
+        method: "POST", headers: { "Idempotence-Key": orderId },
+        body: JSON.stringify({ amount: { value: pack.rubles.toFixed(2), currency: "RUB" }, capture: true, confirmation: { type: "redirect", return_url: `${PUBLIC_URL}/#store` }, description: `${pack.name}: ${pack.cash.toLocaleString("ru-RU")} игровых рублей`, metadata: { orderId, playerId: player.id, packageId: pack.id } })
+      });
+      paymentOrders.set(payment.id, { orderId, paymentId: payment.id, playerId: player.id, packageId: pack.id, rubles: pack.rubles, cash: pack.cash, status: payment.status, createdAt: Date.now() });
+      persistState();
+      return json(res, 200, { confirmationUrl: payment.confirmation?.confirmation_url });
+    } catch (error) { return json(res, 502, { error: error.message }); }
+  }
+  if (req.method === "POST" && pathname === "/api/admin/player") {
+    if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
+    const target = players.get(String(body.playerId || ""));
+    if (!target) return json(res, 404, { error: "Игрок не найден" });
+    const delta = Math.round(Number(body.cashDelta));
+    if (!Number.isFinite(delta) || Math.abs(delta) > 10000000 || target.cash + delta < 0) return json(res, 400, { error: "Некорректное изменение баланса" });
+    target.cash += delta;
+    target.adminNotes.push({ adminId: player.id, delta, reason: String(body.reason || "Корректировка администратора").slice(0, 100), at: Date.now() });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/chat") {
     try {
       const text = moderateChat(player, body.message);

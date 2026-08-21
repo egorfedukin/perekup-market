@@ -14,6 +14,7 @@ let lastCheckResult = null;
 let events = null;
 let toastTimer = null;
 const pendingActions = new Set();
+let adminState = null;
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -257,6 +258,26 @@ function renderProfile() {
   $("#npc-list").innerHTML = (state.npcProfiles || []).map((npc) => `<div class="npc-row"><div><strong>${escapeHtml(npc.name)}</strong><small>${escapeHtml(npc.type)} · бюджет ${money(npc.budget)}</small></div><span>Рейтинг ${npc.rating}/100</span></div>`).join("");
 }
 
+function renderStore() {
+  const store = state.store || { enabled: false, packages: [] };
+  $("#store-status").textContent = store.enabled ? `Оплата через ${store.provider}` : "Приём платежей готовится";
+  $("#store-packages").innerHTML = store.packages.map((pack) => `<article class="store-package"><span>${escapeHtml(pack.name)}</span><strong>${money(pack.cash)}</strong><small>игровых рублей</small><button class="danger-button" data-buy-cash="${pack.id}" ${store.enabled ? "" : "disabled"}>${store.enabled ? `Купить за ${pack.rubles} ₽` : "Скоро"}</button></article>`).join("");
+}
+
+function renderAdmin() {
+  $("#admin-tab").hidden = !state.player.isAdmin;
+  if (!state.player.isAdmin || !adminState) return;
+  const economy = adminState.economy;
+  $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Завершённых сделок", economy.deals], ["Активных предложений", economy.activeOffers], ["Оплаченных заказов", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("#admin-players").innerHTML = adminState.players.map((player) => `<article class="admin-player"><div><strong>${escapeHtml(player.name)}</strong><small>Уровень ${player.level} · сделок ${player.deals} · гараж ${player.garage} · репутация ${player.reputation}</small></div><span>${money(player.cash)}<small>куплено ${money(player.purchasedCash)}</small></span><div class="admin-actions"><input id="admin-cash-${player.id}" type="number" step="1000" placeholder="+/- сумма"><input id="admin-reason-${player.id}" maxlength="100" placeholder="Причина"><button class="secondary-button" data-admin-cash="${player.id}">Применить</button></div></article>`).join("");
+}
+
+async function loadAdmin() {
+  if (!state.player?.isAdmin) return;
+  try { adminState = await request("/api/admin/state"); renderAdmin(); }
+  catch (error) { showToast(error.message, true); }
+}
+
 function renderChat() {
   const container = $("#chat-messages");
   const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 90;
@@ -275,7 +296,7 @@ function render() {
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat();
+  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
 }
 
@@ -446,7 +467,7 @@ async function perform(path, body, success) {
 }
 
 document.addEventListener("click", async (event) => {
-  const tab = event.target.closest("[data-view]"); if (tab) return setView(tab.dataset.view);
+  const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
   if (event.target.closest("[data-go-market]")) return setView("market");
   if (event.target.closest("[data-close-modal]")) return closeModal();
 
@@ -514,6 +535,19 @@ document.addEventListener("click", async (event) => {
     location.reload();
   }
   const adAction = event.target.closest("[data-ad-action]"); if (adAction) return showToast("Рекламный слот готов к подключению партнёрской сети");
+  const buyCash = event.target.closest("[data-buy-cash]");
+  if (buyCash) {
+    try { const data = await request("/api/store/create-payment", { method: "POST", body: JSON.stringify({ packageId: buyCash.dataset.buyCash }) }); if (data.confirmationUrl) location.href = data.confirmationUrl; }
+    catch (error) { showToast(error.message, true); }
+    return;
+  }
+  if (event.target.closest("[data-admin-refresh]")) return loadAdmin();
+  const adminCash = event.target.closest("[data-admin-cash]");
+  if (adminCash) {
+    const playerId = adminCash.dataset.adminCash;
+    if (await perform("/api/admin/player", { playerId, cashDelta: $(`#admin-cash-${playerId}`)?.value, reason: $(`#admin-reason-${playerId}`)?.value }, "Баланс игрока изменён")) await loadAdmin();
+    return;
+  }
 });
 
 document.addEventListener("submit", async (event) => {

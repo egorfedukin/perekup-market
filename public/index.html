@@ -46,6 +46,8 @@
         <button class="tab" data-view="chat">Чат <span id="chat-count" class="badge">0</span></button>
         <button class="tab" data-view="rating">Рейтинг</button>
         <button class="tab" data-view="team">Команда</button>
+        <button class="tab" data-view="store">Магазин</button>
+        <button id="admin-tab" class="tab" data-view="admin" hidden>Админ</button>
         <button class="tab" data-view="profile">Профиль</button>
       </nav>
       <div class="wallet">
@@ -181,6 +183,18 @@
         <div class="section-heading"><div><p class="eyebrow">Совместная касса, роли и работа сотрудников</p><h2>Команда</h2></div></div>
         <section class="group-panel"><div class="workshop-heading"><div><p class="eyebrow">Группа и общий гараж</p><h3>Штаб команды</h3></div></div><div id="group-content"></div><div id="group-members" class="group-members"></div><div id="group-garage" class="group-garage"></div><div id="group-employees" class="group-employees"></div></section>
         <section class="npc-panel"><div class="workshop-heading"><div><p class="eyebrow">Сотрудники-NPC выполняют работу за деньги группы</p><h3>Кандидаты и специалисты</h3></div></div><div id="team-npc-note" class="inspection-summary">Наймите диагноста или механика, внесите автомобиль в общий гараж и отправьте его на обслуживание.</div></section>
+      </section>
+
+      <section id="store-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Пополнение игрового баланса</p><h2>Магазин</h2></div><div class="market-pulse"><i></i><span id="store-status">Безопасная оплата</span></div></div>
+        <div id="store-packages" class="store-packages"></div>
+        <div class="store-notice"><strong>Важно</strong><p>Покупка пополняет только игровой баланс и не влияет на рейтинг прибыли. Игровые рубли нельзя вывести или обменять обратно на реальные деньги.</p></div>
+      </section>
+
+      <section id="admin-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Управление проектом</p><h2>Админский кабинет</h2></div><button class="secondary-button" data-admin-refresh>Обновить</button></div>
+        <div id="admin-economy" class="profile-stats"></div>
+        <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Баланс и состояние аккаунтов</p><h3>Игроки</h3></div></div><div id="admin-players" class="admin-players"></div></section>
       </section>
 
       <section id="profile-view" class="view">
