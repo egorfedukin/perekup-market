@@ -45,6 +45,8 @@ const catalog = [
 ];
 
 const defectCatalog = [
+  { code: "oil_low", category: "engine", name: "Критически низкий уровень моторного масла", symptom: "Щуп показывает уровень ниже минимума, масло потемнело.", consequence: "Ускоренный износ двигателя и риск масляного голодания.", severity: 2, skill: 1, equipment: "tools", equipmentLevel: 1, repair: 6500, impact: 18000, partName: "Моторное масло 5W-30" },
+  { code: "timing_belt", category: "engine", name: "Трещины на ремне ГРМ", symptom: "Микротрещины на рабочей поверхности ремня, срок замены просрочен.", consequence: "Обрыв ремня загнёт клапаны и остановит двигатель.", severity: 3, skill: 2, equipment: "tools", equipmentLevel: 2, repair: 42000, impact: 76000, partName: "Комплект ремня ГРМ" },
   { code: "oil_leak", category: "engine", name: "Течь масла из-под клапанной крышки", symptom: "Масляный налёт на верхней части двигателя и запах после поездки.", consequence: "Падение уровня масла и риск масляного голодания.", severity: 2, skill: 1, equipment: "tools", equipmentLevel: 1, repair: 26000, impact: 47000 },
   { code: "compression", category: "engine", name: "Низкая компрессия во втором цилиндре", symptom: "Неровный холодный запуск, лёгкая вибрация на холостом ходу.", consequence: "Рост расхода масла и капитальный ремонт двигателя.", severity: 3, skill: 3, equipment: "tools", equipmentLevel: 3, repair: 118000, impact: 165000 },
   { code: "timing", category: "engine", name: "Растянута цепь ГРМ", symptom: "Короткий металлический треск при запуске.", consequence: "Перескок цепи может повредить клапаны.", severity: 3, skill: 2, equipment: "scanner", equipmentLevel: 2, repair: 68000, impact: 97000 },
@@ -57,11 +59,13 @@ const defectCatalog = [
   { code: "rust", category: "body", name: "Коррозия порогов под накладками", symptom: "Вздутие краски у задних колёсных арок.", consequence: "Потребуется сварка и полный окрас порогов.", severity: 2, skill: 2, equipment: "lift", equipmentLevel: 2, repair: 59000, impact: 88000 },
   { code: "airbag", category: "electrics", name: "Эмулятор подушки безопасности", symptom: "Индикатор SRS гаснет одновременно с другими лампами.", consequence: "Подушка не сработает при столкновении.", severity: 3, skill: 3, equipment: "scanner", equipmentLevel: 3, repair: 76000, impact: 126000 },
   { code: "generator", category: "electrics", name: "Нестабильная зарядка генератора", symptom: "Напряжение проседает при включении обогрева.", consequence: "Разряд аккумулятора и остановка двигателя.", severity: 2, skill: 1, equipment: "scanner", equipmentLevel: 1, repair: 21000, impact: 35000 },
+  { code: "turn_signal", category: "electrics", name: "Не работает левый передний поворотник", symptom: "Лампа не включается, в корпусе следы влаги.", consequence: "Автомобиль не подаёт сигнал манёвра и может не пройти техосмотр.", severity: 1, skill: 1, equipment: "electricalBench", equipmentLevel: 1, repair: 4500, impact: 9000, partName: "Лампа поворотника" },
   { code: "can_bus", category: "electrics", name: "Плавающие ошибки CAN-шины", symptom: "Периодически пропадает связь с блоком комфорта.", consequence: "Непредсказуемые отказы электрооборудования.", severity: 2, skill: 2, equipment: "scanner", equipmentLevel: 2, repair: 39000, impact: 66000 },
   { code: "coolant", category: "engine", name: "Микротрещина рубашки охлаждения", symptom: "Следы антифриза видны эндоскопом за выпускным коллектором.", consequence: "Перегрев двигателя и деформация головки блока.", severity: 3, skill: 3, equipment: "endoscope", equipmentLevel: 2, repair: 89000, impact: 138000 },
   { code: "wiring", category: "electrics", name: "Повреждение жгута проводки", symptom: "Сопротивление цепи меняется при движении жгута.", consequence: "Короткое замыкание и отказ нескольких систем.", severity: 3, skill: 2, equipment: "multimeter", equipmentLevel: 2, repair: 54000, impact: 86000 },
   { code: "uneven_tires", category: "tires", name: "Неравномерный износ комплекта шин", symptom: "Разница глубины протектора по внутренней и внешней кромке.", consequence: "Плохое сцепление и возможное нарушение геометрии подвески.", severity: 2, skill: 1, equipment: "treadGauge", equipmentLevel: 1, repair: 36000, impact: 49000 },
   { code: "old_tires", category: "tires", name: "Возрастные трещины боковин", symptom: "Маркировка даты выпуска старше восьми лет, резина задубела.", consequence: "Риск разрыва шины на высокой скорости.", severity: 3, skill: 2, equipment: "treadGauge", equipmentLevel: 2, repair: 48000, impact: 65000 },
+  { code: "puncture", category: "tires", name: "Прокол правого переднего колеса", symptom: "Медленная потеря давления после стоянки.", consequence: "Разрушение боковины и потеря управления.", severity: 1, skill: 1, equipment: "treadGauge", equipmentLevel: 1, repair: 3500, impact: 8000, partName: "Ремкомплект бескамерной шины" },
   { code: "mileage", category: "documents", name: "Скрученный пробег", symptom: "Пробег в блоке ABS выше показаний приборной панели.", consequence: "Реальный износ автомобиля значительно выше заявленного.", severity: 2, skill: 2, equipment: "vinScanner", equipmentLevel: 2, repair: 15000, impact: 92000 },
   { code: "vin", category: "documents", name: "Следы вмешательства в маркировку VIN", symptom: "Шрифт и глубина символов отличаются от заводского образца.", consequence: "Отказ в регистрации и риск изъятия автомобиля.", severity: 3, skill: 3, equipment: "vinScanner", equipmentLevel: 3, repair: 180000, impact: 310000 }
 ];
@@ -191,6 +195,7 @@ function ensurePlayerDefaults(player) {
   player.garageCapacity = Math.max(MAX_GARAGE, Math.min(GARAGE_CAPACITY_MAX, Number(player.garageCapacity) || MAX_GARAGE));
   player.parts ||= { common: 0, premium: 0 };
   player.partInventory ||= [];
+  player.partInventory.forEach((part, index) => migratePart(part, index));
   player.groupId ??= null;
   player.groupRole ??= null;
   player.contracts ||= [];
@@ -222,6 +227,19 @@ function ensureCarDefaults(car) {
   car.upgradeStage ||= car.upgrades.length;
   car.listedAt ||= car.history?.find((entry) => entry.type === "listed")?.at || Date.now();
   car.marketTag ??= null;
+  car.publicDiscovered ||= [];
+  car.publicInspectionRecords ||= {};
+}
+
+function migratePart(part, index = 0) {
+  if (!part || typeof part !== "object") return part;
+  if (part.component === "universal") part.component = ["engine", "chassis", "body", "electrics", "tires"][index % 5];
+  part.compatibleModel ??= "all";
+  if (!part.name || /универсал|расходные/i.test(part.name)) {
+    const names = { engine: "Масло и ремкомплект двигателя", chassis: "Комплект ходовой", body: "Кузовная деталь", electrics: "Электрический разъём и лампы", tires: "Шинный ремкомплект" };
+    part.name = names[part.component] || "Автомобильная деталь";
+  }
+  return part;
 }
 
 function ensureGroupDefaults(group) {
@@ -242,9 +260,17 @@ function makePart(component = "universal", quality = "analog", conditionPct = 10
   const base = component === "engine" ? 65000 : component === "chassis" ? 38000 : component === "body" ? 32000 : component === "electrics" ? 27000 : component === "tires" ? 24000 : 12000;
   const compatibleModel = sourceCar && sourceCar !== "all" ? sourceCar : "all";
   const componentName = partComponents[component] || partComponents.universal;
+  const specificNames = {
+    engine: ["Моторное масло 5W-30", "Комплект ремня ГРМ", "Прокладка клапанной крышки"],
+    chassis: ["Комплект сцепления", "Ступичный подшипник", "Втулки стабилизатора"],
+    body: ["Кузовная панель", "Грунт и эмаль", "Комплект уплотнителей"],
+    electrics: ["Лампа поворотника", "Датчик ABS", "Электрический разъём"],
+    tires: ["Ремкомплект бескамерной шины", "Комплект вентилей", "Балансировочные грузики"]
+  };
+  const specificName = specificNames[component]?.[Math.floor(Math.random() * specificNames[component].length)] || componentName;
   return {
     id: `inventory_part_${crypto.randomBytes(7).toString("hex")}`, component,
-    name: `${componentName}${compatibleModel !== "all" ? ` · ${compatibleModel}` : ""}`,
+    name: `${specificName}${compatibleModel !== "all" ? ` · ${compatibleModel}` : ""}`,
     quality, conditionPct: Math.max(20, Math.min(100, Math.round(conditionPct))), compatibleClass, compatibleModel,
     estimatedValue: Math.max(1000, Math.round(base * qualityFactor * conditionPct / 100 / 500) * 500), sourceCar
   };
@@ -257,8 +283,9 @@ function partStockType(part) {
 function ensurePartLot(lot) {
   if (!lot.item) {
     const quality = lot.type === "premium" ? "original" : lot.condition === "used" ? "restored" : "analog";
-    lot.item = makePart("universal", quality, lot.condition === "used" ? 68 : 100, "all");
+    lot.item = makePart(["engine", "chassis", "body", "electrics", "tires"][Math.abs(String(lot.id || "lot").length) % 5], quality, lot.condition === "used" ? 68 : 100, "all");
   }
+  migratePart(lot.item);
   lot.item.compatibleModel ??= "all";
   lot.item.name ||= `${partComponents[lot.item.component] || partComponents.universal}${lot.item.compatibleModel !== "all" ? ` · ${lot.item.compatibleModel}` : ""}`;
   lot.sellerId ??= null;
@@ -497,6 +524,7 @@ function publicDefect(defect) {
   return {
     code: defect.code, category: defect.category, name: defect.name, symptom: defect.symptom,
     consequence: defect.consequence, severity: defect.severity, skill: defect.skill,
+    partName: defect.partName || null,
     equipment: defect.equipment, equipmentLevel: defect.equipmentLevel,
     repair: defect.repair, repaired: defect.repaired,
     selfRepairable,
@@ -511,6 +539,7 @@ function publicDefect(defect) {
 
 function publicCar(car, ownerView = false, viewer = null) {
   ensureCarDefaults(car);
+  const visibleCodes = new Set([...(car.publicDiscovered || []), ...(ownerView ? car.discovered : [])]);
   const result = {
     id: car.id, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
@@ -521,9 +550,10 @@ function publicCar(car, ownerView = false, viewer = null) {
     startingPrice: car.startingPrice || null, highestBid: car.highestBid || 0,
     highestBidderName: car.highestBidderName || null, highestBidderType: car.highestBidderType || null, bidCount: car.bidCount || 0
   };
+  result.publicInspectionRecords = car.publicInspectionRecords || {};
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
   if (ownerView || (viewer && car.ownerId === viewer.id)) {
-    result.defects = car.defects.filter((defect) => car.discovered.includes(defect.code)).map(publicDefect);
+    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map(publicDefect);
     result.checkedCategories = car.checkedCategories;
     result.inspectionRecords = car.inspectionRecords;
     result.inspection = inspectionSummary(car);
@@ -537,6 +567,9 @@ function publicCar(car, ownerView = false, viewer = null) {
     result.upgrades = car.upgrades;
     result.upgradeValue = car.upgradeValue;
     result.upgradeOptions = upgradeOptions(car, viewer);
+  } else {
+    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map(publicDefect);
+    result.publicInspection = { checked: Object.keys(car.publicInspectionRecords || {}), confidence: Object.values(car.publicInspectionRecords || {}).reduce((sum, record) => sum + record.confidence, 0) };
   }
   return result;
 }
@@ -812,7 +845,7 @@ function evaluateBots(car) {
     const offer = {
       id: id("offer_"), carId: car.id, sellerId: car.sellerId,
       buyerId: bot.id, buyerName: bot.name, buyerType: "bot", amount,
-      status: "active", reason, createdAt: Date.now()
+      status: "active", reason, createdAt: Date.now(), attempts: 0, lastOfferAt: Date.now()
     };
     offers.set(offer.id, offer);
   }
@@ -822,6 +855,16 @@ function evaluateBots(car) {
 function scheduleBots(car) {
   setTimeout(() => evaluateBots(car), 900 + randomInt(0, 900));
 }
+
+function refreshNpcOffers() {
+  for (const car of market.filter((item) => item.sellerId && item.saleType === "fixed")) {
+    const active = [...offers.values()].filter((offer) => offer.carId === car.id && offer.buyerType === "bot" && ["active", "counter"].includes(offer.status));
+    if (active.length >= 2) continue;
+    if (Math.random() > 0.38) continue;
+    evaluateBots(car);
+  }
+}
+setInterval(refreshNpcOffers, 18000).unref();
 
 function finalizeAuctions() {
   const expired = market.filter((car) => car.saleType === "auction" && car.auctionEnd <= Date.now());
@@ -1073,6 +1116,27 @@ async function api(req, res, pathname) {
     group.log.push({ at: Date.now(), text: `${player.name} забрал ${car.model} из общего гаража` });
     broadcast(); return json(res, 200, snapshot(player));
   }
+  if (req.method === "POST" && pathname === "/api/group/garage/work") {
+    const group = player.groupId && groups.get(player.groupId); const car = group?.garage.find((item) => item.id === body.carId);
+    if (!group || !car) return json(res, 404, { error: "Машина не найдена в общем гараже" });
+    if (!groupCan(player, "garage") && car.groupContributorId !== player.id) return json(res, 403, { error: "У вашей роли нет доступа к обслуживанию этой машины" });
+    const mechanic = group.employees.find((employee) => employee.specialty === "mechanics");
+    const diagnostician = group.employees.find((employee) => employee.specialty === "diagnostics");
+    if (!mechanic && !diagnostician) return json(res, 400, { error: "Наймите механика или диагноста: NPC в группе пока некому работать" });
+    const workCost = 8000;
+    if (group.treasury < workCost) return json(res, 400, { error: `В общей кассе нужно ${workCost.toLocaleString("ru-RU")} ₽` });
+    group.treasury -= workCost;
+    ensureCarDefaults(car);
+    const skill = Math.max(mechanic?.rating || 0, diagnostician?.rating || 0);
+    const hidden = car.defects.filter((defect) => !car.publicDiscovered.includes(defect.code) && defect.skill + defect.equipmentLevel <= Math.ceil(skill / 25) + 2).slice(0, 2);
+    hidden.forEach((defect) => { car.publicDiscovered.push(defect.code); if (!car.discovered.includes(defect.code)) car.discovered.push(defect.code); });
+    const repairable = mechanic && car.defects.find((defect) => car.discovered.includes(defect.code) && !defect.repaired && defect.category !== "documents");
+    if (repairable) { repairable.repaired = true; car.condition = Math.min(100, car.condition + repairable.severity * 3); car.repairs.push(repairable.name); car.invested += workCost; }
+    car.history.push({ type: "group", text: `Сотрудники группы провели обслуживание${repairable ? `: ${repairable.name}` : " и диагностику"}`, at: Date.now() });
+    group.log.push({ at: Date.now(), text: `${player.name} отправил ${car.model} к сотрудникам группы` });
+    group.rating = clamp(group.rating + (hidden.length || repairable ? 1 : 0), 0, 100);
+    broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/group/employee/hire") {
     const group = player.groupId && groups.get(player.groupId);
     if (!group || !groupCan(player, "hire")) return json(res, 403, { error: "Нанимать сотрудников может владелец или управляющий" });
@@ -1161,6 +1225,31 @@ async function api(req, res, pathname) {
     addXp(player, 20 + newFound.length * 15);
     broadcast();
     return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map(publicDefect), confidence, improvedFrom: previous?.bestScore || 0, canImprove: score < 6 } });
+  }
+
+  if (req.method === "POST" && pathname === "/api/market-check") {
+    const car = market.find((item) => item.id === body.carId);
+    const category = String(body.category || "");
+    if (!car) return json(res, 404, { error: "Автомобиль уже ушёл с рынка" });
+    if (!inspectionRequirements[category]) return json(res, 400, { error: "Неизвестная система автомобиля" });
+    ensureCarDefaults(car);
+    const requirement = inspectionRequirements[category];
+    const score = player.skills[requirement.skill] + player.equipment[requirement.equipment];
+    const previous = car.publicInspectionRecords[category];
+    if (previous && score <= previous.bestScore) return json(res, 400, { error: "Эту систему уже проверили на доступной глубине" });
+    const cost = 1000;
+    if (player.cash < cost) return json(res, 400, { error: "Нужны 1 000 ₽ на осмотр и расходники" });
+    player.cash -= cost;
+    player.stats.inspections += 1;
+    const matching = car.defects.filter((defect) => defect.category === category && !defect.repaired);
+    const found = matching.filter((defect) => score >= defect.skill + defect.equipmentLevel);
+    const newFound = found.filter((defect) => !car.publicDiscovered.includes(defect.code));
+    for (const defect of found) if (!car.publicDiscovered.includes(defect.code)) car.publicDiscovered.push(defect.code);
+    const confidence = Math.min(100, Math.round(score / 6 * 100));
+    car.publicInspectionRecords[category] = { bestScore: score, confidence, inspector: player.name, at: Date.now() };
+    addXp(player, 12 + newFound.length * 10);
+    broadcast();
+    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map(publicDefect), confidence } });
   }
 
   if (req.method === "POST" && pathname === "/api/service-diagnostic") {
