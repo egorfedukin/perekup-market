@@ -10,7 +10,7 @@ const STARTING_CASH = 650000;
 const MAX_GARAGE = 4;
 const GARAGE_CAPACITY_MAX = 10;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
-const NPC_ROTATION_MS = Math.max(10000, Number(process.env.PEREKUP_ROTATION_MS) || 45000);
+const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
 const NPC_ROTATION_COUNT = 10;
 const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -105,6 +105,14 @@ const partComponents = {
   electrics: "Электрооборудование", tires: "Колёса и шины", universal: "Расходные материалы"
 };
 
+const upgradeCatalog = [
+  { key: "detailing", name: "Профессиональный детейлинг", description: "Глубокая очистка салона, полировка кузова и фото-подготовка.", skill: "bodywork", equipment: "bodyStation", skillLevel: 1, equipmentLevel: 1, cost: 22000, value: 36000, condition: 4 },
+  { key: "maintenance", name: "Большое ТО", description: "Масла, фильтры и регламентные расходники с записью в историю.", skill: "mechanics", equipment: "workshop", skillLevel: 1, equipmentLevel: 1, cost: 34000, value: 52000, condition: 6 },
+  { key: "suspension", name: "Настройка ходовой", description: "Развал-схождение и настройка подвески для уверенного хода.", skill: "mechanics", equipment: "workshop", skillLevel: 2, equipmentLevel: 2, cost: 76000, value: 112000, condition: 8 },
+  { key: "electronics", name: "Профилактика электроники", description: "Проверка блоков, контактов и обновление сервисной истории.", skill: "electrics", equipment: "electricalBench", skillLevel: 2, equipmentLevel: 2, cost: 68000, value: 104000, condition: 5 },
+  { key: "restoration", name: "Предпродажная реставрация", description: "Комплексная подготовка редкого автомобиля с подтверждёнными работами.", skill: "appraisal", equipment: "bodyStation", skillLevel: 3, equipmentLevel: 3, cost: 165000, value: 255000, condition: 10 }
+];
+
 const employeeCandidates = [
   { id: "employee_diagnostic_1", name: "Антон Лебедев", specialty: "diagnostics", title: "Диагност", rating: 72, hireCost: 65000 },
   { id: "employee_diagnostic_2", name: "Ольга Романова", specialty: "diagnostics", title: "Старший диагност", rating: 91, hireCost: 145000 },
@@ -123,6 +131,8 @@ const offers = new Map();
 const chatMessages = [];
 const groups = new Map();
 const partsMarket = [];
+const partsSalesHistory = [];
+const partIndices = {};
 const clients = new Set();
 let revision = 0;
 let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
@@ -130,7 +140,7 @@ let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
-    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket
+    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
@@ -150,6 +160,8 @@ function loadState() {
     chatMessages.push(...(saved.chatMessages || []).slice(-100));
     for (const [key, value] of saved.groups || []) { ensureGroupDefaults(value); groups.set(key, value); }
     partsMarket.push(...(saved.partsMarket || []).map(ensurePartLot));
+    partsSalesHistory.push(...(saved.partsSalesHistory || []).slice(-500));
+    Object.assign(partIndices, saved.partIndices || {});
     return market.length > 0;
   } catch (error) {
     console.error("Failed to load saved game:", error.message);
@@ -172,8 +184,8 @@ function ensurePlayerDefaults(player) {
   player.equipment.historyTerminal ??= player.equipment.vinScanner || 0;
   for (const key of Object.keys(skillInfo)) player.skills[key] ??= 0;
   for (const key of Object.keys(equipmentInfo)) player.equipment[key] ??= 0;
-  player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0 };
-  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids"]) player.stats[key] ??= 0;
+  player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0, partsSold: 0, partsBought: 0, upgrades: 0 };
+  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades"]) player.stats[key] ??= 0;
   player.chatState ||= { sentAt: [], lastNormalized: "", lastDuplicateAt: 0, violations: 0, mutedUntil: 0 };
   player.reputation ||= { score: 50, completed: 0, failed: 0 };
   player.garageCapacity = Math.max(MAX_GARAGE, Math.min(GARAGE_CAPACITY_MAX, Number(player.garageCapacity) || MAX_GARAGE));
@@ -205,6 +217,9 @@ function ensureCarDefaults(car) {
   car.serviceDiagnosed ??= false;
   car.history ||= [{ type: "acquired", text: "Автомобиль поступил на рынок", at: Date.now() }];
   car.installedParts ||= [];
+  car.upgrades ||= [];
+  car.upgradeValue ||= 0;
+  car.upgradeStage ||= car.upgrades.length;
   car.listedAt ||= car.history?.find((entry) => entry.type === "listed")?.at || Date.now();
   car.marketTag ??= null;
 }
@@ -225,9 +240,12 @@ function ensureGroupDefaults(group) {
 function makePart(component = "universal", quality = "analog", conditionPct = 100, compatibleClass = "all", sourceCar = null) {
   const qualityFactor = quality === "original" ? 1.35 : quality === "restored" ? 0.72 : 1;
   const base = component === "engine" ? 65000 : component === "chassis" ? 38000 : component === "body" ? 32000 : component === "electrics" ? 27000 : component === "tires" ? 24000 : 12000;
+  const compatibleModel = sourceCar && sourceCar !== "all" ? sourceCar : "all";
+  const componentName = partComponents[component] || partComponents.universal;
   return {
-    id: `inventory_part_${crypto.randomBytes(7).toString("hex")}`, component, name: partComponents[component] || partComponents.universal,
-    quality, conditionPct: Math.max(20, Math.min(100, Math.round(conditionPct))), compatibleClass,
+    id: `inventory_part_${crypto.randomBytes(7).toString("hex")}`, component,
+    name: `${componentName}${compatibleModel !== "all" ? ` · ${compatibleModel}` : ""}`,
+    quality, conditionPct: Math.max(20, Math.min(100, Math.round(conditionPct))), compatibleClass, compatibleModel,
     estimatedValue: Math.max(1000, Math.round(base * qualityFactor * conditionPct / 100 / 500) * 500), sourceCar
   };
 }
@@ -241,6 +259,8 @@ function ensurePartLot(lot) {
     const quality = lot.type === "premium" ? "original" : lot.condition === "used" ? "restored" : "analog";
     lot.item = makePart("universal", quality, lot.condition === "used" ? 68 : 100, "all");
   }
+  lot.item.compatibleModel ??= "all";
+  lot.item.name ||= `${partComponents[lot.item.component] || partComponents.universal}${lot.item.compatibleModel !== "all" ? ` · ${lot.item.compatibleModel}` : ""}`;
   lot.sellerId ??= null;
   lot.createdAt ||= Date.now();
   return lot;
@@ -264,8 +284,17 @@ const id = (prefix = "") => prefix + crypto.randomBytes(7).toString("hex");
 const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+function xpForLevel(level) {
+  if (level <= 1) return 0;
+  let total = 0;
+  for (let current = 1; current < level; current += 1) total += 120 + current * 75;
+  return total;
+}
+
 function levelForXp(xp) {
-  return Math.min(30, 1 + Math.floor(xp / 150));
+  let level = 1;
+  while (level < 30 && xp >= xpForLevel(level + 1)) level += 1;
+  return level;
 }
 
 function addXp(player, amount) {
@@ -276,8 +305,9 @@ function addXp(player, amount) {
 }
 
 function currentValue(car) {
+  ensureCarDefaults(car);
   const unresolved = car.defects.filter((defect) => !defect.repaired).reduce((sum, defect) => sum + defect.impact, 0);
-  return Math.max(55000, Math.round((car.cleanValue - unresolved) / 1000) * 1000);
+  return Math.max(55000, Math.round((car.cleanValue + car.upgradeValue - unresolved) / 1000) * 1000);
 }
 
 function partsValue(car) {
@@ -325,21 +355,32 @@ function saleEstimate(car, player = null) {
   const repairPremium = Math.min(marketPrice * 0.055, repairValue * 0.08);
   const documentationPremium = car.serviceDiagnosed ? marketPrice * 0.045 : inspection.confidence >= 70 ? marketPrice * 0.018 : 0;
   const restoredPremium = repaired.length && !unresolved.length ? marketPrice * 0.07 : 0;
+  const upgradePremium = Math.min(marketPrice * 0.11, car.upgradeValue * 0.22);
   const conditionAdjustment = clamp((car.condition - 65) * marketPrice * 0.0022, -marketPrice * 0.08, marketPrice * 0.08);
   const repairLiquidityPenalty = repaired.length ? Math.min(marketPrice * 0.035, repaired.length * 7000) : 0;
   const employeePremium = marketPrice * (groupEmployeeRating(employeePlayer, "sales") / 100) * 0.04 + marketPrice * (groupEmployeeRating(employeePlayer, "appraisal") / 100) * 0.025;
   const installedPartsPremium = Math.min(marketPrice * 0.045, car.installedParts.reduce((sum, part) => sum + part.estimatedValue * 0.12, 0));
-  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium) / 1000) * 1000);
+  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium) / 1000) * 1000);
   const recommendedLow = Math.max(1, Math.round(expectedNpcPrice * 0.94 / 1000) * 1000);
   const recommendedHigh = Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000);
   const breakEven = Math.max(1, Math.ceil(car.invested * 1.02 / 1000) * 1000);
   return {
-    technicalValue, marketPrice, repairPremium: Math.round(repairPremium), documentationPremium: Math.round(documentationPremium + restoredPremium),
+    technicalValue, marketPrice, repairPremium: Math.round(repairPremium), documentationPremium: Math.round(documentationPremium + restoredPremium), upgradePremium: Math.round(upgradePremium),
     expectedNpcPrice, recommendedLow, recommendedHigh, breakEven, invested: car.invested,
     unresolvedCount: unresolved.length, repairedCount: repaired.length,
-    inspectionConfidence: inspection.confidence, inspectionLabel: inspection.label,
+    inspectionConfidence: inspection.confidence, inspectionLabel: inspection.label, upgradeValue: car.upgradeValue, upgradeCount: car.upgrades.length,
     employeePremium: Math.round(employeePremium), installedPartsPremium: Math.round(installedPartsPremium)
   };
+}
+
+function upgradeOptions(car, player) {
+  ensureCarDefaults(car);
+  return upgradeCatalog.map((upgrade) => ({
+    ...upgrade,
+    installed: car.upgrades.includes(upgrade.key),
+    canAfford: Boolean(player && player.cash >= upgrade.cost),
+    canUse: Boolean(player && player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel)
+  }));
 }
 
 function initializeMarketIndices() {
@@ -401,6 +442,16 @@ function marketStatistics() {
       dealCount: dealPrices.length,
       indexTransactions: index.transactions || 0
     }];
+  }));
+}
+
+function partsMarketStatistics() {
+  const recent = partsSalesHistory.slice(-60);
+  return Object.fromEntries(["engine", "chassis", "body", "electrics", "tires"].map((component) => {
+    const values = recent.filter((sale) => sale.component === component).map((sale) => sale.price);
+    const active = partsMarket.filter((lot) => lot.item?.component === component).map((lot) => lot.price);
+    const averagePrice = average(values) || average(active) || 10000;
+    return [component, { component, averagePrice, active: active.length, deals: values.length }];
   }));
 }
 
@@ -483,6 +534,9 @@ function publicCar(car, ownerView = false, viewer = null) {
     result.saleEstimate = saleEstimate(car, viewer);
     result.history = car.history.slice(-20);
     result.installedParts = car.installedParts;
+    result.upgrades = car.upgrades;
+    result.upgradeValue = car.upgradeValue;
+    result.upgradeOptions = upgradeOptions(car, viewer);
   }
   return result;
 }
@@ -512,7 +566,7 @@ function playerView(player) {
   return {
     id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals,
     availableCash: player.cash - reserved, reservedCash: reserved,
-    xp: player.xp, level: levelForXp(player.xp), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : levelForXp(player.xp) * 150,
+    xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
@@ -532,6 +586,7 @@ function snapshot(player) {
     inspectionCategories: inspectionCategories(),
     inspectionRequirements,
     marketStats: marketStatistics(),
+    partsMarketStats: partsMarketStatistics(),
     chatMessages: chatMessages.slice(-100),
     partsMarket: partsMarket.slice(-100),
     marketRotation: { nextAt: marketRotationNextAt, intervalSeconds: Math.round(NPC_ROTATION_MS / 1000), replaceCount: NPC_ROTATION_COUNT },
@@ -569,7 +624,7 @@ rebalanceNpcMarket();
 function publishPartLot(itemOrType, condition = "new", price = null, seller = "Магазин", sellerId = null) {
   const legacyType = typeof itemOrType === "string" ? itemOrType : null;
   const item = legacyType
-    ? makePart(["engine", "chassis", "body", "electrics", "tires", "universal"][randomInt(0, 5)], legacyType === "premium" ? "original" : condition === "used" ? "restored" : "analog", condition === "used" ? randomInt(48, 82) : 100, randomInt(0, catalog.length - 1) % 3 ? "all" : catalog[randomInt(0, catalog.length - 1)].className)
+    ? makePart(["engine", "chassis", "body", "electrics", "tires"][randomInt(0, 4)], legacyType === "premium" ? "original" : condition === "used" ? "restored" : "analog", condition === "used" ? randomInt(48, 82) : 100, randomInt(0, catalog.length - 1) % 3 ? "all" : catalog[randomInt(0, catalog.length - 1)].className, catalog[randomInt(0, catalog.length - 1)].model)
     : itemOrType;
   const lot = { id: id("part_"), item, type: item.quality === "original" ? "premium" : "common", condition: item.conditionPct < 100 ? "used" : "new", price: price || item.estimatedValue, seller, sellerId, createdAt: Date.now() };
   partsMarket.push(lot);
@@ -579,6 +634,25 @@ if (!partsMarket.length) {
   for (let i = 0; i < 12; i += 1) publishPartLot(i % 3 === 0 ? "premium" : "common", i % 2 ? "new" : "used");
 }
 persistState();
+
+function runNpcPartBuyers() {
+  let changed = false;
+  for (const lot of partsMarket.slice()) {
+    if (Math.random() > 0.22) continue;
+    const item = ensurePartLot(lot).item;
+    const candidates = bots.filter((bot) => bot.budget >= lot.price && lot.price <= item.estimatedValue * (0.78 + bot.risk * 0.12));
+    const buyer = candidates.sort(() => Math.random() - 0.5)[0];
+    if (!buyer) continue;
+    const seller = lot.sellerId && players.get(lot.sellerId);
+    if (seller) seller.cash += Math.round(lot.price * 0.95);
+    partsSalesHistory.push({ component: item.component, model: item.compatibleModel, price: lot.price, buyer: buyer.name, at: Date.now() });
+    partsMarket.splice(partsMarket.indexOf(lot), 1);
+    changed = true;
+  }
+  while (partsMarket.length < 12) publishPartLot(Math.random() < 0.22 ? "premium" : "common", Math.random() < 0.5 ? "used" : "new");
+  if (changed) broadcast();
+}
+setInterval(runNpcPartBuyers, 12000).unref();
 
 function reservedCash(player) {
   return market.filter((car) => car.saleType === "auction" && car.highestBidderId === player.id && car.auctionEnd > Date.now())
@@ -1021,9 +1095,10 @@ async function api(req, res, pathname) {
     if (!lot) return json(res, 404, { error: "Лот запчастей уже продан" });
     if (player.cash < lot.price) return json(res, 400, { error: "Не хватает денег на запчасть" });
     if (lot.sellerId === player.id) return json(res, 400, { error: "Нельзя купить собственный лот" });
-    player.cash -= lot.price; player.partInventory.push(lot.item); player.parts[lot.type] += 1;
+    player.cash -= lot.price; player.partInventory.push(lot.item); player.parts[lot.type] += 1; player.stats.partsBought += 1;
     const seller = lot.sellerId && players.get(lot.sellerId);
     if (seller) seller.cash += Math.round(lot.price * 0.95);
+    partsSalesHistory.push({ component: lot.item.component, model: lot.item.compatibleModel, price: lot.price, buyer: player.name, at: Date.now() });
     partsMarket.splice(partsMarket.indexOf(lot), 1);
     broadcast(); return json(res, 200, snapshot(player));
   }
@@ -1034,6 +1109,7 @@ async function api(req, res, pathname) {
     const part = player.partInventory.splice(index, 1)[0];
     player.parts[partStockType(part)] = Math.max(0, player.parts[partStockType(part)] - 1);
     publishPartLot(part, part.conditionPct < 100 ? "used" : "new", price, player.name, player.id);
+    player.stats.partsSold += 1;
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/car/dismantle") {
@@ -1130,6 +1206,7 @@ async function api(req, res, pathname) {
       const part = player.partInventory[partIndex];
       if (![defect.category, "universal"].includes(part.component)) return json(res, 400, { error: "Эта деталь не подходит для выбранного узла" });
       if (!["all", car.className].includes(part.compatibleClass)) return json(res, 400, { error: "Деталь несовместима с классом автомобиля" });
+      if (part.compatibleModel && part.compatibleModel !== "all" && part.compatibleModel !== car.model) return json(res, 400, { error: `Деталь предназначена для модели ${part.compatibleModel}` });
       installedPart = player.partInventory[partIndex];
       repairCost = Math.max(500, Math.round((repairCost - installedPart.estimatedValue * 0.65) / 500) * 500);
     }
@@ -1190,13 +1267,35 @@ async function api(req, res, pathname) {
 
   if (req.method === "POST" && pathname === "/api/parts/buy") {
     const type = body.type === "premium" ? "premium" : "common";
+    const model = catalog.some((item) => item.model === body.model) ? body.model : catalog[randomInt(0, catalog.length - 1)].model;
     const price = type === "premium" ? 42000 : 18000;
     if (player.cash < price) return json(res, 400, { error: "Не хватает денег на комплект деталей" });
     player.cash -= price;
-    player.parts[type] += 1;
-    player.partInventory.push(makePart("universal", type === "premium" ? "original" : "analog", 100, "all"));
+    player.parts[type] += 1; player.stats.partsBought += 1;
+    player.partInventory.push(makePart(["engine", "chassis", "body", "electrics", "tires"][randomInt(0, 4)], type === "premium" ? "original" : "analog", 100, "all", model));
     broadcast();
     return json(res, 200, snapshot(player));
+  }
+
+  if (req.method === "POST" && pathname === "/api/car/upgrade") {
+    const car = player.garage.find((item) => item.id === body.carId);
+    const upgrade = upgradeCatalog.find((item) => item.key === body.upgrade);
+    if (!car || !upgrade) return json(res, 404, { error: "Автомобиль или улучшение не найдено" });
+    ensureCarDefaults(car);
+    if (car.upgrades.includes(upgrade.key)) return json(res, 400, { error: "Это улучшение уже установлено" });
+    if (player.skills[upgrade.skill] < upgrade.skillLevel) return json(res, 400, { error: `Нужен навык «${skillInfo[upgrade.skill].name}» уровня ${upgrade.skillLevel}` });
+    if (player.equipment[upgrade.equipment] < upgrade.equipmentLevel) return json(res, 400, { error: `Нужно оборудование «${equipmentInfo[upgrade.equipment].name}» уровня ${upgrade.equipmentLevel}` });
+    if (player.cash < upgrade.cost) return json(res, 400, { error: "Не хватает денег на улучшение" });
+    player.cash -= upgrade.cost;
+    car.invested += upgrade.cost;
+    car.upgrades.push(upgrade.key);
+    car.upgradeStage = car.upgrades.length;
+    car.upgradeValue += upgrade.value;
+    car.condition = Math.min(100, car.condition + upgrade.condition);
+    car.history.push({ type: "upgrade", text: `${upgrade.name}: +${upgrade.value.toLocaleString("ru-RU")} ₽ к ценности`, at: Date.now() });
+    player.stats.upgrades += 1;
+    addXp(player, 55 + upgrade.skillLevel * 15);
+    broadcast(); return json(res, 200, snapshot(player));
   }
 
   if (req.method === "POST" && pathname === "/api/list") {

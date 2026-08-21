@@ -68,6 +68,7 @@
           <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
           <div id="market-stats-list" class="market-stats-list"></div>
         </section>
+        <aside class="ad-slot ad-slot-market" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Сервисная карта для перекупов</strong><small>Проверка VIN и история обслуживания в одном отчёте</small><button class="secondary-button" type="button" data-ad-action>Подробнее</button></aside>
         <form id="market-filters" class="market-filters">
           <label>Цена от<input id="price-min" name="min" type="number" min="1" step="1000" placeholder="1 ₽"></label>
           <label>Цена до<input id="price-max" name="max" type="number" min="1" step="1000" placeholder="5 000 000 ₽"></label>
@@ -78,6 +79,7 @@
           <button class="secondary-button" type="reset">Сбросить</button>
           <span id="filter-result" class="filter-result"></span>
         </form>
+        <div class="market-cars-label"><div><p class="eyebrow">Лоты ниже индекса и свежий завоз</p><h3>Автомобили на торгах</h3></div><span>Нажмите на карточку для подробностей</span></div>
         <div id="market-grid" class="car-grid"></div>
       </section>
 
@@ -96,12 +98,13 @@
         </div>
         <div class="garage-management">
           <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
-          <div><span>Обычные запчасти</span><strong id="common-parts">0 комплектов</strong><button class="secondary-button" data-buy-parts="common">Купить · 18 000 ₽</button></div>
-          <div><span>Премиальные запчасти</span><strong id="premium-parts">0 комплектов</strong><button class="secondary-button" data-buy-parts="premium">Купить · 42 000 ₽</button></div>
+          <div class="parts-buy-box"><span>Детали под модель</span><select id="parts-model" aria-label="Модель для детали"></select><button class="secondary-button" data-buy-parts="common">Аналог · 18 000 ₽</button></div>
+          <div class="parts-buy-box"><span>Оригинальные детали</span><select id="parts-model-premium" aria-label="Модель для оригинальной детали"></select><button class="secondary-button" data-buy-parts="premium">Оригинал · 42 000 ₽</button></div>
         </div>
+        <aside class="ad-slot ad-slot-garage" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Инструмент дня: эндоскоп</strong><small>Помогает найти скрытые дефекты до покупки автомобиля</small><button class="secondary-button" type="button" data-ad-action>Смотреть предложение</button></aside>
         <section class="parts-market-panel">
           <div class="workshop-heading"><div><p class="eyebrow">Детали после разбора и покупок</p><h3>Мой склад</h3></div></div><div id="parts-inventory-list" class="parts-market-list"></div>
-          <div class="workshop-heading parts-market-heading"><div><p class="eyebrow">Новые и б/у детали</p><h3>Биржа запчастей</h3></div></div><div id="parts-market-list" class="parts-market-list"></div>
+          <div class="workshop-heading parts-market-heading"><div><p class="eyebrow">Новые и б/у детали · NPC тоже покупают лоты</p><h3>Биржа запчастей</h3></div></div><div id="parts-market-trends" class="parts-market-trends"></div><div id="parts-market-list" class="parts-market-list"></div>
         </section>
         <div class="workshop-grid">
           <section class="workshop-section">
@@ -191,6 +194,7 @@
           <section><p class="eyebrow">Профессиональное развитие</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
           <section><p class="eyebrow">Оснащение гаража</p><h3>Инструменты</h3><div id="profile-equipment" class="profile-list"></div></section>
         </div>
+        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Разработчик</h3><p>Рынок. Симулятор перекупа создан как независимая браузерная игра. Экономика, NPC и аукционы работают на общем сервере и сохраняют прогресс игроков.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Исходный код на GitHub ↗</a></section>
       </section>
     </main>
 
@@ -203,6 +207,7 @@
     </div>
 
     <div id="toast" class="toast" role="status"></div>
+    <footer class="site-footer"><span>РЫНОК. · браузерный симулятор</span><span>Реклама помогает поддерживать сервер</span><a href="#profile" data-view="profile">О разработчике</a></footer>
   </div>
   <script src="app.js"></script>
 </body>
