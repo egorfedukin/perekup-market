@@ -46,6 +46,7 @@
         <button class="tab" data-view="chat">Чат <span id="chat-count" class="badge">0</span></button>
         <button class="tab" data-view="rating">Рейтинг</button>
         <button class="tab" data-view="team">Команда</button>
+        <button class="tab" data-view="containers">Контейнеры</button>
         <button class="tab" data-view="store">Магазин</button>
         <button id="admin-tab" class="tab" data-view="admin" hidden>Админ</button>
         <button class="tab" data-view="profile">Профиль</button>
@@ -99,14 +100,15 @@
           <div class="xp-track"><i id="xp-progress"></i></div>
           <div class="skill-points">Очки навыков: <strong id="skill-points">0</strong></div>
         </div>
+        <div class="training-strip"><div><strong>Практика оценщика</strong><span>Повторяемое задание: +75 XP, +7 000 ₽, каждое четвёртое даёт очко навыка</span></div><button class="primary-button" data-training>Выполнить задание</button></div>
         <div class="garage-management">
           <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
-          <div class="parts-buy-box"><span>Детали под модель</span><select id="parts-model" aria-label="Модель для детали"></select><button class="secondary-button" data-buy-parts="common">Аналог · 18 000 ₽</button></div>
-          <div class="parts-buy-box"><span>Оригинальные детали</span><select id="parts-model-premium" aria-label="Модель для оригинальной детали"></select><button class="secondary-button" data-buy-parts="premium">Оригинал · 42 000 ₽</button></div>
+          <div><span>Каталог автомобилей</span><strong id="catalog-count">1 000 моделей</strong><button class="secondary-button" data-view="market">Открыть рынок</button></div>
+          <div><span>Карьерный прогресс</span><strong id="training-count">0 заданий</strong><button class="secondary-button" data-training>Получить XP</button></div>
         </div>
         <aside class="ad-slot ad-slot-garage" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Инструмент дня: эндоскоп</strong><small>Помогает найти скрытые дефекты до покупки автомобиля</small><button class="secondary-button" type="button" data-ad-action>Смотреть предложение</button></aside>
         <section class="parts-market-panel">
-          <div class="workshop-heading"><div><p class="eyebrow">Детали после разбора и покупок</p><h3>Мой склад</h3></div></div><div id="parts-inventory-list" class="parts-market-list"></div>
+          <div class="parts-toolbar"><div><p class="eyebrow">Детали после разбора и покупок</p><h3>Мой склад запчастей</h3></div><div class="parts-purchase"><select id="parts-model" aria-label="Модель для детали"></select><button class="secondary-button" data-buy-parts="common">Купить аналог · 18 000 ₽</button><select id="parts-model-premium" aria-label="Модель для оригинальной детали"></select><button class="primary-button" data-buy-parts="premium">Купить оригинал · 42 000 ₽</button></div></div><div id="parts-inventory-list" class="parts-market-list"></div>
           <div class="workshop-heading parts-market-heading"><div><p class="eyebrow">Новые и б/у детали · NPC тоже покупают лоты</p><h3>Биржа запчастей</h3></div></div><div id="parts-market-trends" class="parts-market-trends"></div><div id="parts-market-list" class="parts-market-list"></div>
         </section>
         <div class="workshop-grid">
@@ -183,6 +185,12 @@
         <div class="section-heading"><div><p class="eyebrow">Совместная касса, роли и работа сотрудников</p><h2>Команда</h2></div></div>
         <section class="group-panel"><div class="workshop-heading"><div><p class="eyebrow">Группа и общий гараж</p><h3>Штаб команды</h3></div></div><div id="group-content"></div><div id="group-members" class="group-members"></div><div id="group-garage" class="group-garage"></div><div id="group-employees" class="group-employees"></div></section>
         <section class="npc-panel"><div class="workshop-heading"><div><p class="eyebrow">Сотрудники-NPC выполняют работу за деньги группы</p><h3>Кандидаты и специалисты</h3></div></div><div id="team-npc-note" class="inspection-summary">Наймите диагноста или механика, внесите автомобиль в общий гараж и отправьте его на обслуживание.</div></section>
+      </section>
+
+      <section id="containers-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Закрытые боксы с неизвестным автомобилем</p><h2>Контейнерные аукционы</h2></div><div class="market-pulse"><i></i><span>NPC и игроки торгуются в реальном времени</span></div></div>
+        <div class="container-guide"><div><strong>Гаражная находка</strong><span>Автомобили 10 000–650 000 ₽</span></div><div><strong>Дилерский склад</strong><span>Автомобили 500 000–8 000 000 ₽</span></div><div><strong>Коллекционный бокс</strong><span>Автомобили 6 000 000–100 000 000 ₽</span></div></div>
+        <div id="container-grid" class="container-grid"></div>
       </section>
 
       <section id="store-view" class="view">

@@ -26,7 +26,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, "game.db"));
 db.exec("CREATE TABLE IF NOT EXISTS game_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL, updated_at INTEGER NOT NULL)");
 
-const catalog = [
+const featuredCatalog = [
   { model: "Volna 2107", year: 2008, base: 165000, className: "classic", color: "#d8aa43" },
   { model: "Sfera City", year: 2013, base: 390000, className: "hatch", color: "#d14d3f" },
   { model: "Kvant S2", year: 2016, base: 610000, className: "sedan", color: "#386c8e" },
@@ -52,6 +52,25 @@ const catalog = [
   { model: "Sputnik Classic", year: 1998, base: 130000, className: "classic", color: "#9aaf9a" },
   { model: "Prizma Liftback", year: 2020, base: 1270000, className: "sedan", color: "#704f78" }
 ];
+
+const generatedMakes = ["Astra", "Borey", "Cobalt", "Dvina", "Elbrus", "Fakel", "Gorizont", "Helios", "Irtysh", "Jupiter", "Karelia", "Luch", "Magistral", "Nord", "Onega", "Progress", "Rubin", "Sirius", "Titan", "Ural", "Vega", "Yantar", "Zenit", "Avangard", "Baltika", "Cascade", "Diamant", "Express", "Favorit", "Grand", "Impulse", "Krepost"];
+const generatedSeries = ["10", "20", "30", "40", "50", "60", "70", "80", "90", "100", "City", "Tour", "Cross", "Sport", "Family", "Cargo", "Classic", "Prime", "GT", "RS", "EV", "X", "S", "L", "Pro", "Max", "Mini", "Coupe", "Wagon", "Road", "Ultra"];
+const generatedClasses = ["classic", "hatch", "sedan", "suv", "coupe", "van", "electric", "premium", "wagon", "pickup", "roadster"];
+const generatedColors = ["#b9473d", "#35698c", "#4e7652", "#d39232", "#555f6d", "#292b30", "#7b4e78", "#6999a4", "#806247", "#8d927e"];
+const generatedCatalog = [];
+for (let makeIndex = 0; makeIndex < generatedMakes.length; makeIndex += 1) {
+  for (let seriesIndex = 0; seriesIndex < generatedSeries.length; seriesIndex += 1) {
+    const index = makeIndex * generatedSeries.length + seriesIndex;
+    const priceProgress = index / (1000 - featuredCatalog.length - 1);
+    const base = Math.round((10000 * Math.pow(10000, priceProgress)) / 1000) * 1000;
+    generatedCatalog.push({
+      model: `${generatedMakes[makeIndex]} ${generatedSeries[seriesIndex]}`,
+      year: 1985 + ((index * 7) % 42), base: Math.max(10000, Math.min(100000000, base)),
+      className: generatedClasses[index % generatedClasses.length], color: generatedColors[(index * 3) % generatedColors.length]
+    });
+  }
+}
+const catalog = [...featuredCatalog, ...generatedCatalog.slice(0, 1000 - featuredCatalog.length)];
 
 const defectCatalog = [
   { code: "oil_low", category: "engine", name: "Критически низкий уровень моторного масла", symptom: "Щуп показывает уровень ниже минимума, масло потемнело.", consequence: "Ускоренный износ двигателя и риск масляного голодания.", severity: 2, skill: 1, equipment: "tools", equipmentLevel: 1, repair: 6500, impact: 18000, partName: "Моторное масло 5W-30" },
@@ -110,7 +129,9 @@ const bots = [
   { id: "bot_timur", name: "Тимур, первая машина", type: "budget", skill: 2, risk: 0.97, budget: 720000, repairPremium: 0.08 },
   { id: "bot_dealer", name: "Автосалон Север", type: "dealer", skill: 4, risk: 0.87, budget: 2900000, repairPremium: 0.03 },
   { id: "bot_collector", name: "Клуб Старый гараж", type: "collector", skill: 3, risk: 1.08, budget: 1600000, repairPremium: 0.16 },
-  { id: "bot_family", name: "Семья Орловых", type: "endBuyer", skill: 3, risk: 1.01, budget: 1450000, repairPremium: 0.12 }
+  { id: "bot_family", name: "Семья Орловых", type: "endBuyer", skill: 3, risk: 1.01, budget: 1450000, repairPremium: 0.12 },
+  { id: "bot_invest", name: "ИнвестАвто", type: "dealer", skill: 5, risk: 0.93, budget: 18000000, repairPremium: 0.08 },
+  { id: "bot_lux", name: "Премиум Коллекшн", type: "collector", skill: 5, risk: 1.06, budget: 120000000, repairPremium: 0.18 }
 ];
 
 const partComponents = {
@@ -147,6 +168,12 @@ const partsMarket = [];
 const partsSalesHistory = [];
 const partIndices = {};
 const paymentOrders = new Map();
+const containerAuctions = [];
+const containerTiers = {
+  cheap: { name: "Гаражная находка", minValue: 10000, maxValue: 650000, startMin: 5000, startMax: 90000, color: "#677568" },
+  middle: { name: "Дилерский склад", minValue: 500000, maxValue: 8000000, startMin: 180000, startMax: 1200000, color: "#b07a2e" },
+  premium: { name: "Коллекционный бокс", minValue: 6000000, maxValue: 100000000, startMin: 1500000, startMax: 15000000, color: "#8b3d35" }
+};
 const clients = new Set();
 let revision = 0;
 let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
@@ -154,7 +181,7 @@ let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
-    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()]
+    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
@@ -177,6 +204,7 @@ function loadState() {
     partsSalesHistory.push(...(saved.partsSalesHistory || []).slice(-500));
     Object.assign(partIndices, saved.partIndices || {});
     for (const [key, value] of saved.paymentOrders || []) paymentOrders.set(key, value);
+    containerAuctions.push(...(saved.containerAuctions || []));
     return market.length > 0;
   } catch (error) {
     console.error("Failed to load saved game:", error.message);
@@ -212,6 +240,7 @@ function ensurePlayerDefaults(player) {
   player.contracts ||= [];
   player.purchasedCash ||= 0;
   player.adminNotes ||= [];
+  player.training ||= { lastAt: 0, completed: 0 };
   if (!player.contracts.length) player.contracts = generateContracts(player);
   player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
@@ -297,6 +326,13 @@ function partStockType(part) {
   return part.quality === "original" ? "premium" : "common";
 }
 
+function makeSpecificPart(car, defect, quality = "analog") {
+  const part = makePart(defect.category, quality, 100, car.className, car.model);
+  part.name = `${defect.partName || partComponents[defect.category] || "Деталь"} · ${car.model}`;
+  part.estimatedValue = Math.max(1000, Math.round(defect.repair * (quality === "original" ? 0.48 : 0.3) / 500) * 500);
+  return part;
+}
+
 function ensurePartLot(lot) {
   if (!lot.item) {
     const quality = lot.type === "premium" ? "original" : lot.condition === "used" ? "restored" : "analog";
@@ -351,7 +387,7 @@ function addXp(player, amount) {
 function currentValue(car) {
   ensureCarDefaults(car);
   const unresolved = car.defects.filter((defect) => !defect.repaired).reduce((sum, defect) => sum + defect.impact, 0);
-  return Math.max(55000, Math.round((car.cleanValue + car.upgradeValue - unresolved) / 1000) * 1000);
+  return Math.max(8000, Math.round((car.cleanValue + car.upgradeValue - unresolved) / 1000) * 1000);
 }
 
 function partsValue(car) {
@@ -423,6 +459,7 @@ function upgradeOptions(car, player) {
     ...upgrade,
     installed: car.upgrades.includes(upgrade.key),
     canAfford: Boolean(player && player.cash >= upgrade.cost),
+    serviceCost: Math.round(upgrade.cost * 1.55 / 1000) * 1000,
     canUse: Boolean(player && player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel)
   }));
 }
@@ -465,7 +502,8 @@ function average(values) {
 }
 
 function marketStatistics() {
-  return Object.fromEntries(catalog.map((item) => {
+  const relevantModels = new Set([...market.map((car) => car.model), ...salesHistory.slice(-200).map((sale) => sale.model)]);
+  return Object.fromEntries(catalog.filter((item) => relevantModels.has(item.model)).map((item) => {
     const listingPrices = market.filter((car) => car.model === item.model).map((car) => car.price);
     const dealPrices = salesHistory.filter((sale) => sale.model === item.model).slice(-20).map((sale) => sale.price);
     const recordedAverage = average(dealPrices);
@@ -614,7 +652,7 @@ function publicGroupView(group, viewer) {
 function playerView(player) {
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash,
+    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
@@ -644,6 +682,8 @@ function snapshot(player) {
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
     employeeCandidates,
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
+    catalogCount: catalog.length,
+    containerAuctions: containerAuctions.map(publicContainer),
     leaderboard: [...players.values()].sort((a, b) => b.profit - a.profit).slice(0, 8)
       .map((p) => ({ id: p.id, name: p.name, profit: p.profit, deals: p.deals, level: levelForXp(p.xp) }))
   };
@@ -706,8 +746,9 @@ function runNpcPartBuyers() {
 setInterval(runNpcPartBuyers, 12000).unref();
 
 function reservedCash(player) {
-  return market.filter((car) => car.saleType === "auction" && car.highestBidderId === player.id && car.auctionEnd > Date.now())
-    .reduce((sum, car) => sum + car.highestBid, 0);
+  const carsReserved = market.filter((car) => car.saleType === "auction" && car.highestBidderId === player.id && car.auctionEnd > Date.now()).reduce((sum, car) => sum + car.highestBid, 0);
+  const containersReserved = containerAuctions.filter((item) => item.highestBidderId === player.id && item.endAt > Date.now()).reduce((sum, item) => sum + item.highestBid, 0);
+  return carsReserved + containersReserved;
 }
 
 function hashPin(pin, salt = crypto.randomBytes(16).toString("hex")) {
@@ -738,6 +779,63 @@ function restock() {
   const npcCount = market.filter((car) => !car.sellerId).length;
   for (let i = npcCount; i < 100; i += 1) market.push(makeCar(randomInt(0, catalog.length - 1)));
 }
+
+function createContainerAuction(tierKey) {
+  const tier = containerTiers[tierKey];
+  return { id: id("container_"), tier: tierKey, name: tier.name, color: tier.color, startingPrice: randomInt(tier.startMin, tier.startMax), highestBid: 0, highestBidderId: null, highestBidderName: null, highestBidderType: null, bidCount: 0, endAt: Date.now() + randomInt(180, 420) * 1000, createdAt: Date.now() };
+}
+
+function restockContainers() {
+  for (const tier of Object.keys(containerTiers)) while (containerAuctions.filter((item) => item.tier === tier).length < 3) containerAuctions.push(createContainerAuction(tier));
+}
+
+function containerRewardCar(tierKey, invested) {
+  const tier = containerTiers[tierKey];
+  const pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
+  const item = pool[randomInt(0, pool.length - 1)] || catalog[0];
+  const car = makeCar(catalog.indexOf(item), "Контейнерный аукцион");
+  car.price = invested; car.purchasePrice = invested; car.invested = invested; car.seller = "Контейнерный аукцион"; car.ownerId = null;
+  car.history = [{ type: "container", text: `Получена из контейнера «${tier.name}» за ${invested.toLocaleString("ru-RU")} ₽`, at: Date.now() }];
+  return car;
+}
+
+function publicContainer(container) {
+  const tier = containerTiers[container.tier];
+  return { ...container, minValue: tier.minValue, maxValue: tier.maxValue };
+}
+
+function finalizeContainers() {
+  let changed = false;
+  for (const auction of containerAuctions.filter((item) => item.endAt <= Date.now())) {
+    if (auction.highestBidderType === "player") {
+      const winner = players.get(auction.highestBidderId);
+      if (winner && winner.cash >= auction.highestBid && winner.garage.length < winner.garageCapacity) {
+        winner.cash -= auction.highestBid; winner.garage.push(containerRewardCar(auction.tier, auction.highestBid)); winner.stats.auctionsWon += 1; addXp(winner, 90);
+      }
+    }
+    containerAuctions.splice(containerAuctions.indexOf(auction), 1); changed = true;
+  }
+  if (changed) { restockContainers(); broadcast(); }
+}
+
+function runContainerBots() {
+  let changed = false;
+  for (const auction of containerAuctions.filter((item) => item.endAt > Date.now() + 2000)) {
+    if (Math.random() > 0.38) continue;
+    const tier = containerTiers[auction.tier]; const current = auction.highestBid || auction.startingPrice;
+    const minimum = auction.highestBid ? current + Math.max(1000, Math.ceil(current * 0.02)) : current;
+    const ceiling = tier.maxValue * (0.18 + Math.random() * 0.22);
+    const bot = bots.filter((item) => item.budget >= minimum && item.id !== auction.highestBidderId).sort(() => Math.random() - 0.5)[0];
+    if (!bot || minimum > ceiling) continue;
+    auction.highestBid = Math.min(Math.round((minimum + Math.random() * Math.max(1000, minimum * 0.06)) / 1000) * 1000, ceiling);
+    auction.highestBidderId = bot.id; auction.highestBidderName = bot.name; auction.highestBidderType = "bot"; auction.bidCount += 1; changed = true;
+  }
+  if (changed) broadcast();
+}
+
+restockContainers();
+setInterval(finalizeContainers, 1000).unref();
+setInterval(runContainerBots, 3500).unref();
 
 function rebalanceNpcMarket() {
   const npcCars = market.filter((car) => !car.sellerId && car.saleType !== "auction").sort(() => Math.random() - 0.5);
@@ -1382,6 +1480,7 @@ async function api(req, res, pathname) {
       if (![defect.category, "universal"].includes(part.component)) return json(res, 400, { error: "Эта деталь не подходит для выбранного узла" });
       if (!["all", car.className].includes(part.compatibleClass)) return json(res, 400, { error: "Деталь несовместима с классом автомобиля" });
       if (part.compatibleModel && part.compatibleModel !== "all" && part.compatibleModel !== car.model) return json(res, 400, { error: `Деталь предназначена для модели ${part.compatibleModel}` });
+      if (defect.partName && !part.name.includes(defect.partName)) return json(res, 400, { error: `Для ремонта нужна деталь «${defect.partName}»` });
       installedPart = player.partInventory[partIndex];
       repairCost = Math.max(500, Math.round((repairCost - installedPart.estimatedValue * 0.65) / 500) * 500);
     }
@@ -1414,6 +1513,15 @@ async function api(req, res, pathname) {
     player.skills[skill] += 1;
     broadcast();
     return json(res, 200, snapshot(player));
+  }
+
+  if (req.method === "POST" && pathname === "/api/training") {
+    const now = Date.now(); const cooldown = 45000;
+    if (now - player.training.lastAt < cooldown) return json(res, 429, { error: `Следующее задание будет доступно через ${Math.ceil((cooldown - (now - player.training.lastAt)) / 1000)} сек.` });
+    player.training.lastAt = now; player.training.completed += 1;
+    player.cash += 7000; addXp(player, 75);
+    if (player.training.completed % 4 === 0) player.skillPoints += 1;
+    broadcast(); return json(res, 200, snapshot(player));
   }
 
   if (req.method === "POST" && pathname === "/api/equipment") {
@@ -1452,22 +1560,32 @@ async function api(req, res, pathname) {
     return json(res, 200, snapshot(player));
   }
 
+  if (req.method === "POST" && pathname === "/api/parts/order") {
+    const car = player.garage.find((item) => item.id === body.carId); const defect = car?.defects.find((item) => item.code === body.defect);
+    if (!car || !defect || !defect.partName) return json(res, 404, { error: "Для этой неисправности отдельная деталь не требуется" });
+    const quality = body.quality === "original" ? "original" : "analog"; const part = makeSpecificPart(car, defect, quality);
+    const price = Math.round(part.estimatedValue * (quality === "original" ? 1.15 : 1));
+    if (player.cash < price) return json(res, 400, { error: "Не хватает денег на заказ детали" });
+    player.cash -= price; player.partInventory.push(part); player.parts[partStockType(part)] += 1; player.stats.partsBought += 1;
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+
   if (req.method === "POST" && pathname === "/api/car/upgrade") {
     const car = player.garage.find((item) => item.id === body.carId);
     const upgrade = upgradeCatalog.find((item) => item.key === body.upgrade);
     if (!car || !upgrade) return json(res, 404, { error: "Автомобиль или улучшение не найдено" });
     ensureCarDefaults(car);
     if (car.upgrades.includes(upgrade.key)) return json(res, 400, { error: "Это улучшение уже установлено" });
-    if (player.skills[upgrade.skill] < upgrade.skillLevel) return json(res, 400, { error: `Нужен навык «${skillInfo[upgrade.skill].name}» уровня ${upgrade.skillLevel}` });
-    if (player.equipment[upgrade.equipment] < upgrade.equipmentLevel) return json(res, 400, { error: `Нужно оборудование «${equipmentInfo[upgrade.equipment].name}» уровня ${upgrade.equipmentLevel}` });
-    if (player.cash < upgrade.cost) return json(res, 400, { error: "Не хватает денег на улучшение" });
-    player.cash -= upgrade.cost;
-    car.invested += upgrade.cost;
+    const canSelf = player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel;
+    const upgradeCost = canSelf ? upgrade.cost : Math.round(upgrade.cost * 1.55 / 1000) * 1000;
+    if (player.cash < upgradeCost) return json(res, 400, { error: "Не хватает денег на улучшение" });
+    player.cash -= upgradeCost;
+    car.invested += upgradeCost;
     car.upgrades.push(upgrade.key);
     car.upgradeStage = car.upgrades.length;
     car.upgradeValue += upgrade.value;
     car.condition = Math.min(100, car.condition + upgrade.condition);
-    car.history.push({ type: "upgrade", text: `${upgrade.name}: +${upgrade.value.toLocaleString("ru-RU")} ₽ к ценности`, at: Date.now() });
+    car.history.push({ type: "upgrade", text: `${upgrade.name}${canSelf ? " самостоятельно" : " в тюнинг-ателье"}: +${upgrade.value.toLocaleString("ru-RU")} ₽ к ценности`, at: Date.now() });
     player.stats.upgrades += 1;
     addXp(player, 55 + upgrade.skillLevel * 15);
     broadcast(); return json(res, 200, snapshot(player));
@@ -1477,7 +1595,7 @@ async function api(req, res, pathname) {
     const index = player.garage.findIndex((item) => item.id === body.carId);
     if (index < 0) return json(res, 404, { error: "Машины нет в гараже" });
     const price = Math.round(Number(body.price));
-    if (!Number.isFinite(price) || price < 1 || price > 5000000) return json(res, 400, { error: "Цена должна быть от 1 ₽ до 5 000 000 ₽" });
+    if (!Number.isFinite(price) || price < 1 || price > 150000000) return json(res, 400, { error: "Цена должна быть от 1 ₽ до 150 000 000 ₽" });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
     car.price = price;
@@ -1546,6 +1664,19 @@ async function api(req, res, pathname) {
     player.stats.bids += 1;
     broadcast();
     return json(res, 200, snapshot(player));
+  }
+
+  if (req.method === "POST" && pathname === "/api/container/bid") {
+    const auction = containerAuctions.find((item) => item.id === body.containerId);
+    if (!auction || auction.endAt <= Date.now()) return json(res, 404, { error: "Аукцион контейнера завершён" });
+    if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
+    const current = auction.highestBid || auction.startingPrice;
+    const minimum = auction.highestBid ? current + Math.max(1000, Math.ceil(current * 0.02)) : current;
+    const amount = Math.round(Number(body.amount)); const ownReservation = auction.highestBidderId === player.id ? auction.highestBid : 0;
+    if (!Number.isFinite(amount) || amount < minimum) return json(res, 400, { error: `Минимальная ставка: ${minimum.toLocaleString("ru-RU")} ₽` });
+    if (amount > player.cash - reservedCash(player) + ownReservation) return json(res, 400, { error: "Недостаточно свободных денег для ставки" });
+    auction.highestBid = amount; auction.highestBidderId = player.id; auction.highestBidderName = player.name; auction.highestBidderType = "player"; auction.bidCount += 1; player.stats.bids += 1;
+    broadcast(); return json(res, 200, snapshot(player));
   }
 
   if (req.method === "POST" && pathname === "/api/offer") {
