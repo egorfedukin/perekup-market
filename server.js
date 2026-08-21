@@ -522,7 +522,7 @@ function publicCar(car, ownerView = false, viewer = null) {
     highestBidderName: car.highestBidderName || null, highestBidderType: car.highestBidderType || null, bidCount: car.bidCount || 0
   };
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
-  if (ownerView) {
+  if (ownerView || (viewer && car.ownerId === viewer.id)) {
     result.defects = car.defects.filter((defect) => car.discovered.includes(defect.code)).map(publicDefect);
     result.checkedCategories = car.checkedCategories;
     result.inspectionRecords = car.inspectionRecords;
@@ -1125,11 +1125,12 @@ async function api(req, res, pathname) {
   }
   if (req.method === "POST" && pathname === "/api/buy") {
     const car = market.find((item) => item.id === body.carId);
-    if (!car) return json(res, 404, { error: "Машину уже купили" });
+    if (!car) return json(res, 404, { error: "Лот уже продан или снят с рынка. Обновите список автомобилей." });
     if (car.sellerId === player.id) return json(res, 400, { error: "Это ваше объявление" });
     if (car.saleType === "auction") return json(res, 400, { error: "Эту машину можно купить только через ставку" });
-    if (player.cash - reservedCash(player) < car.price) return json(res, 400, { error: "Свободных денег недостаточно: часть суммы зарезервирована в ставках" });
-    if (!completeSale(car, player, car.price)) return json(res, 400, { error: player.garage.length >= player.garageCapacity ? "В гараже нет места" : "Не хватает денег" });
+    if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: `Гараж заполнен: ${player.garage.length}/${player.garageCapacity}. Продайте или разберите автомобиль.` });
+    if (player.cash - reservedCash(player) < car.price) return json(res, 400, { error: `Не хватает свободных денег: нужно ${car.price.toLocaleString("ru-RU")} ₽, доступно ${(player.cash - reservedCash(player)).toLocaleString("ru-RU")} ₽.` });
+    if (!completeSale(car, player, car.price)) return json(res, 409, { error: "Лот только что купил другой игрок. Обновите рынок." });
     broadcast();
     return json(res, 200, snapshot(player));
   }

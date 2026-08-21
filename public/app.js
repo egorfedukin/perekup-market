@@ -13,6 +13,7 @@ let modalMode = null;
 let lastCheckResult = null;
 let events = null;
 let toastTimer = null;
+const pendingActions = new Set();
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -150,8 +151,8 @@ function renderGarage() {
   const garage = state.player.garage;
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
-  $("#common-parts").textContent = `${state.player.parts.common} комплектов`;
-  $("#premium-parts").textContent = `${state.player.parts.premium} комплектов`;
+  if ($("#common-parts")) $("#common-parts").textContent = `${state.player.parts.common} комплектов`;
+  if ($("#premium-parts")) $("#premium-parts").textContent = `${state.player.parts.premium} комплектов`;
   const qualityNames = { original: "Оригинал", analog: "Аналог", restored: "Восстановленная" };
   $("#parts-inventory-list").innerHTML = (state.player.partInventory || []).map((part) => `<article class="part-lot inventory"><div><strong>${escapeHtml(part.name)}</strong><small>${qualityNames[part.quality] || part.quality} · ресурс ${part.conditionPct}% · ${part.compatibleModel && part.compatibleModel !== "all" ? `для ${escapeHtml(part.compatibleModel)}` : "универсально"}</small></div><span>${money(part.estimatedValue)}</span><div class="part-list-action"><input id="part-price-${part.id}" type="number" min="1" max="1000000" value="${part.estimatedValue}"><button class="secondary-button" data-list-part="${part.id}">Выставить</button></div></article>`).join("") || '<div class="no-offers">Предметных деталей пока нет. Разберите машину или купите комплект.</div>';
   $("#parts-market-list").innerHTML = (state.partsMarket || []).slice(0, 24).map((lot) => `<article class="part-lot"><div><strong>${escapeHtml(lot.item?.name || (lot.type === "premium" ? "Премиальный комплект" : "Обычный комплект"))}</strong><small>${lot.item ? `${qualityNames[lot.item.quality] || lot.item.quality} · ресурс ${lot.item.conditionPct}% · ${lot.item.compatibleModel && lot.item.compatibleModel !== "all" ? `для ${escapeHtml(lot.item.compatibleModel)}` : "универсально"}` : lot.condition === "used" ? "Б/у · проверено" : "Новый комплект"} · продавец ${escapeHtml(lot.seller)}</small></div><span>${money(lot.price)}</span><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`).join("") || '<div class="no-offers">Рынок деталей пуст.</div>';
@@ -307,7 +308,7 @@ function marketModal(car) {
       <div><span>Оценка цены</span><strong class="price-signal ${priceClass}">${priceLabel}</strong></div>
     </div>` : ""}
     <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
-      ${own ? `<button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}">Купить сейчас</button>`}
+      ${own ? `<button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
     </div>
     ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
     ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">Предложить цену</button></form>` : ""}
@@ -435,8 +436,12 @@ $("#join-form").addEventListener("submit", async (event) => {
 });
 
 async function perform(path, body, success) {
+  const actionKey = `${path}:${body?.carId || body?.offerId || body?.partId || ""}`;
+  if (pendingActions.has(actionKey)) return false;
+  pendingActions.add(actionKey);
   try { state = await request(path, { method: "POST", body: JSON.stringify(body) }); render(); if (success) showToast(success); return true; }
   catch (error) { showToast(error.message, true); return false; }
+  finally { pendingActions.delete(actionKey); }
 }
 
 document.addEventListener("click", async (event) => {
@@ -465,7 +470,7 @@ document.addEventListener("click", async (event) => {
   const groupDepositCar = event.target.closest("[data-group-deposit-car]"); if (groupDepositCar) return perform("/api/group/garage/deposit", { carId: groupDepositCar.dataset.groupDepositCar }, "Машина передана в общий гараж");
   const groupWithdrawCar = event.target.closest("[data-group-withdraw-car]"); if (groupWithdrawCar) return perform("/api/group/garage/withdraw", { carId: groupWithdrawCar.dataset.groupWithdrawCar }, "Машина возвращена в личный гараж");
   const hireEmployee = event.target.closest("[data-hire-employee]"); if (hireEmployee) return perform("/api/group/employee/hire", { employeeId: hireEmployee.dataset.hireEmployee }, "Сотрудник принят в группу");
-  const buy = event.target.closest("[data-buy]"); if (buy) { if (await perform("/api/buy", { carId: buy.dataset.buy }, "Машина отправлена в гараж")) { closeModal(); setView("garage"); } return; }
+  const buy = event.target.closest("[data-buy]"); if (buy) { if (buy.disabled) return; if (await perform("/api/buy", { carId: buy.dataset.buy }, "Машина отправлена в гараж")) { closeModal(); setView("garage"); } else if (!state.market.some((car) => car.id === buy.dataset.buy)) { closeModal(); try { state = await request("/api/state"); render(); } catch { /* session will be handled by the event stream */ } } return; }
   const dismantle = event.target.closest("[data-dismantle]"); if (dismantle) return perform("/api/car/dismantle", { carId: dismantle.dataset.dismantle }, "Машина разобрана, детали отправлены на склад");
   const unlist = event.target.closest("[data-unlist]"); if (unlist) { if (await perform("/api/unlist", { carId: unlist.dataset.unlist }, "Объявление снято")) closeModal(); return; }
   const repair = event.target.closest("[data-repair]"); if (repair) return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, partId: document.querySelector(`[data-part-select="${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? "Вы самостоятельно устранили неисправность" : repair.dataset.repairMode === "assisted" ? "Ремонт выполнен вместе с мастером" : "Ремонт выполнен в сервисе");
