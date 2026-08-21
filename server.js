@@ -242,6 +242,7 @@ function ensurePlayerDefaults(player) {
   player.adminNotes ||= [];
   player.training ||= { lastAt: 0, completed: 0 };
   player.containerRewards ||= [];
+  player.notifications ||= [];
   if (!player.contracts.length) player.contracts = generateContracts(player);
   player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
@@ -274,8 +275,21 @@ function ensureCarDefaults(car) {
   car.upgradeStage ||= car.upgrades.length;
   car.listedAt ||= car.history?.find((entry) => entry.type === "listed")?.at || Date.now();
   car.marketTag ??= null;
+  car.participantIds ||= [];
   car.publicDiscovered ||= [];
   car.publicInspectionRecords ||= {};
+}
+
+function notifyOutbid(playerId, lotType, lotName, amount, lotId) {
+  const player = players.get(playerId);
+  if (!player) return;
+  player.notifications ||= [];
+  player.notifications.push({
+    id: id("notification_"), type: "outbid", title: "Ваша ставка перебита",
+    text: `${lotType === "container" ? "Контейнер" : "Автомобиль"} «${lotName}»: новая ставка ${amount.toLocaleString("ru-RU")} ₽`,
+    lotType, lotId, amount, createdAt: Date.now(), read: false
+  });
+  player.notifications = player.notifications.slice(-50);
 }
 
 function migratePart(part, index = 0) {
@@ -606,7 +620,9 @@ function publicCar(car, ownerView = false, viewer = null) {
     offerCount: [...offers.values()].filter((offer) => offer.carId === car.id && ["active", "counter"].includes(offer.status)).length,
     saleType: car.saleType || "fixed", auctionEnd: car.auctionEnd || null,
     startingPrice: car.startingPrice || null, highestBid: car.highestBid || 0,
-    highestBidderName: car.highestBidderName || null, highestBidderType: car.highestBidderType || null, bidCount: car.bidCount || 0
+    highestBidderName: car.highestBidderName || null, highestBidderType: car.highestBidderType || null, bidCount: car.bidCount || 0,
+    viewerLeading: Boolean(viewer && car.highestBidderType === "player" && car.highestBidderId === viewer.id),
+    viewerParticipated: Boolean(viewer && car.participantIds.includes(viewer.id))
   };
   result.publicInspectionRecords = car.publicInspectionRecords || {};
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
@@ -664,7 +680,8 @@ function playerView(player) {
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory,
     incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
-    containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3)
+    containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
+    notifications: player.notifications.slice(-20).reverse(), unreadNotifications: player.notifications.filter((item) => !item.read).length
   };
 }
 
@@ -687,7 +704,7 @@ function snapshot(player) {
     employeeCandidates,
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
     catalogCount: catalog.length,
-    containerAuctions: containerAuctions.map(publicContainer),
+    containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
     leaderboard: [...players.values()].sort((a, b) => b.profit - a.profit).slice(0, 8)
       .map((p) => ({ id: p.id, name: p.name, profit: p.profit, deals: p.deals, level: levelForXp(p.xp) }))
   };
@@ -786,7 +803,7 @@ function restock() {
 
 function createContainerAuction(tierKey) {
   const tier = containerTiers[tierKey];
-  return { id: id("container_"), tier: tierKey, name: tier.name, color: tier.color, startingPrice: randomInt(tier.startMin, tier.startMax), highestBid: 0, highestBidderId: null, highestBidderName: null, highestBidderType: null, bidCount: 0, endAt: Date.now() + randomInt(180, 420) * 1000, createdAt: Date.now() };
+  return { id: id("container_"), tier: tierKey, name: tier.name, color: tier.color, startingPrice: randomInt(tier.startMin, tier.startMax), highestBid: 0, highestBidderId: null, highestBidderName: null, highestBidderType: null, participantIds: [], bidCount: 0, endAt: Date.now() + randomInt(180, 420) * 1000, createdAt: Date.now() };
 }
 
 function restockContainers() {
@@ -803,9 +820,11 @@ function containerRewardCar(tierKey, invested) {
   return car;
 }
 
-function publicContainer(container) {
+function publicContainer(container, viewer = null) {
   const tier = containerTiers[container.tier];
-  return { ...container, minValue: tier.minValue, maxValue: tier.maxValue };
+  container.participantIds ||= [];
+  const { participantIds, ...safeContainer } = container;
+  return { ...safeContainer, minValue: tier.minValue, maxValue: tier.maxValue, viewerLeading: Boolean(viewer && container.highestBidderType === "player" && container.highestBidderId === viewer.id), viewerParticipated: Boolean(viewer && participantIds.includes(viewer.id)) };
 }
 
 function finalizeContainers() {
@@ -835,8 +854,10 @@ function runContainerBots() {
     const ceiling = tier.maxValue * (0.18 + Math.random() * 0.22);
     const bot = bots.filter((item) => item.budget >= minimum && item.id !== auction.highestBidderId).sort(() => Math.random() - 0.5)[0];
     if (!bot || minimum > ceiling) continue;
-    auction.highestBid = Math.min(Math.round((minimum + Math.random() * Math.max(1000, minimum * 0.06)) / 1000) * 1000, ceiling);
+    const previousPlayerId = auction.highestBidderType === "player" ? auction.highestBidderId : null;
+    auction.highestBid = Math.max(minimum, Math.round(Math.min(Math.round((minimum + Math.random() * Math.max(1000, minimum * 0.06)) / 1000) * 1000, ceiling)));
     auction.highestBidderId = bot.id; auction.highestBidderName = bot.name; auction.highestBidderType = "bot"; auction.bidCount += 1; changed = true;
+    if (previousPlayerId) notifyOutbid(previousPlayerId, "container", auction.name, auction.highestBid, auction.id);
   }
   if (changed) broadcast();
 }
@@ -1041,6 +1062,7 @@ function finalizeAuctions() {
       car.highestBidderName = null;
       car.highestBidderType = null;
       car.bidCount = 0;
+      car.participantIds = [];
       seller.garage.push(car);
     } else if (index >= 0) {
       car.auctionEnd = Date.now() + 60000;
@@ -1079,12 +1101,14 @@ function runAuctionBots() {
       if (minimum > ceiling) continue;
       const jump = Math.min(ceiling - minimum, Math.max(1000, ceiling * 0.025));
       const bid = Math.min(ceiling, Math.max(minimum, Math.round((minimum + Math.random() * jump) / 1000) * 1000));
+      const previousPlayerId = car.highestBidderType === "player" ? car.highestBidderId : null;
       car.highestBid = Math.max(minimum, bid);
       car.highestBidderId = bot.id;
       car.highestBidderName = bot.name;
       car.highestBidderType = "bot";
       car.price = car.highestBid;
       car.bidCount += 1;
+      if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, car.highestBid, car.id);
       changed = true;
       break;
     }
@@ -1208,6 +1232,11 @@ async function api(req, res, pathname) {
     const reward = player.containerRewards.find((item) => item.id === body.rewardId && !item.acknowledged);
     if (!reward) return json(res, 404, { error: "Награда уже получена или не найдена" });
     reward.acknowledged = true;
+    broadcast();
+    return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/notifications/read") {
+    for (const notification of player.notifications) notification.read = true;
     broadcast();
     return json(res, 200, snapshot(player));
   }
@@ -1630,6 +1659,7 @@ async function api(req, res, pathname) {
       car.highestBidderName = null;
       car.highestBidderType = null;
       car.bidCount = 0;
+      car.participantIds = [];
     } else {
       car.startingPrice = null;
       car.auctionEnd = null;
@@ -1638,6 +1668,7 @@ async function api(req, res, pathname) {
       car.highestBidderName = null;
       car.highestBidderType = null;
       car.bidCount = 0;
+      car.participantIds = [];
     }
     player.garage.splice(index, 1);
     market.unshift(car);
@@ -1670,12 +1701,15 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(amount) || amount < minimum) return json(res, 400, { error: `Минимальная ставка: ${minimum} ₽` });
     const ownReservation = car.highestBidderId === player.id ? car.highestBid : 0;
     if (amount > player.cash - reservedCash(player) + ownReservation) return json(res, 400, { error: "Недостаточно свободных денег для этой ставки" });
+    const previousPlayerId = car.highestBidderType === "player" && car.highestBidderId !== player.id ? car.highestBidderId : null;
     car.highestBid = amount;
     car.highestBidderId = player.id;
     car.highestBidderName = player.name;
     car.highestBidderType = "player";
     car.price = amount;
     car.bidCount += 1;
+    if (!car.participantIds.includes(player.id)) car.participantIds.push(player.id);
+    if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, amount, car.id);
     player.stats.bids += 1;
     broadcast();
     return json(res, 200, snapshot(player));
@@ -1690,7 +1724,11 @@ async function api(req, res, pathname) {
     const amount = Math.round(Number(body.amount)); const ownReservation = auction.highestBidderId === player.id ? auction.highestBid : 0;
     if (!Number.isFinite(amount) || amount < minimum) return json(res, 400, { error: `Минимальная ставка: ${minimum.toLocaleString("ru-RU")} ₽` });
     if (amount > player.cash - reservedCash(player) + ownReservation) return json(res, 400, { error: "Недостаточно свободных денег для ставки" });
+    const previousPlayerId = auction.highestBidderType === "player" && auction.highestBidderId !== player.id ? auction.highestBidderId : null;
+    auction.participantIds ||= [];
     auction.highestBid = amount; auction.highestBidderId = player.id; auction.highestBidderName = player.name; auction.highestBidderType = "player"; auction.bidCount += 1; player.stats.bids += 1;
+    if (!auction.participantIds.includes(player.id)) auction.participantIds.push(player.id);
+    if (previousPlayerId) notifyOutbid(previousPlayerId, "container", auction.name, amount, auction.id);
     broadcast(); return json(res, 200, snapshot(player));
   }
 

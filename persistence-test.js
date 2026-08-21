@@ -225,8 +225,16 @@ async function run() {
   groupOwner = await request("/api/state", ownerToken);
   check(groupOwner.player.cash === sellerCashBeforePartSale + Math.round(listingPrice * 0.95), "Parts exchange did not apply the 5% commission correctly");
 
-  const repairTarget = groupMember.player.garage.find((car) => car.defects.some((defect) => !defect.repaired));
-  check(repairTarget, "No diagnosed car remained for the parts repair test");
+  let repairTarget = groupMember.player.garage.find((car) => car.defects.some((defect) => !defect.repaired && defect.partName));
+  for (const candidate of groupMember.market.filter((car) => car.price < 150000).slice(0, 8)) {
+    if (repairTarget) break;
+    try {
+      groupMember = await request("/api/buy", memberToken, { carId: candidate.id });
+      groupMember = await request("/api/service-diagnostic", memberToken, { carId: candidate.id });
+      repairTarget = groupMember.player.garage.find((car) => car.id === candidate.id && car.defects.some((defect) => !defect.repaired && defect.partName));
+    } catch { /* another test actor may have taken the lot */ }
+  }
+  check(repairTarget, "No diagnosed car with an orderable part remained for the parts repair test");
   const repairDefectWithPart = repairTarget.defects.find((defect) => !defect.repaired && defect.partName);
   check(repairDefectWithPart, "No defect with an orderable model-specific part remained");
   groupMember = await request("/api/parts/order", memberToken, { carId: repairTarget.id, defect: repairDefectWithPart.code, quality: "analog" });

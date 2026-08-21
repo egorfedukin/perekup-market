@@ -18,6 +18,7 @@ let toastTimer = null;
 const pendingActions = new Set();
 let adminState = null;
 let shownRewardId = null;
+let shownNotificationId = null;
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -94,8 +95,9 @@ async function request(path, options = {}) {
 }
 
 function renderMarket() {
-  $("#market-count").textContent = state.market.length;
-  const classes = [...new Set(state.market.map((car) => car.className).filter(Boolean))].sort();
+  const regularMarket = state.market.filter((car) => car.saleType !== "auction");
+  $("#market-count").textContent = regularMarket.length;
+  const classes = [...new Set(regularMarket.map((car) => car.className).filter(Boolean))].sort();
   const classSelect = $("#class-filter");
   if (classSelect && classSelect.options.length !== classes.length + 1) {
     classSelect.innerHTML = '<option value="all">Все классы</option>' + classes.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(vehicleClassNames[name] || name)}</option>`).join("");
@@ -103,16 +105,16 @@ function renderMarket() {
   }
   const query = marketFilters.query.trim().toLocaleLowerCase("ru-RU");
   const conditionMatches = (car) => marketFilters.condition === "all" || (marketFilters.condition === "good" && car.condition >= 72) || (marketFilters.condition === "medium" && car.condition >= 52 && car.condition < 72) || (marketFilters.condition === "low" && car.condition < 52);
-  const visible = state.market.filter((car) => (!query || `${car.model} ${car.seller}`.toLocaleLowerCase("ru-RU").includes(query)) && (!marketFilters.min || car.price >= marketFilters.min) && (!marketFilters.max || car.price <= marketFilters.max) && (marketFilters.saleType === "all" || car.saleType === marketFilters.saleType) && (marketFilters.className === "all" || car.className === marketFilters.className) && conditionMatches(car) && (marketFilters.priceBand === "all" || priceBand(car) === marketFilters.priceBand) && (!marketFilters.fresh || Date.now() - (car.listedAt || 0) <= 120000));
+  const visible = state.market.filter((car) => car.saleType !== "auction" && (!query || `${car.model} ${car.seller}`.toLocaleLowerCase("ru-RU").includes(query)) && (!marketFilters.min || car.price >= marketFilters.min) && (!marketFilters.max || car.price <= marketFilters.max) && (marketFilters.saleType === "all" || car.saleType === marketFilters.saleType) && (marketFilters.className === "all" || car.className === marketFilters.className) && conditionMatches(car) && (marketFilters.priceBand === "all" || priceBand(car) === marketFilters.priceBand) && (!marketFilters.fresh || Date.now() - (car.listedAt || 0) <= 120000));
   if (marketFilters.sort === "new") visible.sort((a, b) => (b.listedAt || 0) - (a.listedAt || 0));
   if (marketFilters.sort === "deal") visible.sort((a, b) => (a.price / (state.marketStats[a.model]?.marketPrice || a.price)) - (b.price / (state.marketStats[b.model]?.marketPrice || b.price)));
   if (marketFilters.sort === "priceAsc") visible.sort((a, b) => a.price - b.price);
   if (marketFilters.sort === "priceDesc") visible.sort((a, b) => b.price - a.price);
-  const belowMarket = state.market.filter((car) => priceBand(car) === "below").length;
-  $("#market-kpi-listings").textContent = number(state.market.length);
+  const belowMarket = regularMarket.filter((car) => priceBand(car) === "below").length;
+  $("#market-kpi-listings").textContent = number(regularMarket.length);
   $("#market-kpi-deals").textContent = number(belowMarket);
   $("#market-kpi-auctions").textContent = number(state.market.filter((car) => car.saleType === "auction").length);
-  $("#market-kpi-models").textContent = number(new Set(state.market.map((car) => car.model)).size);
+  $("#market-kpi-models").textContent = number(new Set(regularMarket.map((car) => car.model)).size);
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
   $("#market-grid").innerHTML = shown.map((car) => {
@@ -238,12 +240,32 @@ function renderGarage() {
 
 function renderContainers() {
   const garageFull = state.player.garage.length >= state.player.garageCapacity;
-  $("#container-grid").innerHTML = (state.containerAuctions || []).map((box) => {
+  const containers = [...(state.containerAuctions || [])].sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.endAt - b.endAt);
+  $("#container-grid").innerHTML = containers.map((box) => {
     const current = box.highestBid || box.startingPrice;
     const minimum = box.highestBid ? current + Math.max(1000, Math.ceil(current * .02)) : current;
     const leading = box.highestBidderId === state.player.id;
-    return `<article class="container-card tier-${box.tier}" style="--box-color:${escapeHtml(box.color)}"><div class="container-visual"><span>LOT ${box.id.slice(-4).toUpperCase()}</span><i></i><b>?</b></div><div class="container-info"><p class="eyebrow">${box.tier === "cheap" ? "Бюджетный" : box.tier === "middle" ? "Средний" : "Премиальный"} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>Внутри авто стоимостью ${money(box.minValue)}–${money(box.maxValue)}</span><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ставок ${box.bidCount}</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div><form data-container-bid="${box.id}"><input name="amount" type="number" min="${minimum}" step="1000" value="${minimum}"><button class="primary-button" ${garageFull ? "disabled" : ""}>${garageFull ? "Нет места" : leading ? "Повысить ставку" : "Сделать ставку"}</button></form></div></article>`;
+    const bidState = leading ? "Вы лидируете" : box.viewerParticipated ? "Вашу ставку перебили" : "";
+    return `<article class="container-card tier-${box.tier} ${box.viewerParticipated ? "player-lot" : ""} ${box.viewerParticipated && !leading ? "outbid-lot" : ""}" style="--box-color:${escapeHtml(box.color)}">${bidState ? `<div class="player-bid-status">${bidState}</div>` : ""}<div class="container-visual"><span>LOT ${box.id.slice(-4).toUpperCase()}</span><i></i><b>?</b></div><div class="container-info"><p class="eyebrow">${box.tier === "cheap" ? "Бюджетный" : box.tier === "middle" ? "Средний" : "Премиальный"} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>Внутри авто стоимостью ${money(box.minValue)}–${money(box.maxValue)}</span><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ставок ${box.bidCount}</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div><form data-container-bid="${box.id}"><input name="amount" type="number" min="${minimum}" step="1000" value="${minimum}"><button class="primary-button" ${garageFull ? "disabled" : ""}>${garageFull ? "Нет места" : leading ? "Повысить ставку" : "Сделать ставку"}</button></form></div></article>`;
   }).join("");
+}
+
+function renderAuctions() {
+  const auctions = state.market.filter((car) => car.saleType === "auction").sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.auctionEnd - b.auctionEnd);
+  $("#auction-count").textContent = auctions.length + (state.containerAuctions?.length || 0);
+  $("#auction-car-grid").innerHTML = auctions.map((car) => {
+    const [condition, conditionClass] = conditionLabel(car.condition);
+    const status = car.viewerLeading ? "Вы лидируете" : car.viewerParticipated ? "Вашу ставку перебили" : car.sellerId === state.player.id ? "Ваш аукцион" : "";
+    return `<button class="car-card auction-car ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}" data-open-market="${car.id}">${status ? `<span class="player-bid-status">${status}</span>` : ""}${carArt(car)}<div class="car-info"><h3>${escapeHtml(car.model)}</h3><div class="car-meta"><span>${number(car.mileage)} км</span><span>${escapeHtml(car.seller)}</span></div><div class="car-price-row"><strong>${money(car.highestBid || car.startingPrice)}</strong><span class="condition ${conditionClass}">${condition}</span></div><div class="auction-note"><span>Ставок: ${car.bidCount}</span><span class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</span></div></div></button>`;
+  }).join("") || '<div class="empty-filter">Автомобильных аукционов сейчас нет.</div>';
+  const notifications = state.player.notifications || [];
+  $("#auction-notifications").innerHTML = notifications.slice(0, 5).map((item) => `<article class="auction-alert ${item.read ? "read" : ""}"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></div><time>${new Date(item.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></article>`).join("");
+  $("#auction-notifications").hidden = !notifications.length;
+  const unread = state.player.unreadNotifications || 0;
+  $("#notification-count").hidden = !unread; $("#notification-count").textContent = unread;
+  $("#more-badge").hidden = !unread; $("#more-badge").textContent = unread;
+  const newest = notifications.find((item) => !item.read);
+  if (newest && shownNotificationId !== newest.id) { shownNotificationId = newest.id; showToast(newest.text, true); }
 }
 
 function offerCard(offer, incoming) {
@@ -356,7 +378,7 @@ function render() {
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers();
+  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
 }
@@ -364,7 +386,13 @@ function render() {
 function setView(view) {
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
+  document.querySelector(".more-menu")?.removeAttribute("open");
+  if (view === "auctions" && state.player.unreadNotifications) markNotificationsRead();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function markNotificationsRead() {
+  try { state = await request("/api/notifications/read", { method: "POST", body: "{}" }); render(); } catch { /* next server update will retry through the user action */ }
 }
 
 function marketModal(car) {
@@ -541,11 +569,12 @@ document.addEventListener("click", async (event) => {
   const preset = event.target.closest("[data-market-preset]");
   if (preset) {
     const type = preset.dataset.marketPreset;
+    if (type === "auctions") { setView("auctions"); return; }
     $("#market-filters").reset();
     marketFilters = { query: "", min: null, max: type === "budget" ? 300000 : null, saleType: type === "auctions" ? "auction" : "all", className: "all", condition: "all", priceBand: type === "deals" ? "below" : "all", sort: type === "deals" ? "deal" : "new", fresh: type === "fresh" };
     marketVisibleCount = 24;
     document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.toggle("active", button === preset));
-    $("#price-max").value = marketFilters.max || ""; $("#sale-filter").value = marketFilters.saleType; $("#price-band-filter").value = marketFilters.priceBand; $("#market-sort").value = marketFilters.sort;
+    $("#price-max").value = marketFilters.max || ""; $("#price-band-filter").value = marketFilters.priceBand; $("#market-sort").value = marketFilters.sort;
     renderMarket(); return;
   }
   if (event.target.closest("#market-load-more")) { marketVisibleCount += 24; renderMarket(); return; }
