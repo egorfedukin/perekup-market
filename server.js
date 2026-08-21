@@ -241,6 +241,7 @@ function ensurePlayerDefaults(player) {
   player.purchasedCash ||= 0;
   player.adminNotes ||= [];
   player.training ||= { lastAt: 0, completed: 0 };
+  player.containerRewards ||= [];
   if (!player.contracts.length) player.contracts = generateContracts(player);
   player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
@@ -480,7 +481,9 @@ function recordMarketSale(car, amount) {
   const index = marketIndices[car.model] || { price: currentValue(car), previousPrice: currentValue(car), trend: 0, transactions: 0 };
   const before = Math.max(1, index.price);
   const guardedAmount = clamp(amount, before * 0.65, before * 1.5);
-  const after = Math.max(1, Math.round((before * 0.78 + guardedAmount * 0.22) / 1000) * 1000);
+  const indexStep = before < 100000 ? 100 : 1000;
+  let after = Math.max(1, Math.round((before * 0.78 + guardedAmount * 0.22) / indexStep) * indexStep);
+  if (after === before && guardedAmount !== before) after = Math.max(1, before + (guardedAmount > before ? indexStep : -indexStep));
   index.previousPrice = before;
   index.price = after;
   index.trend = Math.round(((after - before) / before) * 1000) / 10;
@@ -660,7 +663,8 @@ function playerView(player) {
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory,
     incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
-    outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView)
+    outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
+    containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3)
   };
 }
 
@@ -810,7 +814,11 @@ function finalizeContainers() {
     if (auction.highestBidderType === "player") {
       const winner = players.get(auction.highestBidderId);
       if (winner && winner.cash >= auction.highestBid && winner.garage.length < winner.garageCapacity) {
-        winner.cash -= auction.highestBid; winner.garage.push(containerRewardCar(auction.tier, auction.highestBid)); winner.stats.auctionsWon += 1; addXp(winner, 90);
+        const rewardCar = containerRewardCar(auction.tier, auction.highestBid);
+        winner.cash -= auction.highestBid; winner.garage.push(rewardCar); winner.stats.auctionsWon += 1; addXp(winner, 90);
+        const item = catalog.find((entry) => entry.model === rewardCar.model);
+        const marketPrice = marketIndices[rewardCar.model]?.price || rewardCar.cleanValue;
+        winner.containerRewards.push({ id: id("reward_"), containerId: auction.id, tier: auction.tier, containerName: auction.name, paid: auction.highestBid, awardedAt: Date.now(), acknowledged: false, car: { id: rewardCar.id, model: rewardCar.model, year: rewardCar.year, mileage: rewardCar.mileage, condition: rewardCar.condition, className: rewardCar.className, color: rewardCar.color, cleanValue: rewardCar.cleanValue, estimatedValue: currentValue(rewardCar), marketPrice, defectCount: rewardCar.defects.length, rarity: item?.base >= 30000000 ? "Легендарный" : item?.base >= 8000000 ? "Редкий" : item?.base >= 1000000 ? "Необычный" : "Обычный" } });
       }
     }
     containerAuctions.splice(containerAuctions.indexOf(auction), 1); changed = true;
@@ -1196,6 +1204,13 @@ async function api(req, res, pathname) {
   }
 
   const body = await readBody(req);
+  if (req.method === "POST" && pathname === "/api/container/reward/ack") {
+    const reward = player.containerRewards.find((item) => item.id === body.rewardId && !item.acknowledged);
+    if (!reward) return json(res, 404, { error: "Награда уже получена или не найдена" });
+    reward.acknowledged = true;
+    broadcast();
+    return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/store/create-payment") {
     if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) return json(res, 503, { error: "Приём рублей ещё не подключён. Нужны ключи YooKassa." });
     const pack = cashPackages.find((item) => item.id === body.packageId);

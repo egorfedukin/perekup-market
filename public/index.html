@@ -67,16 +67,27 @@
           </div>
           <div class="market-pulse"><i></i><span id="online-label">Рынок онлайн</span><b id="rotation-label">Новый завоз через 00:45</b></div>
         </div>
-        <section class="market-index">
-          <div class="market-index-head"><div><p class="eyebrow">Цены на основе объявлений и завершённых сделок</p><h3>Индекс рынка</h3></div><span>Последние 20 сделок по модели</span></div>
-          <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
-          <div id="market-stats-list" class="market-stats-list"></div>
-        </section>
+        <div class="market-dashboard" aria-label="Сводка рынка">
+          <div><span>Активные лоты</span><strong id="market-kpi-listings">0</strong></div>
+          <div><span>Ниже рынка</span><strong id="market-kpi-deals">0</strong></div>
+          <div><span>Аукционы</span><strong id="market-kpi-auctions">0</strong></div>
+          <div><span>Моделей в продаже</span><strong id="market-kpi-models">0</strong></div>
+        </div>
         <aside class="ad-slot ad-slot-market" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Сервисная карта для перекупов</strong><small>Проверка VIN и история обслуживания в одном отчёте</small><button class="secondary-button" type="button" data-ad-action>Подробнее</button></aside>
+        <div class="market-quick-filters" aria-label="Быстрые фильтры">
+          <button type="button" class="quick-filter active" data-market-preset="all">Все лоты</button>
+          <button type="button" class="quick-filter" data-market-preset="deals">Выгодные</button>
+          <button type="button" class="quick-filter" data-market-preset="auctions">Аукционы</button>
+          <button type="button" class="quick-filter" data-market-preset="budget">До 300 000 ₽</button>
+          <button type="button" class="quick-filter" data-market-preset="fresh">Свежий завоз</button>
+        </div>
         <form id="market-filters" class="market-filters">
+          <label class="market-search">Поиск<input id="market-search" name="query" type="search" maxlength="60" placeholder="Модель или продавец"></label>
           <label>Цена от<input id="price-min" name="min" type="number" min="1" step="1000" placeholder="1 ₽"></label>
           <label>Цена до<input id="price-max" name="max" type="number" min="1" step="1000" placeholder="5 000 000 ₽"></label>
           <label>Тип<select id="sale-filter" name="saleType"><option value="all">Все лоты</option><option value="fixed">Обычная продажа</option><option value="auction">Аукционы</option></select></label>
+          <label>Класс<select id="class-filter" name="className"><option value="all">Все классы</option></select></label>
+          <label>Состояние<select id="condition-filter" name="condition"><option value="all">Любое</option><option value="good">Хорошее · 72%+</option><option value="medium">Есть нюансы · 52–71%</option><option value="low">Требует ремонта · до 51%</option></select></label>
           <label>Относительно рынка<select id="price-band-filter" name="priceBand"><option value="all">Любая цена</option><option value="below">Ниже рынка</option><option value="fair">В рынке</option><option value="above">Выше рынка</option></select></label>
           <label>Сортировка<select id="market-sort" name="sort"><option value="new">Сначала новые</option><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option></select></label>
           <button class="primary-button" type="submit">Применить</button>
@@ -85,6 +96,12 @@
         </form>
         <div class="market-cars-label"><div><p class="eyebrow">Лоты ниже индекса и свежий завоз</p><h3>Автомобили на торгах</h3></div><span>Нажмите на карточку для подробностей</span></div>
         <div id="market-grid" class="car-grid"></div>
+        <div id="market-load-more-wrap" class="market-load-more" hidden><button id="market-load-more" class="secondary-button" type="button">Показать ещё</button><span id="market-load-more-label"></span></div>
+        <details class="market-index">
+          <summary class="market-index-head"><div><p class="eyebrow">Цены на основе объявлений и завершённых сделок</p><h3>Подробный индекс рынка</h3></div><span>Открыть статистику по моделям</span></summary>
+          <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
+          <div id="market-stats-list" class="market-stats-list"></div>
+        </details>
       </section>
 
       <section id="garage-view" class="view">

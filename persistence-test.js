@@ -225,11 +225,12 @@ async function run() {
   groupOwner = await request("/api/state", ownerToken);
   check(groupOwner.player.cash === sellerCashBeforePartSale + Math.round(listingPrice * 0.95), "Parts exchange did not apply the 5% commission correctly");
 
-  groupMember = await request("/api/parts/buy", memberToken, { type: "common" });
-  const repairPart = groupMember.player.partInventory.at(-1);
   const repairTarget = groupMember.player.garage.find((car) => car.defects.some((defect) => !defect.repaired));
   check(repairTarget, "No diagnosed car remained for the parts repair test");
-  const repairDefectWithPart = repairTarget.defects.find((defect) => !defect.repaired);
+  const repairDefectWithPart = repairTarget.defects.find((defect) => !defect.repaired && defect.partName);
+  check(repairDefectWithPart, "No defect with an orderable model-specific part remained");
+  groupMember = await request("/api/parts/order", memberToken, { carId: repairTarget.id, defect: repairDefectWithPart.code, quality: "analog" });
+  const repairPart = groupMember.player.partInventory.at(-1);
   const repairCashBefore = groupMember.player.cash;
   groupMember = await request("/api/repair", memberToken, { carId: repairTarget.id, defect: repairDefectWithPart.code, mode: "workshop", partId: repairPart.id });
   const repairedWithPart = groupMember.player.garage.find((car) => car.id === repairTarget.id);
