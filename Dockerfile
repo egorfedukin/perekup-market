@@ -12,8 +12,6 @@ ENV NODE_ENV=production
 ENV PORT=4173
 ENV PEREKUP_DATA_DIR=/data
 
-USER node
-
 EXPOSE 4173
 
 CMD ["node", "server.js"]
