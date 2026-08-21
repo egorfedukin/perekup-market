@@ -578,6 +578,13 @@ document.addEventListener("click", async (event) => {
     renderMarket(); return;
   }
   if (event.target.closest("#market-load-more")) { marketVisibleCount += 24; renderMarket(); return; }
+  const mobileFilterToggle = event.target.closest("#mobile-filter-toggle");
+  if (mobileFilterToggle) {
+    const open = $("#market-filters").classList.toggle("mobile-open");
+    mobileFilterToggle.setAttribute("aria-expanded", String(open));
+    mobileFilterToggle.textContent = open ? "Скрыть фильтры" : "Фильтры и сортировка";
+    return;
+  }
 
   const openMarket = event.target.closest("[data-open-market]");
   if (openMarket) { const car = state.market.find((item) => item.id === openMarket.dataset.openMarket); if (car) openModal(marketModal(car), car.id, "market"); return; }

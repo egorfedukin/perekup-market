@@ -276,6 +276,8 @@ function ensureCarDefaults(car) {
   car.listedAt ||= car.history?.find((entry) => entry.type === "listed")?.at || Date.now();
   car.marketTag ??= null;
   car.participantIds ||= [];
+  car.lastPlayerBidAt ??= null;
+  car.lastNpcBidAt ??= null;
   car.publicDiscovered ||= [];
   car.publicInspectionRecords ||= {};
 }
@@ -1090,17 +1092,25 @@ function botAuctionCeiling(car, bot) {
 
 function runAuctionBots() {
   let changed = false;
-  const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > Date.now() + 1500 && car.sellerId);
+  const now = Date.now();
+  const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > now + 1500 && car.sellerId);
   for (const car of active) {
-    if (Math.random() > BOT_BID_CHANCE) continue;
-    const candidates = bots.filter((bot) => bot.id !== car.highestBidderId).sort(() => Math.random() - 0.5);
-    for (const bot of candidates) {
+    const humanInterest = car.participantIds.length > 0;
+    const idleFor = now - (car.lastPlayerBidAt || car.listedAt || now);
+    const npcCooldown = car.lastNpcBidAt ? now - car.lastNpcBidAt : Infinity;
+    if (npcCooldown < 3000) continue;
+    const chance = BOT_BID_CHANCE === 1 ? 1 : !humanInterest && idleFor >= 2500 ? (car.bidCount ? 0.68 : 0.9) : 0.42;
+    if (Math.random() > chance) continue;
+    const candidates = bots
+      .filter((bot) => bot.id !== car.highestBidderId)
+      .map((bot) => ({ bot, ceiling: botAuctionCeiling(car, bot) }))
+      .filter(({ ceiling }) => ceiling >= (car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * 0.01)) : car.startingPrice))
+      .sort((a, b) => b.ceiling - a.ceiling || Math.random() - 0.5);
+    for (const { bot, ceiling } of candidates) {
       const current = car.highestBid || car.startingPrice;
       const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * 0.01)) : current;
-      const ceiling = botAuctionCeiling(car, bot);
-      if (minimum > ceiling) continue;
       const jump = Math.min(ceiling - minimum, Math.max(1000, ceiling * 0.025));
-      const bid = Math.min(ceiling, Math.max(minimum, Math.round((minimum + Math.random() * jump) / 1000) * 1000));
+      const bid = car.bidCount ? Math.min(ceiling, Math.max(minimum, Math.round((minimum + Math.random() * jump) / 1000) * 1000)) : minimum;
       const previousPlayerId = car.highestBidderType === "player" ? car.highestBidderId : null;
       car.highestBid = Math.max(minimum, bid);
       car.highestBidderId = bot.id;
@@ -1108,6 +1118,7 @@ function runAuctionBots() {
       car.highestBidderType = "bot";
       car.price = car.highestBid;
       car.bidCount += 1;
+      car.lastNpcBidAt = now;
       if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, car.highestBid, car.id);
       changed = true;
       break;
@@ -1660,6 +1671,8 @@ async function api(req, res, pathname) {
       car.highestBidderType = null;
       car.bidCount = 0;
       car.participantIds = [];
+      car.lastPlayerBidAt = null;
+      car.lastNpcBidAt = null;
     } else {
       car.startingPrice = null;
       car.auctionEnd = null;
@@ -1669,6 +1682,8 @@ async function api(req, res, pathname) {
       car.highestBidderType = null;
       car.bidCount = 0;
       car.participantIds = [];
+      car.lastPlayerBidAt = null;
+      car.lastNpcBidAt = null;
     }
     player.garage.splice(index, 1);
     market.unshift(car);
@@ -1709,6 +1724,7 @@ async function api(req, res, pathname) {
     car.price = amount;
     car.bidCount += 1;
     if (!car.participantIds.includes(player.id)) car.participantIds.push(player.id);
+    car.lastPlayerBidAt = Date.now();
     if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, amount, car.id);
     player.stats.bids += 1;
     broadcast();

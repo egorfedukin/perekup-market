@@ -64,6 +64,7 @@ function boostAccount(playerName) {
   for (const key of Object.keys(entry[1].skills)) entry[1].skills[key] = 5;
   for (const key of Object.keys(entry[1].equipment)) entry[1].equipment[key] = 3;
   entry[1].cash = 3000000;
+  entry[1].garageCapacity = 10;
   database.prepare("UPDATE game_state SET payload = ?, updated_at = ? WHERE id = 1").run(JSON.stringify(saved), Date.now());
   database.close();
 }
@@ -164,12 +165,13 @@ async function run() {
   const botLotSeed = sellerAgain.market.filter((item) => item.price < sellerAgain.player.availableCash).sort((a, b) => a.price - b.price)[0];
   const botLotPurchase = await request("/api/buy", sellerAgain.token, { carId: botLotSeed.id });
   const botLot = botLotPurchase.player.garage[0];
-  await request("/api/list", sellerAgain.token, { carId: botLot.id, price: 1, description: "Честный аукцион", saleType: "auction", durationSeconds: 8 });
-  await new Promise((resolve) => setTimeout(resolve, 4800));
+  await request("/api/list", sellerAgain.token, { carId: botLot.id, price: 1, description: "Честный аукцион", saleType: "auction", durationSeconds: 14 });
+  await new Promise((resolve) => setTimeout(resolve, 8500));
   const duringAuction = await request("/api/state", sellerAgain.token);
   const activeLot = duringAuction.market.find((item) => item.id === botLot.id);
-  check(activeLot?.highestBidderType === "bot" && activeLot.highestBid >= 1, `Rational NPC did not enter an attractive auction: ${JSON.stringify(activeLot)}`);
-  await new Promise((resolve) => setTimeout(resolve, 4300));
+  check(activeLot?.highestBidderType === "bot" && activeLot.bidCount >= 2, `NPCs did not compete for an idle attractive auction: ${JSON.stringify(activeLot)}`);
+  check(activeLot.highestBid <= activeLot.saleEstimate.recommendedHigh * 1.2, `NPC auction exceeded a rational valuation: ${JSON.stringify(activeLot)}`);
+  await new Promise((resolve) => setTimeout(resolve, 6500));
   const afterNpcSale = await request("/api/state", sellerAgain.token);
   check(afterNpcSale.player.deals === 2, "NPC auction purchase did not complete");
 
