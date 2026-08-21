@@ -6,6 +6,7 @@ const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&"
 const categoryNames = { engine: "Двигатель", chassis: "Ходовая", body: "Кузов", electrics: "Электрика", tires: "Шины и колёса", documents: "Документы и VIN" };
 const severityNames = { 1: "незначительно", 2: "серьёзно", 3: "критично" };
 const vehicleClassNames = { classic: "Классика", hatch: "Хэтчбек", sedan: "Седан", suv: "Кроссовер / SUV", coupe: "Купе", van: "Фургон", electric: "Электромобиль", premium: "Премиум", wagon: "Универсал", pickup: "Пикап", roadster: "Родстер" };
+const supporterTierNames = { bronze: "Бронза", silver: "Серебро", gold: "Золото", platinum: "Платина", founder: "Партнёр" };
 let token = localStorage.getItem("perekup-token") || "";
 let state = { player: null, market: [], leaderboard: [], skillInfo: {}, equipmentInfo: {}, marketStats: {}, inspectionCategories: [], inspectionRequirements: {}, chatMessages: [] };
 let marketFilters = { query: "", min: null, max: null, saleType: "all", className: "all", condition: "all", priceBand: "all", sort: "new", fresh: false };
@@ -24,6 +25,42 @@ let partsFilters = { component: "all", quality: "all", query: "" };
 let partsCarFilter = "all";
 let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
+
+function loadExternalScript(id, src, attributes = {}) {
+  if (document.getElementById(id)) return;
+  const script = document.createElement("script");
+  script.id = id; script.src = src; script.async = true;
+  Object.entries(attributes).forEach(([key, value]) => script.setAttribute(key, value));
+  document.head.append(script);
+}
+
+function initAds() {
+  const ads = window.PEREKUP_CONFIG?.ads || {};
+  const placements = [["ad-market", ads.marketSlot], ["ad-garage", ads.garageSlot]].filter(([, blockId]) => blockId);
+  if (!ads.provider || !placements.length) return;
+  if (ads.provider === "yandex") {
+    window.yaContextCb = window.yaContextCb || [];
+    loadExternalScript("yandex-ad-script", "https://yandex.ru/ads/system/context.js");
+    placements.forEach(([containerId, blockId]) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const renderId = `${containerId}-network`;
+      container.hidden = false;
+      container.innerHTML = `<span class="ad-label">Реклама</span><div id="${renderId}" class="ad-network"></div>`;
+      window.yaContextCb.push(() => window.Ya?.Context?.AdvManager?.render({ blockId, renderTo: renderId }));
+    });
+  }
+  if (ads.provider === "adsense" && /^ca-pub-\d+$/.test(ads.adsenseClient || "")) {
+    loadExternalScript("adsense-script", `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ads.adsenseClient)}`, { crossorigin: "anonymous" });
+    placements.forEach(([containerId, slot]) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.hidden = false;
+      container.innerHTML = `<span class="ad-label">Реклама</span><ins class="adsbygoogle ad-network" style="display:block" data-ad-client="${escapeHtml(ads.adsenseClient)}" data-ad-slot="${escapeHtml(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    });
+  }
+}
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -386,7 +423,8 @@ function renderProfile() {
   const player = state.player;
   $("#profile-monogram").textContent = player.name[0].toUpperCase();
   $("#profile-name-large").textContent = player.name;
-  $("#profile-career").textContent = `${player.level} уровень · ${player.xp} XP · ${player.deals} сделок`;
+  const supporterName = supporterTierNames[player.supporterTier];
+  $("#profile-career").innerHTML = `${player.level} уровень · ${player.xp} XP · ${player.deals} сделок${supporterName ? ` <span class="supporter-badge tier-${escapeHtml(player.supporterTier)}">${supporterName}</span>` : ""}`;
   $("#profile-cash").textContent = money(player.cash);
   $("#profile-reputation").textContent = `${player.reputation?.score || 50}/100`;
   const stats = [
@@ -416,7 +454,12 @@ function renderProfile() {
 function renderStore() {
   const store = state.store || { enabled: false, packages: [] };
   $("#store-status").textContent = store.enabled ? `Оплата через ${store.provider}` : "Приём платежей готовится";
-  $("#store-packages").innerHTML = store.packages.map((pack) => `<article class="store-package"><span>${escapeHtml(pack.name)}</span><strong>${money(pack.cash)}</strong><small>игровых рублей</small><button class="danger-button" data-buy-cash="${pack.id}" ${store.enabled ? "" : "disabled"}>${store.enabled ? `Купить за ${pack.rubles} ₽` : "Скоро"}</button></article>`).join("");
+  $("#store-packages").innerHTML = store.packages.map((pack) => `<article class="store-package ${pack.popular ? "popular" : ""}">
+    <div class="store-package-head"><span>${escapeHtml(pack.tag || "Поддержка")}</span>${pack.popular ? "<b>Популярный</b>" : ""}</div>
+    <h3>${escapeHtml(pack.name)}</h3><strong>${money(pack.cash)}</strong><small>игровых рублей</small>
+    <p>${escapeHtml(pack.description || "Пополнение игрового баланса")}</p><em>${escapeHtml(pack.bonus || "")}</em>
+    <button class="danger-button" data-buy-cash="${pack.id}" ${store.enabled ? "" : "disabled"}>${store.enabled ? `Получить за ${number(pack.rubles)} ₽` : `${number(pack.rubles)} ₽ · скоро`}</button>
+  </article>`).join("");
 }
 
 function renderAdmin() {
@@ -440,7 +483,7 @@ function renderChat() {
   const messages = state.chatMessages || [];
   $("#chat-count").textContent = messages.length;
   container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
-    <div><strong>${escapeHtml(message.playerName)}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
+    <div><strong>${escapeHtml(message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
     <p>${escapeHtml(message.text)}</p>
   </div>`).join("") : '<div class="chat-empty">Сообщений пока нет.</div>';
   if (nearBottom) container.scrollTop = container.scrollHeight;
@@ -767,7 +810,6 @@ document.addEventListener("click", async (event) => {
     if (events) events.close();
     location.reload();
   }
-  const adAction = event.target.closest("[data-ad-action]"); if (adAction) return showToast("Рекламный слот готов к подключению партнёрской сети");
   const buyCash = event.target.closest("[data-buy-cash]");
   if (buyCash) {
     try { const data = await request("/api/store/create-payment", { method: "POST", body: JSON.stringify({ packageId: buyCash.dataset.buyCash }) }); if (data.confirmationUrl) location.href = data.confirmationUrl; }
@@ -885,6 +927,7 @@ $("#auction-filters").addEventListener("reset", () => {
 });
 
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("#car-modal").hidden) closeModal(); });
+initAds();
 async function restore() { if (!token) return; try { await enterGame(await request("/api/state")); } catch { localStorage.removeItem("perekup-token"); token = ""; } }
 restore();
 setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); }, 1000);

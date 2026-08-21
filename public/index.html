@@ -4,7 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#171817">
-  <title>Рынок. Мультиплеерный симулятор торговли</title>
+  <meta name="description" content="Рынок. — бесплатный многопользовательский симулятор торговли в браузере. Покупайте автомобили, вещи и недвижимость, торгуйтесь, участвуйте в аукционах и развивайте общий бизнес.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="Команда Рынок.">
+  <link rel="canonical" href="https://perekup-market-production.up.railway.app/">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Рынок.">
+  <meta property="og:title" content="Рынок. — многопользовательский симулятор торговли">
+  <meta property="og:description" content="Торгуйте автомобилями, вещами и недвижимостью на общем рынке с игроками и умными NPC.">
+  <meta property="og:url" content="https://perekup-market-production.up.railway.app/">
+  <meta property="og:image" content="https://perekup-market-production.up.railway.app/garage-scene.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Рынок. — симулятор торговли">
+  <meta name="twitter:description" content="Браузерная экономика, торг, аукционы и командный бизнес.">
+  <link rel="icon" href="/garage-scene.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Рынок. — бесплатный многопользовательский симулятор торговли</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -74,7 +91,7 @@
           <div><span>Аукционы</span><strong id="market-kpi-auctions">0</strong></div>
           <div><span>Моделей в продаже</span><strong id="market-kpi-models">0</strong></div>
         </div>
-        <aside class="ad-slot ad-slot-market" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Сервисная карта для перекупов</strong><small>Проверка VIN и история обслуживания в одном отчёте</small><button class="secondary-button" type="button" data-ad-action>Подробнее</button></aside>
+        <aside id="ad-market" class="ad-slot ad-slot-market" aria-label="Реклама" hidden></aside>
         <div class="market-quick-filters" aria-label="Быстрые фильтры">
           <button type="button" class="quick-filter active" data-market-preset="all">Все лоты</button>
           <button type="button" class="quick-filter" data-market-preset="deals">Выгодные</button>
@@ -129,7 +146,7 @@
         <details class="garage-workshop">
           <summary><div><p class="eyebrow">Развитие, инструменты и детали</p><h3>Мастерская и склад</h3></div><span>Открыть рабочую зону</span></summary>
           <div class="training-strip"><div><strong>Практика оценщика</strong><span>Повторяемое задание: +75 XP, +7 000 ₽, каждое четвёртое даёт очко навыка</span></div><button class="primary-button" data-training>Выполнить задание</button></div>
-          <aside class="ad-slot ad-slot-garage" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Инструмент дня: эндоскоп</strong><small>Помогает найти скрытые дефекты до покупки автомобиля</small><button class="secondary-button" type="button" data-ad-action>Смотреть предложение</button></aside>
+          <aside id="ad-garage" class="ad-slot ad-slot-garage" aria-label="Реклама" hidden></aside>
         <div class="workshop-grid">
           <section class="workshop-section">
             <div class="workshop-heading"><div><p class="eyebrow">Диагностика и самостоятельный ремонт</p><h3>Навыки и профессии</h3></div></div>
@@ -237,9 +254,10 @@
       </section>
 
       <section id="store-view" class="view">
-        <div class="section-heading"><div><p class="eyebrow">Пополнение игрового баланса</p><h2>Банк</h2></div><div class="market-pulse"><i></i><span id="store-status">Безопасная оплата</span></div></div>
+        <div class="section-heading"><div><p class="eyebrow">Поддержка сервера и игровой капитал</p><h2>Банк</h2></div><div class="market-pulse"><i></i><span id="store-status">Безопасная оплата</span></div></div>
+        <div class="store-intro"><div><strong>Поддержите развитие «Рынка»</strong><p>Выберите запас игрового капитала. Каждый пакет навсегда открывает статус поддержки в профиле и чате.</p></div><span>Платёж один раз · подписки нет</span></div>
         <div id="store-packages" class="store-packages"></div>
-        <div class="store-notice"><strong>Важно</strong><p>Покупка пополняет только игровой баланс и не влияет на рейтинг прибыли. Игровые рубли нельзя вывести или обменять обратно на реальные деньги.</p></div>
+        <div class="store-notice"><strong>Важно</strong><p>Покупка пополняет только игровой баланс и не влияет на рейтинг прибыли. Игровые рубли нельзя вывести или обменять обратно на реальные деньги. Совершая платёж, вы принимаете <a href="/terms.html" target="_blank">условия покупки</a>.</p></div>
       </section>
 
       <section id="admin-view" class="view">
@@ -279,8 +297,9 @@
     </div>
 
     <div id="toast" class="toast" role="status"></div>
-    <footer class="site-footer"><span>РЫНОК. · симулятор торговли</span><span>Реклама помогает поддерживать сервер</span><a href="#profile" data-view="profile">О разработчике</a></footer>
+    <footer class="site-footer"><span>РЫНОК. · симулятор торговли</span><span>Реклама помогает поддерживать сервер</span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
+  <script src="/runtime-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

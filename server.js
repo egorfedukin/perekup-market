@@ -17,11 +17,22 @@ const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market-production.up.railway.app").replace(/\/$/, "");
+const AD_PROVIDER = ["yandex", "adsense"].includes(String(process.env.PEREKUP_AD_PROVIDER || "").toLowerCase()) ? String(process.env.PEREKUP_AD_PROVIDER).toLowerCase() : "";
+const PUBLIC_AD_CONFIG = {
+  provider: AD_PROVIDER,
+  marketSlot: process.env.PEREKUP_AD_MARKET_SLOT || "",
+  garageSlot: process.env.PEREKUP_AD_GARAGE_SLOT || "",
+  adsenseClient: process.env.PEREKUP_ADSENSE_CLIENT || ""
+};
+const ADS_TXT = String(process.env.PEREKUP_ADS_TXT || "").trim();
 const cashPackages = [
-  { id: "starter", rubles: 59, cash: 75000, name: "Быстрый старт" },
-  { id: "dealer", rubles: 149, cash: 220000, name: "Капитал дилера" },
-  { id: "business", rubles: 299, cash: 500000, name: "Развитие бизнеса" }
+  { id: "starter", rubles: 99, cash: 250000, name: "Первый оборот", tag: "Старт", description: "На диагностику, инструменты и первую выгодную сделку", bonus: "+ статус Бронза", supporterTier: "bronze" },
+  { id: "dealer", rubles: 249, cash: 800000, name: "Капитал дилера", tag: "Выгодно", description: "Запас на торг, ремонт и несколько автомобилей", bonus: "+ статус Серебро", supporterTier: "silver" },
+  { id: "business", rubles: 499, cash: 1900000, name: "Развитие бизнеса", tag: "Выбор игроков", description: "Для командного гаража, персонала и среднего сегмента", bonus: "+ статус Золото", supporterTier: "gold", popular: true },
+  { id: "holding", rubles: 999, cash: 4500000, name: "Торговый холдинг", tag: "Крупный капитал", description: "Недвижимость, дорогие лоты и развитие команды", bonus: "+ статус Платина", supporterTier: "platinum" },
+  { id: "founder", rubles: 1990, cash: 10000000, name: "Партнёр проекта", tag: "Максимум", description: "Большой капитал и особый статус раннего сторонника", bonus: "+ статус Партнёр", supporterTier: "founder" }
 ];
+const supporterTierRank = { none: 0, bronze: 1, silver: 2, gold: 3, platinum: 4, founder: 5 };
 const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, "game.db"));
@@ -321,6 +332,7 @@ function ensurePlayerDefaults(player) {
   player.groupRole ??= null;
   player.contracts ||= [];
   player.purchasedCash ||= 0;
+  player.supporterTier ||= "none";
   player.adminNotes ||= [];
   player.training ||= { lastAt: 0, completed: 0 };
   player.containerRewards ||= [];
@@ -888,7 +900,7 @@ function publicGroupView(group, viewer) {
 function playerView(player) {
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, training: player.training,
+    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
@@ -915,7 +927,7 @@ function snapshot(player) {
     inspectionRequirements,
     marketStats: marketStatistics(),
     partsMarketStats: partsMarketStatistics(),
-    chatMessages: chatMessages.slice(-100),
+    chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none" })),
     partsMarket: partsMarket.slice(-100),
     partNeeds: player ? playerPartNeeds(player) : [],
     partQualities: partQualityCatalog,
@@ -1212,8 +1224,10 @@ async function confirmPayment(paymentId) {
   if (payment.status !== "succeeded" || payment.paid !== true || payment.metadata?.orderId !== order.orderId) return false;
   const player = players.get(order.playerId);
   if (!player) return false;
+  const pack = cashPackages.find((item) => item.id === order.packageId);
   player.cash += order.cash;
   player.purchasedCash += order.cash;
+  if (pack && supporterTierRank[pack.supporterTier] > supporterTierRank[player.supporterTier || "none"]) player.supporterTier = pack.supporterTier;
   order.status = "succeeded";
   order.paidAt = Date.now();
   persistState();
@@ -2230,11 +2244,20 @@ async function api(req, res, pathname) {
   return json(res, 404, { error: "Команда не найдена" });
 }
 
-const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml" };
+const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8" };
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
     if (url.pathname.startsWith("/api/")) return await api(req, res, url.pathname);
+    if (url.pathname === "/runtime-config.js") {
+      const publicConfig = JSON.stringify({ ads: PUBLIC_AD_CONFIG }).replace(/</g, "\\u003c");
+      res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store" });
+      return res.end(`window.PEREKUP_CONFIG = ${publicConfig};`);
+    }
+    if (url.pathname === "/ads.txt" && ADS_TXT) {
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" });
+      return res.end(`${ADS_TXT}\n`);
+    }
     const requested = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
     const filePath = path.resolve(PUBLIC_DIR, requested);
     if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) { res.writeHead(404); return res.end("Not found"); }
