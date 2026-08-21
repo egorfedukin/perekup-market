@@ -47,7 +47,7 @@
         <button class="tab" data-view="team">Команда</button>
         <details class="more-menu"><summary>Ещё <span id="more-badge" class="badge" hidden>0</span></summary><div>
           <button data-view="chat">Чат <span id="chat-count" class="badge">0</span></button>
-          <button class="mobile-more-team" data-view="team">Команда</button><button data-view="rating">Рейтинг</button><button data-view="store">Магазин</button>
+          <button class="mobile-more-team" data-view="team">Команда</button><button data-view="parts">Запчасти</button><button data-view="rating">Рейтинг</button><button data-view="store">Магазин</button>
           <button data-view="profile">Профиль</button><button id="admin-tab" data-view="admin" hidden>Админ</button>
         </div></details>
       </nav>
@@ -123,17 +123,13 @@
         <div id="empty-garage" class="empty-state" hidden><div class="empty-icon">P</div><h3>В гараже пока пусто</h3><p>Выбери первую машину на общем рынке. Начинать лучше с недорогих вариантов.</p><button data-go-market>Открыть рынок</button></div>
         <div class="garage-management">
           <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
-          <div><span>Каталог автомобилей</span><strong id="catalog-count">1 000 моделей</strong><button class="secondary-button" data-view="market">Открыть рынок</button></div>
+          <div><span>Центр запчастей</span><strong id="part-stock-count">0 деталей</strong><button class="secondary-button" data-view="parts">Открыть</button></div>
           <div><span>Карьерный прогресс</span><strong id="training-count">0 заданий</strong><button class="secondary-button" data-training>Получить XP</button></div>
         </div>
         <details class="garage-workshop">
           <summary><div><p class="eyebrow">Развитие, инструменты и детали</p><h3>Мастерская и склад</h3></div><span>Открыть рабочую зону</span></summary>
           <div class="training-strip"><div><strong>Практика оценщика</strong><span>Повторяемое задание: +75 XP, +7 000 ₽, каждое четвёртое даёт очко навыка</span></div><button class="primary-button" data-training>Выполнить задание</button></div>
           <aside class="ad-slot ad-slot-garage" aria-label="Рекламное место"><span>РЕКЛАМА</span><strong>Инструмент дня: эндоскоп</strong><small>Помогает найти скрытые дефекты до покупки автомобиля</small><button class="secondary-button" type="button" data-ad-action>Смотреть предложение</button></aside>
-        <section class="parts-market-panel">
-          <div class="parts-toolbar"><div><p class="eyebrow">Детали после разбора и покупок</p><h3>Мой склад запчастей</h3></div><div class="parts-purchase"><select id="parts-model" aria-label="Модель для детали"></select><button class="secondary-button" data-buy-parts="common">Купить аналог · 18 000 ₽</button><select id="parts-model-premium" aria-label="Модель для оригинальной детали"></select><button class="primary-button" data-buy-parts="premium">Купить оригинал · 42 000 ₽</button></div></div><div id="parts-inventory-list" class="parts-market-list"></div>
-          <div class="workshop-heading parts-market-heading"><div><p class="eyebrow">Новые и б/у детали · NPC тоже покупают лоты</p><h3>Биржа запчастей</h3></div></div><div id="parts-market-trends" class="parts-market-trends"></div><div id="parts-market-list" class="parts-market-list"></div>
-        </section>
         <div class="workshop-grid">
           <section class="workshop-section">
             <div class="workshop-heading"><div><p class="eyebrow">Учись находить сложные дефекты</p><h3>Навыки осмотра</h3></div></div>
@@ -145,6 +141,15 @@
           </section>
         </div>
         </details>
+      </section>
+
+      <section id="parts-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Подбор, установка и торговля без универсальных комплектов</p><h2>Центр запчастей</h2></div><div class="market-pulse"><i></i><span>Каждая деталь привязана к модели и поломке</span></div></div>
+        <div id="parts-summary" class="parts-summary"></div>
+        <div class="parts-mode-controls" role="tablist" aria-label="Разделы центра запчастей"><button class="active" data-parts-mode="needs">Нужно для ремонта <span id="parts-needs-count">0</span></button><button data-parts-mode="stock">Мой склад <span id="parts-stock-tab-count">0</span></button><button data-parts-mode="market">Биржа <span id="parts-market-count">0</span></button></div>
+        <section id="parts-needs-panel" class="parts-hub-panel"><div class="parts-panel-heading"><div><p class="eyebrow">Только обнаруженные неисправности ваших машин</p><h3>Подбор по ремонту</h3></div><span>Купите нужную деталь или установите подходящую со склада</span></div><div id="parts-needs-list" class="parts-needs-list"></div></section>
+        <section id="parts-stock-panel" class="parts-hub-panel" hidden><div class="parts-panel-heading"><div><p class="eyebrow">Купленные и снятые с автомобилей детали</p><h3>Мой склад</h3></div><span>Ресурс и надёжность влияют на цену автомобиля после установки</span></div><div id="parts-inventory-list" class="parts-inventory-grid"></div></section>
+        <section id="parts-market-panel-view" class="parts-hub-panel" hidden><div class="parts-panel-heading"><div><p class="eyebrow">Лоты игроков, разборок и магазинов</p><h3>Биржа деталей</h3></div><span>NPC покупают адекватно оценённые лоты</span></div><div class="parts-filters"><select id="parts-filter-component" aria-label="Узел детали"><option value="all">Все узлы</option><option value="engine">Двигатель</option><option value="chassis">Ходовая</option><option value="body">Кузов</option><option value="electrics">Электрика</option><option value="tires">Шины</option></select><select id="parts-filter-quality" aria-label="Качество детали"><option value="all">Любое качество</option><option value="economy">Бюджет</option><option value="analog">Надёжный аналог</option><option value="original">Оригинал</option><option value="restored">Восстановленная</option></select><input id="parts-filter-query" type="search" placeholder="Модель, деталь или артикул" aria-label="Поиск деталей"></div><div id="parts-market-trends" class="parts-market-trends"></div><div id="parts-market-list" class="parts-exchange-list"></div></section>
       </section>
 
       <section id="deals-view" class="view">

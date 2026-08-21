@@ -139,9 +139,14 @@ async function run() {
     if (repairDefect) break;
   }
   check(repairDefect, "Could not find a self-repairable defect");
+  expert = await request("/api/parts/order", expertToken, { carId: repairCar.id, defect: repairDefect.code, quality: "original" });
+  const selfRepairPart = expert.player.partInventory.at(-1);
+  check(selfRepairPart.partKey === repairDefect.partKey && selfRepairPart.compatibleModel === repairCar.model && selfRepairPart.reliability === 100, "Exact original repair part was not supplied");
   const cashBeforeRepair = expert.player.cash;
-  expert = await request("/api/repair", expertToken, { carId: repairCar.id, defect: repairDefect.code, mode: "self" });
+  const investedBeforeRepair = expert.player.garage.find((item) => item.id === repairCar.id).invested;
+  expert = await request("/api/repair", expertToken, { carId: repairCar.id, defect: repairDefect.code, mode: "self", partId: selfRepairPart.id });
   check(expert.player.cash === cashBeforeRepair - repairDefect.selfRepairCost, "Self repair charged the wrong amount");
+  check(expert.player.garage.find((item) => item.id === repairCar.id).invested === investedBeforeRepair + repairDefect.selfRepairCost + selfRepairPart.purchasePrice, "Purchased part cost was not included in car investment");
   check(expert.player.stats.selfRepairs === 1, "Self repair profile statistic was not updated");
   const valuedRepairCar = expert.player.garage.find((item) => item.id === repairCar.id);
   check(valuedRepairCar.saleEstimate.repairPremium > 0 && valuedRepairCar.saleEstimate.documentationPremium > 0, "Repaired and diagnosed car did not receive a seller-value premium");
@@ -157,8 +162,10 @@ async function run() {
     assistedDefect = assistedCar.defects.find((defect) => defect.selfRepairable && !defect.repaired);
   }
   check(assistedDefect, "Could not find a defect for assisted repair");
+  expert = await request("/api/parts/order", expertToken, { carId: assistedCar.id, defect: assistedDefect.code, quality: "economy" });
+  const assistedPart = expert.player.partInventory.at(-1);
   const cashBeforeAssisted = expert.player.cash;
-  expert = await request("/api/repair", expertToken, { carId: assistedCar.id, defect: assistedDefect.code, mode: "assisted" });
+  expert = await request("/api/repair", expertToken, { carId: assistedCar.id, defect: assistedDefect.code, mode: "assisted", partId: assistedPart.id });
   check(expert.player.cash === cashBeforeAssisted - assistedDefect.assistedRepairCost, "Assisted repair charged the wrong amount");
   check(expert.player.stats.assistedRepairs === 1, "Assisted repair profile statistic was not updated");
 

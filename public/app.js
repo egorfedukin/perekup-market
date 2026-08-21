@@ -19,6 +19,8 @@ const pendingActions = new Set();
 let adminState = null;
 let shownRewardId = null;
 let shownNotificationId = null;
+let partsMode = "needs";
+let partsFilters = { component: "all", quality: "all", query: "" };
 
 function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass}" style="--car-color:${escapeHtml(car.color)}">
@@ -202,18 +204,7 @@ function renderGarage() {
   const garage = state.player.garage;
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
-  if ($("#common-parts")) $("#common-parts").textContent = `${state.player.parts.common} комплектов`;
-  if ($("#premium-parts")) $("#premium-parts").textContent = `${state.player.parts.premium} комплектов`;
-  const qualityNames = { original: "Оригинал", analog: "Аналог", restored: "Восстановленная" };
-  const componentNames = { engine: "Двигатель", chassis: "Ходовая", body: "Кузов", electrics: "Электрика", tires: "Шины" };
-  $("#parts-inventory-list").innerHTML = (state.player.partInventory || []).map((part) => `<article class="part-lot inventory"><div><span class="part-component">${componentNames[part.component] || "Деталь"}</span><strong>${escapeHtml(part.name)}</strong><small>${qualityNames[part.quality] || part.quality} · ресурс ${part.conditionPct}% · ${part.compatibleModel && part.compatibleModel !== "all" ? `для ${escapeHtml(part.compatibleModel)}` : "для совместимых моделей"}</small></div><span>${money(part.estimatedValue)}</span><div class="part-list-action"><input id="part-price-${part.id}" type="number" min="1" max="1000000" value="${part.estimatedValue}"><button class="primary-button" data-list-part="${part.id}">Выставить на рынок</button></div></article>`).join("") || '<div class="no-offers">Склад пуст. Купите конкретную деталь для модели или разберите автомобиль.</div>';
-  $("#parts-market-list").innerHTML = (state.partsMarket || []).slice(0, 24).map((lot) => `<article class="part-lot"><div><strong>${escapeHtml(lot.item?.name || (lot.type === "premium" ? "Премиальный комплект" : "Обычный комплект"))}</strong><small>${lot.item ? `${qualityNames[lot.item.quality] || lot.item.quality} · ресурс ${lot.item.conditionPct}% · ${lot.item.compatibleModel && lot.item.compatibleModel !== "all" ? `для ${escapeHtml(lot.item.compatibleModel)}` : "универсально"}` : lot.condition === "used" ? "Б/у · проверено" : "Новый комплект"} · продавец ${escapeHtml(lot.seller)}</small></div><span>${money(lot.price)}</span><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`).join("") || '<div class="no-offers">Рынок деталей пуст.</div>';
-  const modelOptions = state.marketStats ? Object.keys(state.marketStats).map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("") : "";
-  if ($("#parts-model")) $("#parts-model").innerHTML = modelOptions;
-  if ($("#parts-model-premium")) $("#parts-model-premium").innerHTML = modelOptions;
-  const componentLabels = { engine: "Двигатель", chassis: "Ходовая", body: "Кузов", electrics: "Электрика", tires: "Шины" };
-  if ($("#parts-market-trends")) $("#parts-market-trends").innerHTML = Object.values(state.partsMarketStats || {}).map((stat) => `<span><b>${componentLabels[stat.component] || stat.component}</b> ${money(stat.averagePrice)}<small>${stat.deals ? `сделок ${stat.deals}` : "ориентир"}</small></span>`).join("");
-  $("#catalog-count").textContent = `${number(state.catalogCount || 1000)} моделей`;
+  $("#part-stock-count").textContent = `${number((state.player.partInventory || []).length)} деталей`;
   $("#training-count").textContent = `${state.player.training?.completed || 0} заданий`;
   $("#garage-value").textContent = money(garage.reduce((sum, car) => sum + car.invested, 0));
   $("#empty-garage").hidden = garage.length > 0;
@@ -237,6 +228,57 @@ function renderGarage() {
     </article>`;
   }).join("");
   renderProgression();
+}
+
+function partQualityName(part) {
+  return state.partQualities?.[part.quality]?.name || part.quality || "Деталь";
+}
+
+function partComponentName(component) {
+  return state.partComponents?.[component] || ({ engine: "Двигатель", chassis: "Ходовая", body: "Кузов", electrics: "Электрика", tires: "Шины" }[component] || "Узел");
+}
+
+function partsForNeed(need) {
+  return (state.player.partInventory || []).filter((part) => part.partKey === need.defect.partKey && part.compatibleModel === need.carModel);
+}
+
+function renderParts() {
+  const inventory = state.player.partInventory || [];
+  const needs = state.partNeeds || [];
+  const market = state.partsMarket || [];
+  const stockValue = inventory.reduce((sum, part) => sum + part.estimatedValue, 0);
+  const exactStock = needs.filter((need) => partsForNeed(need).length).length;
+  $("#parts-summary").innerHTML = `<div><span>Требуется для ремонта</span><strong>${needs.length}</strong><small>${exactStock} уже есть на складе</small></div><div><span>Деталей на складе</span><strong>${inventory.length}</strong><small>Оценка ${money(stockValue)}</small></div><div><span>Лотов на бирже</span><strong>${market.length}</strong><small>Игроки, магазины и разборки</small></div><div><span>Установлено на авто</span><strong>${state.player.garage.reduce((sum, car) => sum + (car.installedParts?.length || 0), 0)}</strong><small>Влияет на ликвидность машин</small></div>`;
+  $("#parts-needs-count").textContent = needs.length;
+  $("#parts-stock-tab-count").textContent = inventory.length;
+  $("#parts-market-count").textContent = market.length;
+  document.querySelectorAll("[data-parts-mode]").forEach((button) => button.classList.toggle("active", button.dataset.partsMode === partsMode));
+  $("#parts-needs-panel").hidden = partsMode !== "needs";
+  $("#parts-stock-panel").hidden = partsMode !== "stock";
+  $("#parts-market-panel-view").hidden = partsMode !== "market";
+
+  $("#parts-needs-list").innerHTML = needs.map((need) => {
+    const defect = need.defect;
+    const stock = partsForNeed(need);
+    const choiceId = `part-choice-${need.carId}-${defect.code}`;
+    const canSelf = state.player.skills[defect.repairSkill] >= defect.repairSkillLevel && state.player.equipment[defect.repairEquipment] >= defect.repairEquipmentLevel;
+    const canAssisted = state.player.skills[defect.repairSkill] >= defect.assistedSkillLevel && state.player.equipment[defect.repairEquipment] >= defect.assistedEquipmentLevel;
+    return `<article class="part-need-row"><div class="part-need-car"><span>${need.carYear}</span><strong>${escapeHtml(need.carModel)}</strong><small>${escapeHtml(partComponentName(defect.partComponent))}</small></div><div class="part-need-info"><span class="part-sku">${escapeHtml(defect.partKey)}</span><h3>${escapeHtml(defect.partName)}</h3><p>${escapeHtml(defect.name)}</p><small>${stock.length ? `На складе найдено: ${stock.length}` : "Подходящей детали на складе нет"}</small></div><div class="part-need-action">${stock.length ? `<select id="${choiceId}" data-part-select="${need.carId}:${defect.code}">${stock.map((part) => `<option value="${part.id}">${escapeHtml(part.brand)} · ${partQualityName(part)} · ресурс ${part.conditionPct}%</option>`).join("")}</select><div class="install-actions"><button class="secondary-button" data-repair="${need.carId}" data-defect="${defect.code}" data-repair-mode="workshop">Сервис, работа · ${money(defect.serviceLaborCost)}</button><button class="secondary-button" data-repair="${need.carId}" data-defect="${defect.code}" data-repair-mode="assisted" ${canAssisted ? "" : "disabled"}>С помощником · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${need.carId}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf ? "" : "disabled"}>Установить самому · ${money(defect.selfRepairCost)}</button></div>` : `<div class="quality-offers">${need.offers.map((offer) => `<button data-order-part="${need.carId}" data-defect="${defect.code}" data-quality="${offer.quality}" ${state.player.availableCash < offer.price ? "disabled" : ""}><span>${escapeHtml(offer.name)}</span><strong>${money(offer.price)}</strong><small>Надёжность ${offer.reliability}%${offer.warrantyKm ? ` · гарантия ${number(offer.warrantyKm)} км` : " · без гарантии"}</small></button>`).join("")}</div><button class="secondary-button service-with-part" data-repair="${need.carId}" data-defect="${defect.code}" data-repair-mode="workshop">Сервис под ключ · ${money(defect.serviceRepairCost)}</button>`}</div></article>`;
+  }).join("") || '<div class="parts-empty"><strong>Список покупок пуст</strong><span>Проведите диагностику автомобиля: здесь появятся конкретные детали для найденных неисправностей.</span></div>';
+
+  $("#parts-inventory-list").innerHTML = inventory.map((part) => {
+    const matches = needs.filter((need) => need.defect.partKey === part.partKey && need.carModel === part.compatibleModel).length;
+    return `<article class="inventory-part"><div class="part-card-head"><span class="quality-tag quality-${part.quality}">${escapeHtml(partQualityName(part))}</span><span class="part-sku">${escapeHtml(part.partKey)}</span></div><h3>${escapeHtml(part.name)}</h3><p>${escapeHtml(part.brand)} · для ${escapeHtml(part.compatibleModel)} (${escapeHtml(part.generation)})</p><div class="part-metrics"><span>Ресурс<strong>${part.conditionPct}%</strong></span><span>Надёжность<strong>${part.reliability}%</strong></span><span>Оценка<strong>${money(part.estimatedValue)}</strong></span></div><small>${matches ? `Подходит для ${matches} текущих ремонтов` : `Источник: ${escapeHtml(part.source || "Склад")}`}</small>${matches ? `<button class="primary-button" data-parts-mode-link="needs">Перейти к установке</button>` : ""}<div class="part-list-action"><input id="part-price-${part.id}" type="number" min="1" max="20000000" value="${Math.max(1, part.estimatedValue)}" aria-label="Цена продажи"><button class="secondary-button" data-list-part="${part.id}">Выставить на биржу</button></div></article>`;
+  }).join("") || '<div class="parts-empty"><strong>Склад пуст</strong><span>Купите деталь в подборе по ремонту, на бирже или получите её после разбора автомобиля.</span></div>';
+
+  const query = partsFilters.query.trim().toLocaleLowerCase("ru-RU");
+  const neededKeys = new Set(needs.map((need) => `${need.defect.partKey}:${need.carModel}`));
+  const filteredMarket = market.filter((lot) => {
+    const part = lot.item || {};
+    return (partsFilters.component === "all" || part.component === partsFilters.component) && (partsFilters.quality === "all" || part.quality === partsFilters.quality) && (!query || `${part.name} ${part.partKey} ${part.compatibleModel} ${part.brand}`.toLocaleLowerCase("ru-RU").includes(query));
+  }).sort((a, b) => Number(neededKeys.has(`${b.item?.partKey}:${b.item?.compatibleModel}`)) - Number(neededKeys.has(`${a.item?.partKey}:${a.item?.compatibleModel}`)) || a.price - b.price);
+  $("#parts-market-list").innerHTML = filteredMarket.map((lot) => { const part = lot.item; const needed = neededKeys.has(`${part.partKey}:${part.compatibleModel}`); return `<article class="exchange-part ${needed ? "needed" : ""}"><div><span class="quality-tag quality-${part.quality}">${escapeHtml(partQualityName(part))}</span>${needed ? '<span class="needed-tag">Нужно для вашей машины</span>' : ""}<strong>${escapeHtml(part.name)}</strong><small>${escapeHtml(part.brand)} · ${escapeHtml(part.partKey)} · ${escapeHtml(part.compatibleModel)} · ресурс ${part.conditionPct}%</small></div><div class="exchange-price"><strong>${money(lot.price)}</strong><small>оценка ${money(part.estimatedValue)} · ${escapeHtml(lot.seller)}</small></div><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id || state.player.availableCash < lot.price ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`; }).join("") || '<div class="parts-empty"><strong>Ничего не найдено</strong><span>Измените фильтры или дождитесь нового предложения от разборок.</span></div>';
+  $("#parts-market-trends").innerHTML = Object.values(state.partsMarketStats || {}).map((stat) => `<span><b>${escapeHtml(partComponentName(stat.component))}</b> ${money(stat.averagePrice)}<small>${stat.active} лотов · ${stat.deals} сделок</small></span>`).join("");
 }
 
 function renderContainers() {
@@ -406,7 +448,7 @@ function render() {
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
+  renderMarketStats(); renderMarket(); renderGarage(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
   restoreActiveDraft(draft);
@@ -475,10 +517,10 @@ function defectRow(car, defect) {
   const canAssisted = defect.selfRepairable && state.player.skills[defect.repairSkill] >= defect.assistedSkillLevel && state.player.equipment[defect.repairEquipment] >= defect.assistedEquipmentLevel;
   const skillCurrent = state.player.skills[defect.repairSkill] || 0;
   const equipmentCurrent = state.player.equipment[defect.repairEquipment] || 0;
-  const compatibleParts = (state.player.partInventory || []).filter((part) => [defect.category, "universal"].includes(part.component) && ["all", car.className].includes(part.compatibleClass) && (!part.compatibleModel || part.compatibleModel === "all" || part.compatibleModel === car.model) && (!defect.partName || part.name.includes(defect.partName)));
+  const compatibleParts = (state.player.partInventory || []).filter((part) => part.partKey === defect.partKey && part.compatibleModel === car.model);
   return `<div class="defect-row ${defect.repaired ? "repaired" : ""}">
     <strong>${escapeHtml(defect.name)} <span class="severity">${severityNames[defect.severity]}</span><small class="defect-detail">${escapeHtml(defect.symptom)}<br>Риск: ${escapeHtml(defect.consequence)}${defect.selfRepairable ? `<br>Готовность: ${skillName} ${skillCurrent}/5 · ${equipmentName} ${equipmentCurrent}/3` : "<br>Только специализированный сервис"}</small></strong>
-    ${defect.repaired ? "<span>Устранено</span>" : `<div class="repair-actions">${defect.partName ? `<button class="part-order-button" data-order-part="${car.id}" data-defect="${defect.code}">Заказать: ${escapeHtml(defect.partName)}</button>` : ""}${compatibleParts.length ? `<select data-part-select="${defect.code}"><option value="">Без складской детали</option>${compatibleParts.map((part) => `<option value="${part.id}">${escapeHtml(part.name)} · ${part.conditionPct}% · скидка до ${money(Math.round(part.estimatedValue * .65))}</option>`).join("")}</select>` : ""}<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop">Сервис · ${money(defect.repair)}</button><button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="assisted" ${canAssisted ? "" : "disabled"}>С помощником · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf ? "" : "disabled"}>Самостоятельно · ${money(defect.selfRepairCost)}</button></div>`}
+    ${defect.repaired ? "<span>Устранено</span>" : `<div class="repair-actions">${defect.partRequired ? `<div class="repair-part-status"><strong>${escapeHtml(defect.partName)}</strong><small>${escapeHtml(defect.partKey)} · ${compatibleParts.length ? `на складе ${compatibleParts.length}` : "нужно купить"}</small></div>` : ""}${compatibleParts.length ? `<select data-part-select="${car.id}:${defect.code}">${compatibleParts.map((part) => `<option value="${part.id}">${escapeHtml(part.brand)} · ${partQualityName(part)} · ресурс ${part.conditionPct}%</option>`).join("")}</select>` : defect.partRequired ? `<button class="part-order-button" data-open-parts-center>Подобрать деталь</button>` : ""}<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop">Сервис под ключ · ${money(defect.serviceRepairCost || defect.repair)}</button><button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="assisted" ${canAssisted && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>С помощником · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>Самостоятельно · ${money(defect.selfRepairCost)}</button></div>`}
   </div>`;
 }
 
@@ -587,8 +629,11 @@ async function perform(path, body, success) {
 
 document.addEventListener("click", async (event) => {
   const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
+  const partsModeButton = event.target.closest("[data-parts-mode]"); if (partsModeButton) { partsMode = partsModeButton.dataset.partsMode; renderParts(); return; }
+  const partsModeLink = event.target.closest("[data-parts-mode-link]"); if (partsModeLink) { partsMode = partsModeLink.dataset.partsModeLink; renderParts(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   if (event.target.closest("[data-go-market]")) return setView("market");
   if (event.target.closest("[data-close-modal]")) return closeModal();
+  if (event.target.closest("[data-open-parts-center]")) { closeModal(); partsMode = "needs"; setView("parts"); renderParts(); return; }
 
   const claimReward = event.target.closest("[data-claim-reward]");
   if (claimReward) {
@@ -630,7 +675,7 @@ document.addEventListener("click", async (event) => {
   const carUpgrade = event.target.closest("[data-car-upgrade]"); if (carUpgrade) return perform("/api/car/upgrade", { carId: carUpgrade.dataset.carUpgrade, upgrade: carUpgrade.dataset.upgrade }, "Улучшение установлено, ценность автомобиля обновлена");
   const buyMarketPart = event.target.closest("[data-buy-part-market]"); if (buyMarketPart) return perform("/api/parts/buy-market", { partId: buyMarketPart.dataset.buyPartMarket }, "Запчасть куплена на рынке");
   const listPart = event.target.closest("[data-list-part]"); if (listPart) return perform("/api/parts/list", { inventoryPartId: listPart.dataset.listPart, price: $(`#part-price-${listPart.dataset.listPart}`)?.value }, "Деталь выставлена на биржу");
-  const orderPart = event.target.closest("[data-order-part]"); if (orderPart) return perform("/api/parts/order", { carId: orderPart.dataset.orderPart, defect: orderPart.dataset.defect, quality: "analog" }, "Нужная деталь заказана и добавлена на склад");
+  const orderPart = event.target.closest("[data-order-part]"); if (orderPart) return perform("/api/parts/order", { carId: orderPart.dataset.orderPart, defect: orderPart.dataset.defect, quality: orderPart.dataset.quality || "analog" }, "Деталь куплена и добавлена на склад");
   if (event.target.closest("[data-group-create]")) return perform("/api/group/create", { name: $("#group-name")?.value }, "Группа создана");
   if (event.target.closest("[data-group-join]")) return perform("/api/group/join", { groupId: $("#group-join-id")?.value }, "Вы вступили в группу");
   if (event.target.closest("[data-group-transfer]")) return perform("/api/group/transfer", { amount: $("#group-transfer-amount")?.value }, "Взнос отправлен в общую кассу");
@@ -644,7 +689,7 @@ document.addEventListener("click", async (event) => {
   const buy = event.target.closest("[data-buy]"); if (buy) { if (buy.disabled) return; if (await perform("/api/buy", { carId: buy.dataset.buy }, "Машина отправлена в гараж")) { closeModal(); setView("garage"); } else if (!state.market.some((car) => car.id === buy.dataset.buy)) { closeModal(); try { state = await request("/api/state"); render(); } catch { /* session will be handled by the event stream */ } } return; }
   const dismantle = event.target.closest("[data-dismantle]"); if (dismantle) return perform("/api/car/dismantle", { carId: dismantle.dataset.dismantle }, "Машина разобрана, детали отправлены на склад");
   const unlist = event.target.closest("[data-unlist]"); if (unlist) { if (await perform("/api/unlist", { carId: unlist.dataset.unlist }, "Объявление снято")) closeModal(); return; }
-  const repair = event.target.closest("[data-repair]"); if (repair) return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, partId: document.querySelector(`[data-part-select="${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? "Вы самостоятельно устранили неисправность" : repair.dataset.repairMode === "assisted" ? "Ремонт выполнен вместе с мастером" : "Ремонт выполнен в сервисе");
+  const repair = event.target.closest("[data-repair]"); if (repair) return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, partId: document.querySelector(`[data-part-select="${repair.dataset.repair}:${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? "Деталь установлена, неисправность устранена" : repair.dataset.repairMode === "assisted" ? "Деталь установлена вместе с мастером" : "Сервис завершил ремонт");
   const serviceDiagnostic = event.target.closest("[data-service-diagnostic]");
   if (serviceDiagnostic) return perform("/api/service-diagnostic", { carId: serviceDiagnostic.dataset.serviceDiagnostic }, "Сервис обнаружил все неисправности");
   const check = event.target.closest("[data-check]");
@@ -735,10 +780,13 @@ document.addEventListener("submit", async (event) => {
 
 document.addEventListener("input", (event) => {
   if (event.target.matches("#list-form input[name='price']")) updateListingSummary();
+  if (event.target.id === "parts-filter-query") { partsFilters.query = event.target.value; renderParts(); }
 });
 
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-group-role]")) perform("/api/group/role", { playerId: event.target.dataset.groupRole, role: event.target.value }, "Роль участника изменена");
+  if (event.target.id === "parts-filter-component") { partsFilters.component = event.target.value; renderParts(); }
+  if (event.target.id === "parts-filter-quality") { partsFilters.quality = event.target.value; renderParts(); }
 });
 
 $("#market-filters").addEventListener("reset", () => {

@@ -139,6 +139,35 @@ const partComponents = {
   engine: "Двигатель и навесное", chassis: "Ходовая и трансмиссия", body: "Кузовная деталь",
   electrics: "Электрооборудование", tires: "Колёса и шины", universal: "Расходные материалы"
 };
+const partQualityCatalog = {
+  economy: { key: "economy", name: "Бюджет", priceFactor: 0.68, valueFactor: 0.5, reliability: 72, warrantyKm: 0, brands: ["StartLine", "RoadBase", "AvtoNorm"] },
+  analog: { key: "analog", name: "Надёжный аналог", priceFactor: 1, valueFactor: 0.88, reliability: 88, warrantyKm: 20000, brands: ["NordParts", "Vector Auto", "KraftWerk"] },
+  original: { key: "original", name: "Оригинал", priceFactor: 1.58, valueFactor: 1.22, reliability: 100, warrantyKm: 50000, brands: ["OEM Genuine", "Factory Parts"] },
+  restored: { key: "restored", name: "Восстановленная", priceFactor: 0.55, valueFactor: 0.42, reliability: 68, warrantyKm: 3000, brands: ["ReParts", "SecondDrive"] }
+};
+const defectPartCatalog = {
+  oil_low: { sku: "ENG-OIL-5W30", name: "Моторное масло 5W-30", component: "engine" },
+  timing_belt: { sku: "ENG-TIMING-BELT", name: "Комплект ремня ГРМ", component: "engine" },
+  oil_leak: { sku: "ENG-VALVE-GASKET", name: "Прокладка клапанной крышки", component: "engine" },
+  compression: { sku: "ENG-PISTON-KIT", name: "Поршневая ремонтная группа", component: "engine" },
+  timing: { sku: "ENG-TIMING-CHAIN", name: "Комплект цепи ГРМ", component: "engine" },
+  clutch: { sku: "CHS-CLUTCH-KIT", name: "Комплект сцепления", component: "chassis" },
+  bearing: { sku: "CHS-WHEEL-BEARING", name: "Ступичный подшипник", component: "chassis" },
+  rack: { sku: "CHS-STEERING-RACK", name: "Рулевая рейка", component: "chassis" },
+  brakes: { sku: "CHS-BRAKE-DISCS", name: "Комплект тормозных дисков", component: "chassis" },
+  paint: { sku: "BDY-PAINT-KIT", name: "Комплект краски и грунта", component: "body" },
+  frame: { sku: "BDY-FRAME-SECTION", name: "Ремонтная секция лонжерона", component: "body" },
+  rust: { sku: "BDY-SILL-PANEL", name: "Ремонтная панель порога", component: "body" },
+  airbag: { sku: "ELC-AIRBAG-MODULE", name: "Модуль подушки безопасности", component: "electrics" },
+  generator: { sku: "ELC-ALTERNATOR", name: "Генератор в сборе", component: "electrics" },
+  turn_signal: { sku: "ELC-TURN-LAMP", name: "Лампа поворотника", component: "electrics" },
+  can_bus: { sku: "ELC-CAN-HARNESS", name: "Жгут CAN-шины", component: "electrics" },
+  coolant: { sku: "ENG-COOLANT-PIPE", name: "Патрубок системы охлаждения", component: "engine" },
+  wiring: { sku: "ELC-WIRING-HARNESS", name: "Жгут проводки", component: "electrics" },
+  uneven_tires: { sku: "TIR-ROAD-SET", name: "Комплект дорожных шин", component: "tires" },
+  old_tires: { sku: "TIR-ROAD-SET", name: "Комплект дорожных шин", component: "tires" },
+  puncture: { sku: "TIR-PUNCTURE-KIT", name: "Ремкомплект бескамерной шины", component: "tires" }
+};
 
 const upgradeCatalog = [
   { key: "detailing", name: "Профессиональный детейлинг", description: "Глубокая очистка салона, полировка кузова и фото-подготовка.", skill: "bodywork", equipment: "bodyStation", skillLevel: 1, equipmentLevel: 1, cost: 22000, value: 36000, condition: 4 },
@@ -240,8 +269,9 @@ function ensurePlayerDefaults(player) {
   player.reputation ||= { score: 50, completed: 0, failed: 0 };
   player.garageCapacity = Math.max(MAX_GARAGE, Math.min(GARAGE_CAPACITY_MAX, Number(player.garageCapacity) || MAX_GARAGE));
   player.parts ||= { common: 0, premium: 0 };
+  player.garage ||= [];
   player.partInventory ||= [];
-  player.partInventory.forEach((part, index) => migratePart(part, index));
+  player.partInventory.forEach((part, index) => migratePart(part, index, player.garage[index % Math.max(1, player.garage.length)]?.model));
   player.groupId ??= null;
   player.groupRole ??= null;
   player.contracts ||= [];
@@ -251,7 +281,6 @@ function ensurePlayerDefaults(player) {
   player.containerRewards ||= [];
   player.notifications ||= [];
   if (!player.contracts.length) player.contracts = generateContracts(player);
-  player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
 }
 
@@ -277,6 +306,7 @@ function ensureCarDefaults(car) {
   car.serviceDiagnosed ??= false;
   car.history ||= [{ type: "acquired", text: "Автомобиль поступил на рынок", at: Date.now() }];
   car.installedParts ||= [];
+  car.installedParts.forEach((part, index) => migratePart(part, index, car.model));
   car.upgrades ||= [];
   car.upgradeValue ||= 0;
   car.upgradeStage ||= car.upgrades.length;
@@ -301,15 +331,35 @@ function notifyOutbid(playerId, lotType, lotName, amount, lotId) {
   player.notifications = player.notifications.slice(-50);
 }
 
-function migratePart(part, index = 0) {
+function migratePart(part, index = 0, fallbackModel = null) {
   if (!part || typeof part !== "object") return part;
   if (part.component === "universal") part.component = ["engine", "chassis", "body", "electrics", "tires"][index % 5];
-  part.compatibleModel ??= "all";
-  if (!part.name || /универсал|расходные/i.test(part.name)) {
-    const names = { engine: "Масло и ремкомплект двигателя", chassis: "Комплект ходовой", body: "Кузовная деталь", electrics: "Электрический разъём и лампы", tires: "Шинный ремкомплект" };
-    part.name = names[part.component] || "Автомобильная деталь";
-  }
+  if (!partQualityCatalog[part.quality]) part.quality = part.quality === "premium" ? "original" : "analog";
+  const componentDefects = Object.entries(defectPartCatalog).filter(([, spec]) => spec.component === part.component);
+  const matched = componentDefects.find(([, spec]) => String(part.name || "").includes(spec.name));
+  const [defectCode, spec] = matched || componentDefects[index % Math.max(1, componentDefects.length)] || ["timing_belt", defectPartCatalog.timing_belt];
+  const model = part.compatibleModel && part.compatibleModel !== "all" ? part.compatibleModel : fallbackModel || catalog[index % catalog.length].model;
+  const catalogItem = catalog.find((item) => item.model === model) || catalog[index % catalog.length];
+  const quality = partQualityCatalog[part.quality];
+  part.component = spec.component;
+  part.partKey ||= spec.sku;
+  part.name = spec.name;
+  part.compatibleModel = catalogItem.model;
+  part.compatibleClass = catalogItem.className;
+  part.generation = `${Math.max(1980, catalogItem.year - 4)}–${catalogItem.year + 6}`;
+  part.conditionPct = clamp(Number(part.conditionPct) || 100, 20, 100);
+  part.brand ||= quality.brands[index % quality.brands.length];
+  part.reliability = clamp(Number(part.reliability) || Math.round(quality.reliability * part.conditionPct / 100), 20, 100);
+  part.warrantyKm = Math.max(0, Number(part.warrantyKm) || Math.round(quality.warrantyKm * part.conditionPct / 100));
+  part.defectCodes ||= Object.entries(defectPartCatalog).filter(([, item]) => item.sku === spec.sku).map(([code]) => code);
+  part.estimatedValue = Math.max(500, Number(part.estimatedValue) || 1000);
+  part.purchasePrice = Math.max(0, Number.isFinite(Number(part.purchasePrice)) ? Number(part.purchasePrice) : part.estimatedValue);
+  part.source ||= part.quality === "restored" ? "Разбор" : "Старый склад";
   return part;
+}
+
+function stablePartIndex(value) {
+  return [...String(value || "part")].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 0);
 }
 
 function ensureGroupDefaults(group) {
@@ -339,46 +389,61 @@ function ensureGroupDefaults(group) {
   return group;
 }
 
-function makePart(component = "universal", quality = "analog", conditionPct = 100, compatibleClass = "all", sourceCar = null) {
-  const qualityFactor = quality === "original" ? 1.35 : quality === "restored" ? 0.72 : 1;
-  const base = component === "engine" ? 65000 : component === "chassis" ? 38000 : component === "body" ? 32000 : component === "electrics" ? 27000 : component === "tires" ? 24000 : 12000;
-  const compatibleModel = sourceCar && sourceCar !== "all" ? sourceCar : "all";
-  const componentName = partComponents[component] || partComponents.universal;
-  const specificNames = {
-    engine: ["Моторное масло 5W-30", "Комплект ремня ГРМ", "Прокладка клапанной крышки"],
-    chassis: ["Комплект сцепления", "Ступичный подшипник", "Втулки стабилизатора"],
-    body: ["Кузовная панель", "Грунт и эмаль", "Комплект уплотнителей"],
-    electrics: ["Лампа поворотника", "Датчик ABS", "Электрический разъём"],
-    tires: ["Ремкомплект бескамерной шины", "Комплект вентилей", "Балансировочные грузики"]
-  };
-  const specificName = specificNames[component]?.[Math.floor(Math.random() * specificNames[component].length)] || componentName;
+function partSpecForDefect(defect) {
+  return defect && defectPartCatalog[defect.code] ? defectPartCatalog[defect.code] : null;
+}
+
+function partBasePrice(car, defect) {
+  const valueScale = clamp(Math.sqrt(Math.max(10000, car.cleanValue || 10000) / 500000), 0.35, 8);
+  return Math.max(500, Math.round(defect.repair * 0.3 * valueScale / 500) * 500);
+}
+
+function partOffer(car, defect, qualityKey = "analog", conditionPct = 100) {
+  const spec = partSpecForDefect(defect);
+  if (!spec) return null;
+  const quality = partQualityCatalog[qualityKey] || partQualityCatalog.analog;
+  const condition = clamp(Math.round(conditionPct), 20, 100);
+  const basePrice = partBasePrice(car, defect);
+  const retailPrice = Math.max(500, Math.round(basePrice * quality.priceFactor * condition / 100 / 500) * 500);
+  return { spec, quality, condition, retailPrice };
+}
+
+function makeSpecificPart(car, defect, qualityKey = "analog", conditionPct = 100, source = "Магазин") {
+  const offer = partOffer(car, defect, qualityKey, conditionPct);
+  if (!offer) return null;
+  const { spec, quality, condition, retailPrice } = offer;
+  const catalogItem = catalog.find((item) => item.model === car.model) || { year: car.year, className: car.className };
   return {
-    id: `inventory_part_${crypto.randomBytes(7).toString("hex")}`, component,
-    name: `${specificName}${compatibleModel !== "all" ? ` · ${compatibleModel}` : ""}`,
-    quality, conditionPct: Math.max(20, Math.min(100, Math.round(conditionPct))), compatibleClass, compatibleModel,
-    estimatedValue: Math.max(1000, Math.round(base * qualityFactor * conditionPct / 100 / 500) * 500), sourceCar
+    id: `inventory_part_${crypto.randomBytes(7).toString("hex")}`, partKey: spec.sku, component: spec.component,
+    name: spec.name, brand: quality.brands[randomInt(0, quality.brands.length - 1)], quality: quality.key,
+    conditionPct: condition, reliability: clamp(Math.round(quality.reliability * condition / 100), 20, 100),
+    warrantyKm: Math.round(quality.warrantyKm * condition / 100), compatibleClass: car.className,
+    compatibleModel: car.model, generation: `${Math.max(1980, catalogItem.year - 4)}–${catalogItem.year + 6}`,
+    defectCodes: Object.entries(defectPartCatalog).filter(([, item]) => item.sku === spec.sku).map(([code]) => code),
+    estimatedValue: Math.max(500, Math.round(retailPrice * quality.valueFactor / 500) * 500),
+    purchasePrice: retailPrice, source, sourceCar: car.model
   };
+}
+
+function makePart(component = "engine", quality = "analog", conditionPct = 100, compatibleClass = null, sourceCar = null) {
+  const model = sourceCar && sourceCar !== "all" ? sourceCar : catalog[randomInt(0, catalog.length - 1)].model;
+  const item = catalog.find((entry) => entry.model === model) || catalog[0];
+  const candidates = defectCatalog.filter((defect) => partSpecForDefect(defect)?.component === component);
+  const defect = candidates[randomInt(0, Math.max(0, candidates.length - 1))] || defectCatalog.find((entry) => partSpecForDefect(entry));
+  return makeSpecificPart({ model: item.model, year: item.year, className: compatibleClass && compatibleClass !== "all" ? compatibleClass : item.className, cleanValue: item.base }, defect, quality, conditionPct, quality === "restored" ? "Разбор" : "Магазин");
 }
 
 function partStockType(part) {
   return part.quality === "original" ? "premium" : "common";
 }
 
-function makeSpecificPart(car, defect, quality = "analog") {
-  const part = makePart(defect.category, quality, 100, car.className, car.model);
-  part.name = `${defect.partName || partComponents[defect.category] || "Деталь"} · ${car.model}`;
-  part.estimatedValue = Math.max(1000, Math.round(defect.repair * (quality === "original" ? 0.48 : 0.3) / 500) * 500);
-  return part;
-}
-
 function ensurePartLot(lot) {
+  const migrationIndex = stablePartIndex(lot.id);
   if (!lot.item) {
     const quality = lot.type === "premium" ? "original" : lot.condition === "used" ? "restored" : "analog";
-    lot.item = makePart(["engine", "chassis", "body", "electrics", "tires"][Math.abs(String(lot.id || "lot").length) % 5], quality, lot.condition === "used" ? 68 : 100, "all");
+    lot.item = makePart(["engine", "chassis", "body", "electrics", "tires"][migrationIndex % 5], quality, lot.condition === "used" ? 68 : 100, "all", catalog[migrationIndex % catalog.length].model);
   }
-  migratePart(lot.item);
-  lot.item.compatibleModel ??= "all";
-  lot.item.name ||= `${partComponents[lot.item.component] || partComponents.universal}${lot.item.compatibleModel !== "all" ? ` · ${lot.item.compatibleModel}` : ""}`;
+  migratePart(lot.item, migrationIndex);
   lot.sellerId ??= null;
   lot.createdAt ||= Date.now();
   return lot;
@@ -477,7 +542,10 @@ function saleEstimate(car, player = null) {
   const conditionAdjustment = clamp((car.condition - 65) * marketPrice * 0.0022, -marketPrice * 0.08, marketPrice * 0.08);
   const repairLiquidityPenalty = repaired.length ? Math.min(marketPrice * 0.035, repaired.length * 7000) : 0;
   const employeePremium = marketPrice * (groupEmployeeRating(employeePlayer, "sales") / 100) * 0.04 + marketPrice * (groupEmployeeRating(employeePlayer, "appraisal") / 100) * 0.025;
-  const installedPartsPremium = Math.min(marketPrice * 0.045, car.installedParts.reduce((sum, part) => sum + part.estimatedValue * 0.12, 0));
+  const installedPartsPremium = Math.min(marketPrice * 0.085, car.installedParts.reduce((sum, part) => {
+    const qualityBonus = part.quality === "original" ? 1.35 : part.quality === "economy" ? 0.55 : part.quality === "restored" ? 0.7 : 1;
+    return sum + part.estimatedValue * qualityBonus * (0.16 + part.reliability / 500);
+  }, 0));
   const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium) / 1000) * 1000);
   const recommendedLow = Math.max(1, Math.round(expectedNpcPrice * 0.94 / 1000) * 1000);
   const recommendedHigh = Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000);
@@ -612,19 +680,24 @@ function makeCar(index, seller = "Авторынок") {
   };
 }
 
-function publicDefect(defect) {
+function publicDefect(defect, car = null) {
   const repairSkill = defect.category === "body" ? "bodywork" : defect.category === "electrics" ? "electrics" : "mechanics";
   const repairEquipment = defect.category === "body" ? "bodyStation" : defect.category === "electrics" ? "electricalBench" : "workshop";
   const selfRepairable = defect.category !== "documents";
+  const partSpec = partSpecForDefect(defect);
+  const analogOffer = car && partSpec ? partOffer(car, defect, "analog") : null;
+  const laborBase = partSpec && analogOffer ? Math.max(500, defect.repair - analogOffer.retailPrice) : defect.repair;
+  const serviceRepairCost = Math.max(500, Math.round((laborBase + (analogOffer?.retailPrice || 0) * 1.12) / 500) * 500);
   return {
     code: defect.code, category: defect.category, name: defect.name, symptom: defect.symptom,
     consequence: defect.consequence, severity: defect.severity, skill: defect.skill,
-    partName: defect.partName || null,
+    partName: partSpec?.name || null, partKey: partSpec?.sku || null, partRequired: Boolean(partSpec), partComponent: partSpec?.component || null,
     equipment: defect.equipment, equipmentLevel: defect.equipmentLevel,
-    repair: defect.repair, repaired: defect.repaired,
+    repair: serviceRepairCost, repaired: defect.repaired,
     selfRepairable,
-    assistedRepairCost: Math.max(500, Math.round(defect.repair * 0.58 / 500) * 500),
-    selfRepairCost: Math.max(500, Math.round(defect.repair * 0.3 / 500) * 500),
+    serviceRepairCost, serviceLaborCost: laborBase,
+    assistedRepairCost: Math.max(500, Math.round(laborBase * 0.58 / 500) * 500),
+    selfRepairCost: Math.max(500, Math.round(laborBase * 0.3 / 500) * 500),
     repairSkill, repairSkillLevel: Math.min(5, defect.severity + 1),
     repairEquipment, repairEquipmentLevel: defect.severity,
     assistedSkillLevel: defect.severity,
@@ -650,7 +723,7 @@ function publicCar(car, ownerView = false, viewer = null) {
   result.publicInspectionRecords = car.publicInspectionRecords || {};
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
   if (ownerView || (viewer && car.ownerId === viewer.id)) {
-    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map(publicDefect);
+    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map((defect) => publicDefect(defect, car));
     result.checkedCategories = car.checkedCategories;
     result.inspectionRecords = car.inspectionRecords;
     result.inspection = inspectionSummary(car);
@@ -665,10 +738,28 @@ function publicCar(car, ownerView = false, viewer = null) {
     result.upgradeValue = car.upgradeValue;
     result.upgradeOptions = upgradeOptions(car, viewer);
   } else {
-    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map(publicDefect);
+    result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map((defect) => publicDefect(defect, car));
     result.publicInspection = { checked: Object.keys(car.publicInspectionRecords || {}), confidence: Object.values(car.publicInspectionRecords || {}).reduce((sum, record) => sum + record.confidence, 0) };
   }
   return result;
+}
+
+function playerPartNeeds(player) {
+  return player.garage.flatMap((car) => {
+    ensureCarDefaults(car);
+    return car.defects
+      .filter((defect) => !defect.repaired && car.discovered.includes(defect.code) && partSpecForDefect(defect))
+      .map((defect) => {
+        const publicInfo = publicDefect(defect, car);
+        return {
+          id: `${car.id}:${defect.code}`, carId: car.id, carModel: car.model, carYear: car.year, defect: publicInfo,
+          offers: ["economy", "analog", "original"].map((qualityKey) => {
+            const offer = partOffer(car, defect, qualityKey);
+            return { quality: qualityKey, name: partQualityCatalog[qualityKey].name, price: offer.retailPrice, reliability: offer.quality.reliability, warrantyKm: offer.quality.warrantyKm };
+          })
+        };
+      });
+  });
 }
 
 function offerView(offer) {
@@ -725,6 +816,9 @@ function snapshot(player) {
     partsMarketStats: partsMarketStatistics(),
     chatMessages: chatMessages.slice(-100),
     partsMarket: partsMarket.slice(-100),
+    partNeeds: player ? playerPartNeeds(player) : [],
+    partQualities: partQualityCatalog,
+    partComponents,
     marketRotation: { nextAt: marketRotationNextAt, intervalSeconds: Math.round(NPC_ROTATION_MS / 1000), replaceCount: NPC_ROTATION_COUNT },
     groups: [...groups.values()].map((group) => ({ id: group.id, name: group.name, rating: group.rating, members: group.members.length })),
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
@@ -802,14 +896,14 @@ rebalanceNpcMarket();
 function publishPartLot(itemOrType, condition = "new", price = null, seller = "Магазин", sellerId = null) {
   const legacyType = typeof itemOrType === "string" ? itemOrType : null;
   const item = legacyType
-    ? makePart(["engine", "chassis", "body", "electrics", "tires"][randomInt(0, 4)], legacyType === "premium" ? "original" : condition === "used" ? "restored" : "analog", condition === "used" ? randomInt(48, 82) : 100, randomInt(0, catalog.length - 1) % 3 ? "all" : catalog[randomInt(0, catalog.length - 1)].className, catalog[randomInt(0, catalog.length - 1)].model)
+    ? makePart(["engine", "chassis", "body", "electrics", "tires"][randomInt(0, 4)], legacyType === "premium" ? "original" : condition === "used" ? "restored" : "analog", condition === "used" ? randomInt(48, 82) : 100, null, catalog[randomInt(0, catalog.length - 1)].model)
     : itemOrType;
   const lot = { id: id("part_"), item, type: item.quality === "original" ? "premium" : "common", condition: item.conditionPct < 100 ? "used" : "new", price: price || item.estimatedValue, seller, sellerId, createdAt: Date.now() };
   partsMarket.push(lot);
   return lot;
 }
 if (!partsMarket.length) {
-  for (let i = 0; i < 12; i += 1) publishPartLot(i % 3 === 0 ? "premium" : "common", i % 2 ? "new" : "used");
+  for (let i = 0; i < 30; i += 1) publishPartLot(i % 4 === 0 ? "premium" : "common", i % 2 ? "new" : "used");
 }
 persistState();
 
@@ -818,7 +912,7 @@ function runNpcPartBuyers() {
   for (const lot of partsMarket.slice()) {
     if (Math.random() > 0.22) continue;
     const item = ensurePartLot(lot).item;
-    const candidates = bots.filter((bot) => bot.budget >= lot.price && lot.price <= item.estimatedValue * (0.78 + bot.risk * 0.12));
+    const candidates = bots.filter((bot) => bot.budget >= lot.price && lot.price <= item.estimatedValue * (0.9 + bot.risk * 0.2));
     const buyer = candidates.sort(() => Math.random() - 0.5)[0];
     if (!buyer) continue;
     const seller = lot.sellerId && players.get(lot.sellerId);
@@ -827,7 +921,7 @@ function runNpcPartBuyers() {
     partsMarket.splice(partsMarket.indexOf(lot), 1);
     changed = true;
   }
-  while (partsMarket.length < 12) publishPartLot(Math.random() < 0.22 ? "premium" : "common", Math.random() < 0.5 ? "used" : "new");
+  while (partsMarket.length < 30) publishPartLot(Math.random() < 0.22 ? "premium" : "common", Math.random() < 0.5 ? "used" : "new");
   if (changed) broadcast();
 }
 setInterval(runNpcPartBuyers, 12000).unref();
@@ -1498,7 +1592,7 @@ async function api(req, res, pathname) {
     if (!lot) return json(res, 404, { error: "Лот запчастей уже продан" });
     if (player.cash < lot.price) return json(res, 400, { error: "Не хватает денег на запчасть" });
     if (lot.sellerId === player.id) return json(res, 400, { error: "Нельзя купить собственный лот" });
-    player.cash -= lot.price; player.partInventory.push(lot.item); player.parts[lot.type] += 1; player.stats.partsBought += 1;
+    player.cash -= lot.price; lot.item.purchasePrice = lot.price; lot.item.source = `Биржа · ${lot.seller}`; player.partInventory.push(lot.item); player.parts[lot.type] += 1; player.stats.partsBought += 1;
     const seller = lot.sellerId && players.get(lot.sellerId);
     if (seller) seller.cash += Math.round(lot.price * 0.95);
     partsSalesHistory.push({ component: lot.item.component, model: lot.item.compatibleModel, price: lot.price, buyer: player.name, at: Date.now() });
@@ -1508,7 +1602,7 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/parts/list") {
     const index = player.partInventory.findIndex((part) => part.id === body.inventoryPartId); const price = Math.round(Number(body.price));
     if (index < 0) return json(res, 404, { error: "Деталь не найдена на складе" });
-    if (!Number.isFinite(price) || price < 1 || price > 1000000) return json(res, 400, { error: "Цена детали должна быть от 1 ₽ до 1 000 000 ₽" });
+    if (!Number.isFinite(price) || price < 1 || price > 20000000) return json(res, 400, { error: "Цена детали должна быть от 1 ₽ до 20 000 000 ₽" });
     const part = player.partInventory.splice(index, 1)[0];
     player.parts[partStockType(part)] = Math.max(0, player.parts[partStockType(part)] - 1);
     publishPartLot(part, part.conditionPct < 100 ? "used" : "new", price, player.name, player.id);
@@ -1519,9 +1613,10 @@ async function api(req, res, pathname) {
     const index = player.garage.findIndex((car) => car.id === body.carId);
     if (index < 0) return json(res, 404, { error: "Машина не найдена в гараже" });
     const car = player.garage[index]; const payout = partsValue(car);
-    const componentPool = ["engine", "chassis", "body", "electrics", "tires"];
-    const salvaged = componentPool.slice().sort(() => Math.random() - 0.5).slice(0, Math.max(2, Math.min(4, car.defects.length + 1)))
-      .map((component) => makePart(component, Math.random() < 0.22 ? "original" : "restored", randomInt(42, Math.max(48, car.condition)), car.className, car.model));
+    const donorDefects = [...car.defects.filter((defect) => partSpecForDefect(defect)), ...defectCatalog.filter((defect) => partSpecForDefect(defect))]
+      .filter((defect, position, list) => list.findIndex((item) => partSpecForDefect(item).sku === partSpecForDefect(defect).sku) === position)
+      .sort(() => Math.random() - 0.5).slice(0, Math.max(3, Math.min(6, car.defects.length + 2)));
+    const salvaged = donorDefects.map((defect) => makeSpecificPart(car, defect, "restored", randomInt(38, Math.max(45, car.condition)), `Разбор ${car.model}`));
     player.garage.splice(index, 1); player.cash += Math.round(payout * 0.38); player.parts.common += salvaged.length; player.partInventory.push(...salvaged);
     car.history.push({ type: "dismantled", text: `Разобрана на запчасти, получено ${Math.round(payout * 0.62)} ₽`, at: Date.now() });
     broadcast(); return json(res, 200, snapshot(player));
@@ -1563,7 +1658,7 @@ async function api(req, res, pathname) {
     car.checkedCategories = Object.keys(car.inspectionRecords);
     addXp(player, 20 + newFound.length * 15);
     broadcast();
-    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map(publicDefect), confidence, improvedFrom: previous?.bestScore || 0, canImprove: score < 6 } });
+    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence, improvedFrom: previous?.bestScore || 0, canImprove: score < 6 } });
   }
 
   if (req.method === "POST" && pathname === "/api/market-check") {
@@ -1588,7 +1683,7 @@ async function api(req, res, pathname) {
     car.publicInspectionRecords[category] = { bestScore: score, confidence, inspector: player.name, at: Date.now() };
     addXp(player, 12 + newFound.length * 10);
     broadcast();
-    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map(publicDefect), confidence } });
+    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence } });
   }
 
   if (req.method === "POST" && pathname === "/api/service-diagnostic") {
@@ -1614,10 +1709,13 @@ async function api(req, res, pathname) {
     if (!car) return json(res, 404, { error: "Машины нет в гараже" });
     const defect = car.defects.find((item) => item.code === body.defect && !item.repaired && car.discovered.includes(item.code));
     if (!defect) return json(res, 404, { error: "Сначала обнаружьте эту неисправность" });
-    const requirements = publicDefect(defect);
+    const requirements = publicDefect(defect, car);
     const selfRepair = body.mode === "self";
     const assistedRepair = body.mode === "assisted";
-    let repairCost = defect.repair;
+    const serviceRepair = !selfRepair && !assistedRepair;
+    const analogOffer = requirements.partRequired ? partOffer(car, defect, "analog") : null;
+    const serviceLabor = requirements.partRequired ? Math.max(500, defect.repair - analogOffer.retailPrice) : defect.repair;
+    let repairCost = serviceLabor;
     if (selfRepair || assistedRepair) {
       if (!requirements.selfRepairable) return json(res, 400, { error: "Эту проблему нельзя законно устранить самостоятельно" });
       const skillLevel = selfRepair ? requirements.repairSkillLevel : requirements.assistedSkillLevel;
@@ -1633,25 +1731,37 @@ async function api(req, res, pathname) {
       const partIndex = player.partInventory.findIndex((part) => part.id === body.partId);
       if (partIndex < 0) return json(res, 404, { error: "Выбранная деталь не найдена на складе" });
       const part = player.partInventory[partIndex];
-      if (![defect.category, "universal"].includes(part.component)) return json(res, 400, { error: "Эта деталь не подходит для выбранного узла" });
-      if (!["all", car.className].includes(part.compatibleClass)) return json(res, 400, { error: "Деталь несовместима с классом автомобиля" });
-      if (part.compatibleModel && part.compatibleModel !== "all" && part.compatibleModel !== car.model) return json(res, 400, { error: `Деталь предназначена для модели ${part.compatibleModel}` });
-      if (defect.partName && !part.name.includes(defect.partName)) return json(res, 400, { error: `Для ремонта нужна деталь «${defect.partName}»` });
+      if (part.partKey !== requirements.partKey) return json(res, 400, { error: `Для ремонта нужна деталь «${requirements.partName}»` });
+      if (part.compatibleModel !== car.model) return json(res, 400, { error: `Деталь предназначена для модели ${part.compatibleModel}` });
       installedPart = player.partInventory[partIndex];
-      repairCost = Math.max(500, Math.round((repairCost - installedPart.estimatedValue * 0.65) / 500) * 500);
     }
-    if (player.cash < repairCost) return json(res, 400, { error: "Не хватает денег на ремонт" });
+    if (requirements.partRequired && !installedPart && !serviceRepair) return json(res, 400, { error: `Для ремонта сначала купите «${requirements.partName}» для ${car.model}` });
+    let suppliedPartCost = 0;
+    if (requirements.partRequired && !installedPart && serviceRepair) {
+      installedPart = makeSpecificPart(car, defect, "analog", 100, "Поставлено сервисом");
+      suppliedPartCost = Math.max(500, Math.round(installedPart.purchasePrice * 1.12 / 500) * 500);
+      installedPart.purchasePrice = suppliedPartCost;
+    }
+    const totalCashCost = repairCost + suppliedPartCost;
+    if (player.cash < totalCashCost) return json(res, 400, { error: `На ремонт и детали нужно ${totalCashCost.toLocaleString("ru-RU")} ₽` });
     if (installedPart) {
-      player.partInventory.splice(player.partInventory.findIndex((part) => part.id === installedPart.id), 1);
-      player.parts[partStockType(installedPart)] = Math.max(0, player.parts[partStockType(installedPart)] - 1);
+      const inventoryIndex = player.partInventory.findIndex((part) => part.id === installedPart.id);
+      if (inventoryIndex >= 0) {
+        player.partInventory.splice(inventoryIndex, 1);
+        player.parts[partStockType(installedPart)] = Math.max(0, player.parts[partStockType(installedPart)] - 1);
+      }
+      installedPart.installedAt = Date.now();
+      installedPart.installedForDefect = defect.code;
+      installedPart.installationMode = selfRepair ? "self" : assistedRepair ? "assisted" : "workshop";
     }
-    player.cash -= repairCost;
-    car.invested += repairCost;
+    player.cash -= totalCashCost;
+    car.invested += totalCashCost + (suppliedPartCost ? 0 : installedPart?.purchasePrice || 0);
     defect.repaired = true;
-    car.condition = Math.min(100, car.condition + defect.severity * 4);
+    const partConditionFactor = installedPart ? 0.55 + installedPart.reliability / 200 : 1;
+    car.condition = Math.min(100, car.condition + Math.max(1, Math.round(defect.severity * 4 * partConditionFactor)));
     car.repairs.push(defect.name);
     if (installedPart) car.installedParts.push(installedPart);
-    car.history.push({ type: "repair", text: `Ремонт: ${defect.name}${installedPart ? ` · установлена деталь «${installedPart.name}», ресурс ${installedPart.conditionPct}%` : ""}`, at: Date.now() });
+    car.history.push({ type: "repair", text: `Ремонт: ${defect.name}${installedPart ? ` · ${installedPart.brand} ${installedPart.name}, ресурс ${installedPart.conditionPct}%, надёжность ${installedPart.reliability}%` : ""}`, at: Date.now() });
     if (selfRepair) player.stats.selfRepairs += 1;
     else if (assistedRepair) player.stats.assistedRepairs += 1;
     else player.stats.workshopRepairs += 1;
@@ -1718,9 +1828,12 @@ async function api(req, res, pathname) {
 
   if (req.method === "POST" && pathname === "/api/parts/order") {
     const car = player.garage.find((item) => item.id === body.carId); const defect = car?.defects.find((item) => item.code === body.defect);
-    if (!car || !defect || !defect.partName) return json(res, 404, { error: "Для этой неисправности отдельная деталь не требуется" });
-    const quality = body.quality === "original" ? "original" : "analog"; const part = makeSpecificPart(car, defect, quality);
-    const price = Math.round(part.estimatedValue * (quality === "original" ? 1.15 : 1));
+    if (!car || !defect || !partSpecForDefect(defect)) return json(res, 404, { error: "Для этой неисправности отдельная деталь не требуется" });
+    if (defect.repaired) return json(res, 400, { error: "Неисправность уже устранена" });
+    if (!car.discovered.includes(defect.code)) return json(res, 400, { error: "Сначала обнаружьте неисправность" });
+    const quality = ["economy", "analog", "original"].includes(body.quality) ? body.quality : "analog";
+    const part = makeSpecificPart(car, defect, quality, 100, "Магазин запчастей");
+    const price = part.purchasePrice;
     if (player.cash < price) return json(res, 400, { error: "Не хватает денег на заказ детали" });
     player.cash -= price; player.partInventory.push(part); player.parts[partStockType(part)] += 1; player.stats.partsBought += 1;
     broadcast(); return json(res, 200, snapshot(player));

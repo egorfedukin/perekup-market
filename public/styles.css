@@ -158,6 +158,82 @@ button { cursor: pointer; }
 .part-list-action { display: flex; gap: 5px; }
 .part-list-action input { width: 105px; height: 36px; border: 1px solid var(--line); padding: 0 7px; }
 .parts-market-heading { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.parts-summary { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 2px solid var(--ink); border-left: 1px solid var(--line); background: var(--surface); }
+.parts-summary > div { min-width: 0; padding: 15px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.parts-summary span, .parts-summary strong, .parts-summary small { display: block; }
+.parts-summary span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.parts-summary strong { margin-top: 7px; font-size: 22px; overflow-wrap: anywhere; }
+.parts-summary small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.parts-mode-controls { display: grid; grid-template-columns: repeat(3, 1fr); margin: 18px 0; border: 1px solid var(--ink); background: var(--surface); }
+.parts-mode-controls button { min-width: 0; min-height: 48px; border: 0; border-right: 1px solid var(--ink); background: transparent; color: var(--muted); font-size: 11px; font-weight: 900; }
+.parts-mode-controls button:last-child { border-right: 0; }
+.parts-mode-controls button.active { background: var(--ink); color: white; }
+.parts-mode-controls span { display: inline-grid; min-width: 21px; height: 21px; place-items: center; margin-left: 6px; background: #ece9df; color: var(--ink); font-size: 9px; }
+.parts-mode-controls button.active span { background: var(--yellow); }
+.parts-hub-panel { padding: 20px; border-top: 2px solid var(--ink); background: var(--surface); }
+.parts-hub-panel[hidden] { display: none; }
+.parts-panel-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+.parts-panel-heading h3 { margin: 0; font-size: 22px; text-transform: uppercase; }
+.parts-panel-heading > span { color: var(--muted); font-size: 10px; }
+.parts-needs-list { display: grid; gap: 9px; }
+.part-need-row { display: grid; grid-template-columns: 150px minmax(220px, .8fr) minmax(420px, 1.4fr); align-items: stretch; border: 1px solid var(--line); }
+.part-need-car { display: grid; align-content: center; padding: 15px; background: #252823; color: white; }
+.part-need-car span { color: var(--yellow); font-size: 9px; font-weight: 900; }
+.part-need-car strong { margin-top: 5px; font-size: 14px; overflow-wrap: anywhere; }
+.part-need-car small { margin-top: 6px; color: #aeb2a9; font-size: 9px; }
+.part-need-info { min-width: 0; padding: 14px; border-right: 1px solid var(--line); }
+.part-sku { color: var(--muted); font-family: Consolas, monospace; font-size: 8px; font-weight: 800; }
+.part-need-info h3, .inventory-part h3 { margin: 5px 0 0; font-size: 15px; text-transform: uppercase; overflow-wrap: anywhere; }
+.part-need-info p { margin: 5px 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.part-need-info small { color: var(--green); font-size: 9px; font-weight: 800; }
+.part-need-action { display: grid; align-content: center; gap: 8px; min-width: 0; padding: 12px; }
+.part-need-action > select { width: 100%; height: 40px; border: 1px solid var(--line); background: white; padding: 0 9px; font-size: 10px; }
+.quality-offers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.quality-offers button { min-width: 0; min-height: 76px; padding: 9px; border: 1px solid var(--line); background: white; text-align: left; }
+.quality-offers button:hover:not(:disabled) { border-color: var(--ink); }
+.quality-offers span, .quality-offers strong, .quality-offers small { display: block; }
+.quality-offers span { color: var(--muted); font-size: 8px; font-weight: 900; text-transform: uppercase; }
+.quality-offers strong { margin-top: 5px; font-size: 12px; }
+.quality-offers small { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.3; }
+.service-with-part { width: 100%; min-height: 38px; }
+.install-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.install-actions button { min-width: 0; min-height: 42px; padding: 7px; font-size: 9px; }
+.parts-inventory-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.inventory-part { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px; border: 1px solid var(--line); }
+.part-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.quality-tag, .needed-tag { display: inline-block; padding: 4px 6px; background: #ece9df; color: var(--muted); font-size: 8px; font-weight: 900; text-transform: uppercase; }
+.quality-original { background: #252823; color: #f0ca50; }
+.quality-analog { background: #e3ece5; color: var(--green); }
+.quality-economy { background: #f2e9d2; color: #806819; }
+.quality-restored { background: #ebe6e2; color: #855544; }
+.inventory-part > p { min-height: 26px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.inventory-part > small { color: var(--green); font-size: 9px; font-weight: 800; }
+.part-metrics { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.part-metrics span { min-width: 0; padding: 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.part-metrics strong { display: block; margin-top: 4px; color: var(--ink); font-size: 10px; overflow-wrap: anywhere; }
+.inventory-part .part-list-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+.inventory-part .part-list-action input { width: 100%; min-width: 0; }
+.parts-filters { display: grid; grid-template-columns: 180px 180px 1fr; gap: 7px; margin-bottom: 13px; }
+.parts-filters select, .parts-filters input { min-width: 0; height: 42px; border: 1px solid var(--line); background: white; padding: 0 10px; }
+.parts-exchange-list { display: grid; gap: 7px; }
+.exchange-part { display: grid; grid-template-columns: minmax(260px, 1fr) 180px auto; align-items: center; gap: 15px; padding: 12px; border: 1px solid var(--line); }
+.exchange-part.needed { border-left: 4px solid var(--green); background: #f1f4ef; }
+.exchange-part > div:first-child > strong, .exchange-part > div:first-child > small { display: block; }
+.exchange-part > div:first-child > strong { margin-top: 6px; font-size: 12px; }
+.exchange-part > div:first-child > small { margin-top: 4px; color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+.needed-tag { margin-left: 5px; background: var(--green); color: white; }
+.exchange-price { text-align: right; }
+.exchange-price strong, .exchange-price small { display: block; }
+.exchange-price strong { font-size: 14px; }
+.exchange-price small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+.exchange-part > button { min-width: 105px; min-height: 40px; }
+.parts-empty { display: grid; grid-column: 1 / -1; place-items: center; min-height: 170px; padding: 24px; border: 1px dashed var(--line); text-align: center; }
+.parts-empty strong { font-size: 16px; text-transform: uppercase; }
+.parts-empty span { max-width: 520px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.repair-part-status { padding: 8px; background: #eceae2; }
+.repair-part-status strong, .repair-part-status small { display: block; }
+.repair-part-status strong { font-size: 10px; }
+.repair-part-status small { margin-top: 3px; color: var(--muted); font-size: 8px; }
 .level-block { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
 .level-block span { color: #9b9f96; }
 .xp-track { height: 6px; overflow: hidden; background: #3b3e38; }
@@ -618,6 +694,9 @@ button { cursor: pointer; }
   .container-grid { grid-template-columns: repeat(2, 1fr); }
   .parts-toolbar { grid-template-columns: 1fr; }
   .admin-player { grid-template-columns: 1fr auto; }
+  .part-need-row { grid-template-columns: 130px 1fr; }
+  .part-need-action { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+  .parts-inventory-grid { grid-template-columns: 1fr 1fr; }
   .admin-actions { grid-column: 1 / -1; }
 }
 
@@ -723,6 +802,17 @@ button { cursor: pointer; }
   .inspection-grid { grid-template-columns: 1fr 1fr; }
   .seller-summary { grid-template-columns: 1fr 1fr; }
   .active-job-grid { grid-template-columns: 1fr; }
+  .parts-summary { grid-template-columns: 1fr 1fr; }
+  .parts-hub-panel { padding: 14px; }
+  .parts-panel-heading { align-items: start; flex-direction: column; gap: 5px; }
+  .part-need-row { grid-template-columns: 1fr; }
+  .part-need-car { min-height: 82px; }
+  .part-need-info { border-right: 0; border-bottom: 1px solid var(--line); }
+  .part-need-action { grid-column: auto; border-top: 0; }
+  .parts-filters { grid-template-columns: 1fr; }
+  .exchange-part { grid-template-columns: 1fr auto; gap: 9px; }
+  .exchange-price { text-align: right; }
+  .exchange-part > button { grid-column: 1 / -1; width: 100%; }
 }
 
 @media (max-width: 430px) {
@@ -762,6 +852,12 @@ button { cursor: pointer; }
   .defect-row span:nth-child(2) { display: none; }
   .employee-grid { grid-template-columns: 1fr; }
   .group-section-title { align-items: start; flex-direction: column; }
+  .parts-mode-controls button { min-height: 54px; padding: 5px; font-size: 9px; line-height: 1.25; }
+  .parts-mode-controls span { display: block; width: max-content; margin: 4px auto 0; }
+  .quality-offers, .install-actions, .parts-inventory-grid { grid-template-columns: 1fr; }
+  .quality-offers button { min-height: 66px; }
+  .inventory-part .part-list-action { grid-template-columns: 1fr; }
+  .inventory-part .part-list-action button { min-height: 40px; }
   .offer-form, .bid-form { display: grid; grid-template-columns: 1fr; }
   .offer-form input, .bid-form input { width: 100%; min-width: 0; }
   .seller-summary, .inspection-grid, .reward-stats { grid-template-columns: 1fr 1fr; }
