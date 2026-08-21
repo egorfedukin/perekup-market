@@ -410,7 +410,26 @@ button { cursor: pointer; }
 .group-summary > div, .group-create { display: flex; gap: 7px; margin-top: 7px; }
 .group-summary input, .group-create input, .group-summary select { min-width: 0; flex: 1; height: 38px; border: 1px solid var(--line); background: white; padding: 0 9px; }
 .group-members, .group-garage, .group-employees { margin-top: 22px; }
-.group-members h4, .group-garage h4, .group-employees h4 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; }
+.group-members h4, .group-garage h4, .group-employees h4, .group-jobs h4 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; }
+.group-business { margin-top: 20px; }
+.business-dashboard { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.business-dashboard > div { min-width: 0; padding: 13px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.business-dashboard span, .business-dashboard strong, .business-dashboard small { display: block; }
+.business-dashboard span { color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.business-dashboard strong { margin-top: 7px; font-size: 18px; overflow-wrap: anywhere; }
+.business-dashboard small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.business-xp { height: 5px; overflow: hidden; background: #dedcd4; }
+.business-xp i { display: block; height: 100%; background: var(--green); transition: width .25s; }
+.group-jobs { margin-top: 22px; }
+.group-section-title { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
+.group-section-title h4 { margin: 0; }
+.group-section-title small, .group-section-title > span { color: var(--muted); font-size: 9px; }
+.active-job-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.active-job { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-left: 3px solid var(--yellow); background: #f5efd9; }
+.active-job strong, .active-job small { display: block; }
+.active-job strong { font-size: 11px; }
+.active-job small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.active-job time { flex: 0 0 auto; color: var(--accent-dark); font-size: 15px; font-weight: 900; }
 .group-member { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .group-member strong, .group-member small { display: block; }
 .group-member strong { font-size: 11px; }
@@ -427,10 +446,27 @@ button { cursor: pointer; }
 .group-car-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; margin-right: 10px; }
 .group-car-actions button { margin-right: 0; }
 .employee-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-.employee-card { display: grid; gap: 5px; padding: 11px; border: 1px solid var(--line); }
+.employee-card { display: grid; align-content: start; gap: 7px; padding: 12px; border: 1px solid var(--line); }
 .employee-card.hired { border-left: 3px solid var(--green); background: #eef2ed; }
+.employee-card.busy { border-left-color: var(--yellow); background: #f5f0df; }
 .employee-card strong { font-size: 11px; }
 .employee-card span, .employee-card small { color: var(--muted); font-size: 9px; }
+.employee-head { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.employee-head strong, .employee-head span { display: block; }
+.employee-head span { margin-top: 3px; }
+.employee-head b { color: var(--green); font-size: 8px; text-transform: uppercase; }
+.employee-card.busy .employee-head b { color: #876a18; }
+.employee-energy { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
+.employee-energy > i { height: 5px; overflow: hidden; background: #d7d9d2; }
+.employee-energy > i b { display: block; height: 100%; background: var(--green); }
+.employee-job { display: grid; gap: 5px; margin-top: 3px; padding-top: 9px; border-top: 1px solid #ccd2ca; }
+.employee-job strong, .employee-job small { display: block; }
+.employee-card button { width: 100%; min-height: 37px; margin-top: 3px; }
+.group-activity { margin-top: 24px; }
+.group-activity h4 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; }
+.group-activity > div { border-top: 1px solid var(--line); }
+.group-activity p { display: grid; grid-template-columns: 45px 1fr; gap: 9px; margin: 0; padding: 8px 3px; border-bottom: 1px solid var(--line); font-size: 10px; }
+.group-activity time { color: var(--muted); font-size: 9px; }
 .npc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 .npc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--line); }
 .npc-row strong, .npc-row small { display: block; }
@@ -576,6 +612,7 @@ button { cursor: pointer; }
   .garage-management { grid-template-columns: 1fr; }
   .parts-market-list, .npc-list { grid-template-columns: 1fr; }
   .employee-grid { grid-template-columns: 1fr 1fr; }
+  .business-dashboard { grid-template-columns: 1fr 1fr; }
   .ad-slot { grid-template-columns: auto 1fr auto; }
   .ad-slot small { grid-column: 2; }
   .container-grid { grid-template-columns: repeat(2, 1fr); }
@@ -685,6 +722,7 @@ button { cursor: pointer; }
   .modal-body h2 { font-size: 27px; }
   .inspection-grid { grid-template-columns: 1fr 1fr; }
   .seller-summary { grid-template-columns: 1fr 1fr; }
+  .active-job-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 430px) {
@@ -723,6 +761,7 @@ button { cursor: pointer; }
   .defect-row { grid-template-columns: 1fr; }
   .defect-row span:nth-child(2) { display: none; }
   .employee-grid { grid-template-columns: 1fr; }
+  .group-section-title { align-items: start; flex-direction: column; }
   .offer-form, .bid-form { display: grid; grid-template-columns: 1fr; }
   .offer-form input, .bid-form input { width: 100%; min-width: 0; }
   .seller-summary, .inspection-grid, .reward-stats { grid-template-columns: 1fr 1fr; }

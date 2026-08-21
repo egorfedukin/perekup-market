@@ -12,7 +12,7 @@ let server;
 function startServer() {
   return new Promise((resolve, reject) => {
     server = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1" },
+      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_FAST_JOBS: "1" },
       stdio: ["ignore", "pipe", "pipe"]
     });
     const timeout = setTimeout(() => reject(new Error("Server start timed out")), 5000);
@@ -124,6 +124,7 @@ async function run() {
 
   await stopServer();
   boostAccount(buyerName);
+  boostAccount(sellerName);
   await startServer();
   let expert = await request("/api/login", null, { name: buyerName, pin: "1357" });
   const expertToken = expert.token;
@@ -214,6 +215,15 @@ async function run() {
 
   groupOwner = await request("/api/group/employee/hire", ownerToken, { employeeId: "employee_diagnostic_1" });
   check(groupOwner.player.group.employees.some((employee) => employee.id === "employee_diagnostic_1"), "Employee was not hired");
+  const treasuryBeforeJob = groupOwner.player.group.treasury;
+  groupOwner = await request("/api/group/job/start", ownerToken, { employeeId: "employee_diagnostic_1", jobKey: "inspection" });
+  check(groupOwner.player.group.activeJobs.length === 1 && groupOwner.player.group.employees[0].energy < 100, "Group business job did not start or consume employee energy");
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+  groupOwner = await request("/api/state", ownerToken);
+  check(groupOwner.player.group.activeJobs.length === 0 && groupOwner.player.group.completedJobs === 1, "Group business job did not complete");
+  check(groupOwner.player.group.treasury > treasuryBeforeJob && groupOwner.player.group.totalBusinessProfit > 0, "Completed group job did not create a rational profit");
+  groupOwner = await request("/api/group/employee/restore", ownerToken, { employeeId: "employee_diagnostic_1" });
+  check(groupOwner.player.group.employees[0].energy === 100, "Employee rest action did not restore energy");
   groupMember = await request("/api/service-diagnostic", memberToken, { carId: garageSeed.id });
 
   groupOwner = await request("/api/parts/buy", ownerToken, { type: "premium" });

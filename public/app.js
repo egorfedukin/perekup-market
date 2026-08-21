@@ -44,6 +44,7 @@ function updateAuctionTimers() {
     element.textContent = auctionTime(Number(element.dataset.auctionEnd));
   });
   document.querySelectorAll("[data-container-end]").forEach((element) => { element.textContent = auctionTime(Number(element.dataset.containerEnd)); });
+  document.querySelectorAll("[data-group-job-end]").forEach((element) => { element.textContent = auctionTime(Number(element.dataset.groupJobEnd)); });
 }
 
 function updateMarketRotationTimer() {
@@ -333,10 +334,15 @@ function renderProfile() {
   $("#profile-equipment").innerHTML = Object.entries(state.equipmentInfo).map(([key, info]) => `<div><span>${escapeHtml(info.name)}</span><strong>${player.equipment[key]}/3</strong></div>`).join("");
   const group = player.group;
   $("#group-content").innerHTML = group ? `<div class="group-summary"><strong>${escapeHtml(group.name)}</strong><span>Рейтинг ${Math.round(group.rating)}/100 · касса ${money(group.treasury)}</span><small>Ваша роль: ${escapeHtml(player.groupRole || "Участник")} · общий гараж ${group.garage.length}/${group.garageCapacity} · ID: ${escapeHtml(group.id)}</small><div><input id="group-transfer-amount" type="number" min="1" placeholder="Сумма в общую кассу"><button class="secondary-button" data-group-transfer>Внести деньги</button></div>${group.permissions.treasury ? `<div><select id="group-pay-player">${group.members.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join("")}</select><input id="group-pay-amount" type="number" min="1" placeholder="Сумма участнику"><button class="secondary-button" data-group-pay>Выдать из кассы</button></div>` : ""}</div>` : `<div class="group-create"><input id="group-name" maxlength="30" placeholder="Название новой группы"><button class="primary-button" data-group-create>Создать группу</button><input id="group-join-id" maxlength="40" placeholder="ID существующей группы"><button class="secondary-button" data-group-join>Вступить по ID</button><small>Владелец сможет назначать роли: управляющий, механик, оценщик или казначей.</small></div>`;
+  const businessProgress = group ? Math.min(100, Math.round(group.businessXp / group.businessXpRequired * 100)) : 0;
+  $("#group-business").innerHTML = group ? `<div class="business-dashboard"><div><span>Уровень бизнеса</span><strong>${group.businessLevel}</strong><small>${group.businessXp}/${group.businessXpRequired} XP</small></div><div><span>Рабочие места</span><strong>${group.activeJobs.length}/${group.jobSlots}</strong><small>Новые места на 3 и 5 уровне</small></div><div><span>Выполнено заказов</span><strong>${number(group.completedJobs)}</strong><small>Выручка ${money(group.totalRevenue)}</small></div><div><span>Чистая прибыль</span><strong class="${group.totalBusinessProfit >= 0 ? "profit-positive" : "profit-negative"}">${money(group.totalBusinessProfit)}</strong><small>После расходов и зарплат</small></div></div><div class="business-xp"><i style="width:${businessProgress}%"></i></div>` : "";
+  $("#group-jobs").innerHTML = group ? `<div class="group-section-title"><div><h4>Заказы бизнеса</h4><small>Сотрудник приносит деньги в общую кассу и растёт вместе с командой</small></div><span>${group.activeJobs.length ? "Работа идёт" : "Нет активных заказов"}</span></div><div class="active-job-grid">${group.activeJobs.map((job) => `<article class="active-job"><div><strong>${escapeHtml(job.name)}</strong><small>${escapeHtml(job.employeeName)} · запустил ${escapeHtml(job.startedBy)}</small></div><time data-group-job-end="${job.finishAt}">${auctionTime(job.finishAt)}</time></article>`).join("") || '<div class="no-offers">Назначьте сотрудника на первый клиентский заказ.</div>'}</div>` : "";
   $("#group-members").innerHTML = group ? `<h4>Участники</h4>${group.members.map((member) => `<div class="group-member"><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></div>${groupRoleSelect(member, group)}</div>`).join("")}` : "";
   $("#group-garage").innerHTML = group ? `<h4>Общий гараж</h4>${group.garage.length ? group.garage.map((car) => `<article class="group-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><small>${car.year} · вложено ${money(car.invested)} · передал ${escapeHtml(car.groupContributorName || "участник")}</small></div><div class="group-car-actions"><button class="secondary-button" data-group-work-car="${car.id}">Обслужить NPC</button><button class="secondary-button" data-group-withdraw-car="${car.id}">Забрать</button></div></article>`).join("") : '<div class="no-offers">У группы пока нет общих автомобилей.</div>'}` : "";
   const specialtyNames = { diagnostics: "Диагностика", mechanics: "Ремонт", appraisal: "Оценка", sales: "Продажи" };
-  $("#group-employees").innerHTML = group ? `<h4>Сотрудники</h4><div class="employee-grid">${group.employees.map((employee) => `<article class="employee-card hired"><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.title)} · рейтинг ${employee.rating}</span><small>Бонус: ${specialtyNames[employee.specialty]}</small></article>`).join("") || '<div class="no-offers">Сотрудников пока нет.</div>'}</div>${group.permissions.hire ? `<h4>Кандидаты</h4><div class="employee-grid">${(state.employeeCandidates || []).filter((candidate) => !group.employees.some((employee) => employee.id === candidate.id)).map((candidate) => `<article class="employee-card"><strong>${escapeHtml(candidate.name)}</strong><span>${escapeHtml(candidate.title)} · рейтинг ${candidate.rating}</span><small>${specialtyNames[candidate.specialty]} · найм ${money(candidate.hireCost)}</small><button class="secondary-button" data-hire-employee="${candidate.id}">Нанять</button></article>`).join("")}</div>` : ""}` : "";
+  const jobsBySpecialty = Object.fromEntries((state.groupJobCatalog || []).map((job) => [job.specialty, job]));
+  $("#group-employees").innerHTML = group ? `<h4>Штат и загрузка</h4><div class="employee-grid">${group.employees.map((employee) => { const job = jobsBySpecialty[employee.specialty]; const busy = group.activeJobs.find((item) => item.employeeId === employee.id); const cost = job ? job.cost + employee.salary : 0; const canStart = group.permissions.business && !busy && employee.energy >= (job?.energy || 101) && group.activeJobs.length < group.jobSlots && group.treasury >= cost; return `<article class="employee-card hired ${busy ? "busy" : ""}"><div class="employee-head"><div><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.title)} · рейтинг ${employee.rating}</span></div><b>${busy ? "На заказе" : "Свободен"}</b></div><div class="employee-energy"><span>Энергия ${employee.energy}%</span><i><b style="width:${employee.energy}%"></b></i></div><small>${specialtyNames[employee.specialty]} · выполнено ${employee.jobsCompleted} · зарплата за заказ ${money(employee.salary)}</small>${job ? `<div class="employee-job"><strong>${escapeHtml(job.name)}</strong><small>${escapeHtml(job.description)} · доход ${money(job.rewardLow)}–${money(job.rewardHigh)}</small><button class="primary-button" data-start-group-job="${job.key}" data-employee-id="${employee.id}" ${canStart ? "" : "disabled"}>${busy ? "Уже работает" : employee.energy < job.energy ? "Нужен отдых" : group.activeJobs.length >= group.jobSlots ? "Нет свободного места" : group.treasury < cost ? `Нужно ${money(cost)}` : `Запустить · ${money(cost)}`}</button></div>` : ""}${group.permissions.business && !busy && employee.energy < 100 ? `<button class="secondary-button" data-restore-employee="${employee.id}" ${group.treasury < 12000 ? "disabled" : ""}>Отдых и премия · 12 000 ₽</button>` : ""}</article>`; }).join("") || '<div class="no-offers">Сотрудников пока нет. Наймите специалиста и запустите первый заказ.</div>'}</div>${group.permissions.hire ? `<h4>Рынок персонала</h4><div class="employee-grid candidates">${(state.employeeCandidates || []).filter((candidate) => !group.employees.some((employee) => employee.id === candidate.id)).map((candidate) => `<article class="employee-card"><strong>${escapeHtml(candidate.name)}</strong><span>${escapeHtml(candidate.title)} · рейтинг ${candidate.rating}</span><small>${specialtyNames[candidate.specialty]} · найм ${money(candidate.hireCost)} · зарплата ${money(candidate.salary)} за заказ</small><button class="secondary-button" data-hire-employee="${candidate.id}">Нанять</button></article>`).join("") || '<div class="no-offers">Все доступные специалисты уже в штате.</div>'}</div>` : ""}` : "";
+  $("#group-activity").innerHTML = group ? `<h4>Журнал команды</h4><div>${group.log.slice().reverse().slice(0, 10).map((entry) => `<p><time>${new Date(entry.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(entry.text)}</span></p>`).join("") || '<div class="no-offers">Здесь появятся важные действия команды.</div>'}</div>` : "";
   $("#npc-list").innerHTML = (state.npcProfiles || []).map((npc) => `<div class="npc-row"><div><strong>${escapeHtml(npc.name)}</strong><small>${escapeHtml(npc.type)} · бюджет ${money(npc.budget)}</small></div><span>Рейтинг ${npc.rating}/100</span></div>`).join("");
 }
 
@@ -372,8 +378,30 @@ function renderChat() {
   if (nearBottom) container.scrollTop = container.scrollHeight;
 }
 
+function captureActiveDraft() {
+  const active = document.activeElement;
+  if (!active?.matches("input, textarea, select") || !$("#game")?.contains(active)) return null;
+  let selector = active.id ? `#${CSS.escape(active.id)}` : null;
+  const containerForm = active.closest("[data-container-bid]");
+  if (!selector && containerForm && active.name) selector = `[data-container-bid="${CSS.escape(containerForm.dataset.containerBid)}"] [name="${CSS.escape(active.name)}"]`;
+  if (!selector) return null;
+  return { selector, value: active.value, start: active.selectionStart, end: active.selectionEnd };
+}
+
+function restoreActiveDraft(draft) {
+  if (!draft) return;
+  const active = $(draft.selector);
+  if (!active) return;
+  active.value = draft.value;
+  active.focus({ preventScroll: true });
+  if (typeof draft.start === "number" && active.setSelectionRange) {
+    try { active.setSelectionRange(draft.start, draft.end); } catch { /* number inputs do not expose a text selection */ }
+  }
+}
+
 function render() {
   if (!state.player) return;
+  const draft = captureActiveDraft();
   $("#cash").textContent = money(state.player.availableCash);
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
@@ -381,6 +409,7 @@ function render() {
   renderMarketStats(); renderMarket(); renderGarage(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
+  restoreActiveDraft(draft);
 }
 
 function setView(view) {
@@ -610,6 +639,8 @@ document.addEventListener("click", async (event) => {
   const groupWithdrawCar = event.target.closest("[data-group-withdraw-car]"); if (groupWithdrawCar) return perform("/api/group/garage/withdraw", { carId: groupWithdrawCar.dataset.groupWithdrawCar }, "Машина возвращена в личный гараж");
   const groupWorkCar = event.target.closest("[data-group-work-car]"); if (groupWorkCar) return perform("/api/group/garage/work", { carId: groupWorkCar.dataset.groupWorkCar }, "Сотрудники группы провели обслуживание");
   const hireEmployee = event.target.closest("[data-hire-employee]"); if (hireEmployee) return perform("/api/group/employee/hire", { employeeId: hireEmployee.dataset.hireEmployee }, "Сотрудник принят в группу");
+  const startGroupJob = event.target.closest("[data-start-group-job]"); if (startGroupJob) return perform("/api/group/job/start", { employeeId: startGroupJob.dataset.employeeId, jobKey: startGroupJob.dataset.startGroupJob }, "Сотрудник приступил к заказу");
+  const restoreEmployee = event.target.closest("[data-restore-employee]"); if (restoreEmployee) return perform("/api/group/employee/restore", { employeeId: restoreEmployee.dataset.restoreEmployee }, "Сотрудник отдохнул и восстановил энергию");
   const buy = event.target.closest("[data-buy]"); if (buy) { if (buy.disabled) return; if (await perform("/api/buy", { carId: buy.dataset.buy }, "Машина отправлена в гараж")) { closeModal(); setView("garage"); } else if (!state.market.some((car) => car.id === buy.dataset.buy)) { closeModal(); try { state = await request("/api/state"); render(); } catch { /* session will be handled by the event stream */ } } return; }
   const dismantle = event.target.closest("[data-dismantle]"); if (dismantle) return perform("/api/car/dismantle", { carId: dismantle.dataset.dismantle }, "Машина разобрана, детали отправлены на склад");
   const unlist = event.target.closest("[data-unlist]"); if (unlist) { if (await perform("/api/unlist", { carId: unlist.dataset.unlist }, "Объявление снято")) closeModal(); return; }

@@ -12,6 +12,7 @@ const GARAGE_CAPACITY_MAX = 10;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
 const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
 const NPC_ROTATION_COUNT = 10;
+const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
 const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
@@ -148,13 +149,19 @@ const upgradeCatalog = [
 ];
 
 const employeeCandidates = [
-  { id: "employee_diagnostic_1", name: "Антон Лебедев", specialty: "diagnostics", title: "Диагност", rating: 72, hireCost: 65000 },
-  { id: "employee_diagnostic_2", name: "Ольга Романова", specialty: "diagnostics", title: "Старший диагност", rating: 91, hireCost: 145000 },
-  { id: "employee_mechanic_1", name: "Михаил Орлов", specialty: "mechanics", title: "Механик", rating: 76, hireCost: 78000 },
-  { id: "employee_mechanic_2", name: "Рустам Саидов", specialty: "mechanics", title: "Мастер цеха", rating: 94, hireCost: 168000 },
-  { id: "employee_appraiser", name: "Елена Волкова", specialty: "appraisal", title: "Оценщик", rating: 86, hireCost: 112000 },
-  { id: "employee_manager", name: "Павел Серов", specialty: "sales", title: "Менеджер продаж", rating: 88, hireCost: 128000 }
+  { id: "employee_diagnostic_1", name: "Антон Лебедев", specialty: "diagnostics", title: "Диагност", rating: 72, hireCost: 65000, salary: 4500 },
+  { id: "employee_diagnostic_2", name: "Ольга Романова", specialty: "diagnostics", title: "Старший диагност", rating: 91, hireCost: 145000, salary: 8500 },
+  { id: "employee_mechanic_1", name: "Михаил Орлов", specialty: "mechanics", title: "Механик", rating: 76, hireCost: 78000, salary: 5500 },
+  { id: "employee_mechanic_2", name: "Рустам Саидов", specialty: "mechanics", title: "Мастер цеха", rating: 94, hireCost: 168000, salary: 9500 },
+  { id: "employee_appraiser", name: "Елена Волкова", specialty: "appraisal", title: "Оценщик", rating: 86, hireCost: 112000, salary: 7000 },
+  { id: "employee_manager", name: "Павел Серов", specialty: "sales", title: "Менеджер продаж", rating: 88, hireCost: 128000, salary: 7500 }
 ];
+const groupJobCatalog = {
+  inspection: { key: "inspection", specialty: "diagnostics", name: "Выездная диагностика", description: "Проверить автомобиль клиента перед покупкой", durationSeconds: 45, cost: 9000, rewardLow: 18000, rewardHigh: 29000, xp: 45, energy: 22 },
+  repair: { key: "repair", specialty: "mechanics", name: "Срочный ремонт", description: "Вернуть клиентскую машину на ход", durationSeconds: 70, cost: 18000, rewardLow: 35000, rewardHigh: 56000, xp: 65, energy: 30 },
+  appraisal: { key: "appraisal", specialty: "appraisal", name: "Подбор автомобиля", description: "Найти выгодный лот и проверить документы", durationSeconds: 60, cost: 14000, rewardLow: 28000, rewardHigh: 44000, xp: 55, energy: 25 },
+  sale: { key: "sale", specialty: "sales", name: "Продажа под ключ", description: "Подготовить объявление и провести переговоры", durationSeconds: 85, cost: 22000, rewardLow: 43000, rewardHigh: 68000, xp: 75, energy: 32 }
+};
 
 const players = new Map();
 const sessions = new Map();
@@ -313,7 +320,21 @@ function ensureGroupDefaults(group) {
   group.garage ||= [];
   group.garageCapacity ||= 6;
   group.employees ||= [];
+  group.activeJobs ||= [];
+  group.businessLevel = Math.max(1, Number(group.businessLevel) || 1);
+  group.businessXp = Math.max(0, Number(group.businessXp) || 0);
+  group.completedJobs = Math.max(0, Number(group.completedJobs) || 0);
+  group.totalRevenue = Math.max(0, Number(group.totalRevenue) || 0);
+  group.totalBusinessProfit = Number(group.totalBusinessProfit) || 0;
   group.log ||= [];
+  for (const employee of group.employees) {
+    const candidate = employeeCandidates.find((item) => item.id === employee.id);
+    employee.salary ||= candidate?.salary || 5000;
+    employee.energy = clamp(Number.isFinite(Number(employee.energy)) ? Number(employee.energy) : 100, 0, 100);
+    employee.experience = Math.max(0, Number(employee.experience) || 0);
+    employee.jobsCompleted = Math.max(0, Number(employee.jobsCompleted) || 0);
+    employee.busyJobId = group.activeJobs.find((job) => job.employeeId === employee.id)?.id || null;
+  }
   for (const car of group.garage) ensureCarDefaults(car);
   return group;
 }
@@ -435,7 +456,7 @@ function groupCan(player, permission) {
   const role = player.groupRole || group.roles[player.id] || "Участник";
   const permissions = {
     treasury: ["Управляющий", "Казначей"], garage: ["Управляющий", "Механик"],
-    hire: ["Управляющий"], roles: [], listParts: ["Управляющий", "Механик"]
+    hire: ["Управляющий"], business: ["Управляющий"], roles: [], listParts: ["Управляющий", "Механик"]
   };
   return (permissions[permission] || []).includes(role);
 }
@@ -660,12 +681,16 @@ function publicGroupView(group, viewer) {
   return {
     id: group.id, name: group.name, ownerId: group.ownerId, rating: group.rating, treasury: group.treasury,
     garageCapacity: group.garageCapacity, garage: group.garage.map((car) => publicCar(car, true, viewer)), employees: group.employees,
+    businessLevel: group.businessLevel, businessXp: group.businessXp, businessXpRequired: group.businessLevel * 200,
+    jobSlots: Math.min(3, 1 + Math.floor((group.businessLevel - 1) / 2)), completedJobs: group.completedJobs,
+    totalRevenue: group.totalRevenue, totalBusinessProfit: group.totalBusinessProfit,
+    activeJobs: group.activeJobs.map((job) => ({ ...job })),
     members: group.members.map((playerId) => {
       const member = players.get(playerId);
       return { id: playerId, name: member?.name || "Неизвестный игрок", role: group.roles[playerId] || member?.groupRole || "Участник" };
     }),
     log: group.log.slice(-30), permissions: {
-      treasury: groupCan(viewer, "treasury"), garage: groupCan(viewer, "garage"), hire: groupCan(viewer, "hire"), roles: group.ownerId === viewer.id
+      treasury: groupCan(viewer, "treasury"), garage: groupCan(viewer, "garage"), hire: groupCan(viewer, "hire"), business: groupCan(viewer, "business"), roles: group.ownerId === viewer.id
     }
   };
 }
@@ -703,7 +728,7 @@ function snapshot(player) {
     marketRotation: { nextAt: marketRotationNextAt, intervalSeconds: Math.round(NPC_ROTATION_MS / 1000), replaceCount: NPC_ROTATION_COUNT },
     groups: [...groups.values()].map((group) => ({ id: group.id, name: group.name, rating: group.rating, members: group.members.length })),
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
-    employeeCandidates,
+    employeeCandidates, groupJobCatalog: Object.values(groupJobCatalog),
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
     catalogCount: catalog.length,
     containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
@@ -717,6 +742,45 @@ function broadcast() {
   persistState();
   for (const client of clients) client.res.write(`event: update\ndata: ${JSON.stringify(snapshot(client.player))}\n\n`);
 }
+
+function finalizeGroupJobs() {
+  const now = Date.now();
+  let changed = false;
+  for (const group of groups.values()) {
+    ensureGroupDefaults(group);
+    const completed = group.activeJobs.filter((job) => job.finishAt <= now);
+    for (const job of completed) {
+      const employee = group.employees.find((item) => item.id === job.employeeId);
+      const template = groupJobCatalog[job.jobKey];
+      if (!employee || !template) continue;
+      const quality = clamp(0.82 + employee.rating / 500 + group.rating / 1000 + Math.random() * 0.08, 0.86, 1.12);
+      const baseReward = randomInt(template.rewardLow, template.rewardHigh);
+      const reward = Math.max(job.operatingCost + 1000, Math.round(baseReward * quality / 1000) * 1000);
+      group.treasury += reward;
+      group.businessXp += template.xp;
+      group.completedJobs += 1;
+      group.totalRevenue += reward;
+      group.totalBusinessProfit += reward - job.operatingCost;
+      group.rating = clamp(group.rating + quality * 0.35, 0, 100);
+      employee.experience += template.xp;
+      employee.jobsCompleted += 1;
+      employee.busyJobId = null;
+      if (employee.jobsCompleted % 3 === 0) employee.rating = Math.min(99, employee.rating + 1);
+      while (group.businessXp >= group.businessLevel * 200) {
+        group.businessXp -= group.businessLevel * 200;
+        group.businessLevel += 1;
+        group.rating = clamp(group.rating + 2, 0, 100);
+        group.log.push({ at: now, text: `Бизнес достиг ${group.businessLevel} уровня` });
+      }
+      group.log.push({ at: now, text: `${employee.name} завершил «${template.name}»: выручка ${reward.toLocaleString("ru-RU")} ₽` });
+      changed = true;
+    }
+    if (completed.length) group.activeJobs = group.activeJobs.filter((job) => job.finishAt > now);
+  }
+  if (changed) broadcast();
+}
+
+setInterval(finalizeGroupJobs, 1000).unref();
 
 function seedMarket() {
   for (let i = 0; i < 100; i += 1) market.push(makeCar(i));
@@ -1382,8 +1446,45 @@ async function api(req, res, pathname) {
     if (!candidate) return json(res, 404, { error: "Кандидат больше недоступен" });
     if (group.employees.some((employee) => employee.id === candidate.id)) return json(res, 400, { error: "Этот сотрудник уже работает в группе" });
     if (group.treasury < candidate.hireCost) return json(res, 400, { error: "В общей кассе недостаточно денег" });
-    group.treasury -= candidate.hireCost; group.employees.push({ ...candidate, hiredAt: Date.now(), employerId: player.id });
+    group.treasury -= candidate.hireCost; group.employees.push({ ...candidate, hiredAt: Date.now(), employerId: player.id, energy: 100, experience: 0, jobsCompleted: 0, busyJobId: null });
     group.log.push({ at: Date.now(), text: `${player.name} нанял: ${candidate.name}, ${candidate.title}` });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/group/job/start") {
+    const group = player.groupId && groups.get(player.groupId);
+    if (!group || !groupCan(player, "business")) return json(res, 403, { error: "Запускать заказы может владелец или управляющий" });
+    ensureGroupDefaults(group);
+    const employee = group.employees.find((item) => item.id === body.employeeId);
+    const job = groupJobCatalog[String(body.jobKey || "")];
+    if (!employee || !job) return json(res, 404, { error: "Сотрудник или заказ не найден" });
+    if (employee.specialty !== job.specialty) return json(res, 400, { error: "Специализация сотрудника не подходит для этого заказа" });
+    if (employee.busyJobId) return json(res, 400, { error: "Сотрудник уже выполняет заказ" });
+    const jobSlots = Math.min(3, 1 + Math.floor((group.businessLevel - 1) / 2));
+    if (group.activeJobs.length >= jobSlots) return json(res, 400, { error: `Все рабочие места заняты: ${jobSlots}/${jobSlots}` });
+    if (employee.energy < job.energy) return json(res, 400, { error: "Сотруднику нужен отдых" });
+    const operatingCost = job.cost + employee.salary;
+    if (group.treasury < operatingCost) return json(res, 400, { error: `В общей кассе нужно ${operatingCost.toLocaleString("ru-RU")} ₽` });
+    const durationMs = Math.max(1000, Math.round(job.durationSeconds * 1000 * GROUP_JOB_TIME_SCALE));
+    const activeJob = { id: id("job_"), jobKey: job.key, employeeId: employee.id, employeeName: employee.name, name: job.name, startedBy: player.name, startedAt: Date.now(), finishAt: Date.now() + durationMs, operatingCost };
+    group.treasury -= operatingCost;
+    employee.energy = Math.max(0, employee.energy - job.energy);
+    employee.busyJobId = activeJob.id;
+    group.activeJobs.push(activeJob);
+    group.log.push({ at: Date.now(), text: `${player.name} назначил ${employee.name} на заказ «${job.name}»` });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/group/employee/restore") {
+    const group = player.groupId && groups.get(player.groupId);
+    if (!group || !groupCan(player, "business")) return json(res, 403, { error: "Управлять персоналом может владелец или управляющий" });
+    ensureGroupDefaults(group);
+    const employee = group.employees.find((item) => item.id === body.employeeId);
+    if (!employee) return json(res, 404, { error: "Сотрудник не найден" });
+    if (employee.busyJobId) return json(res, 400, { error: "Нельзя отправить на отдых во время заказа" });
+    if (employee.energy >= 100) return json(res, 400, { error: "Сотрудник уже полностью восстановлен" });
+    const cost = 12000;
+    if (group.treasury < cost) return json(res, 400, { error: `В общей кассе нужно ${cost.toLocaleString("ru-RU")} ₽` });
+    group.treasury -= cost; employee.energy = 100;
+    group.log.push({ at: Date.now(), text: `${player.name} оплатил отдых для ${employee.name}` });
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/parts/sell") {
