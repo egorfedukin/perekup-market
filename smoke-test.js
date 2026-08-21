@@ -29,7 +29,7 @@ async function run() {
   check(npcPriceBands.below >= 15, `NPC market has too few opportunities: ${JSON.stringify(npcPriceBands)}`);
   check(npcPriceBands.above <= 20, `NPC market is overpriced again: ${JSON.stringify(npcPriceBands)}`);
   check(seller.marketRotation?.replaceCount === 10 && seller.marketRotation.intervalSeconds >= 10, "NPC market rotation metadata is missing");
-  const affordable = seller.market.filter((car) => car.price < 330000).sort((a, b) => a.price - b.price)[0];
+  const affordable = seller.market.filter((car) => car.saleType !== "auction" && car.price < 330000).sort((a, b) => a.price - b.price)[0];
   check(affordable, "No affordable car was seeded");
 
   let state = await request("/api/buy", seller.token, { carId: affordable.id });
@@ -68,7 +68,7 @@ async function run() {
   check(finalSeller.player.xp >= 120, "Sale XP was not awarded");
 
   const servicePlayer = await request("/api/join", null, { name: `Service${suffix}` });
-  const serviceSeed = servicePlayer.market.filter((item) => item.price < 330000).sort((a, b) => a.price - b.price)[0];
+  const serviceSeed = servicePlayer.market.filter((item) => item.saleType !== "auction" && item.price < 330000).sort((a, b) => a.price - b.price)[0];
   let serviceState = await request("/api/buy", servicePlayer.token, { carId: serviceSeed.id });
   const beforeService = serviceState.player.cash;
   const serviceCar = serviceState.player.garage[0];
@@ -81,7 +81,7 @@ async function run() {
   check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 1), "One-ruble listing was rejected");
 
   const npcSeller = await request("/api/join", null, { name: `NpcSeller${suffix}` });
-  const npcCarSeed = npcSeller.market.filter((item) => item.price < 500000).sort((a, b) => b.price - a.price)[0];
+  const npcCarSeed = npcSeller.market.filter((item) => item.saleType !== "auction" && item.price < 500000).sort((a, b) => b.price - a.price)[0];
   let npcState = await request("/api/buy", npcSeller.token, { carId: npcCarSeed.id });
   const npcCar = npcState.player.garage[0];
   await request("/api/list", npcSeller.token, { carId: npcCar.id, price: Math.min(5000000, npcCar.invested * 3), description: "Идеал, без проблем и вложений" });

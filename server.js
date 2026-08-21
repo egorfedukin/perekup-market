@@ -102,6 +102,9 @@ const defectCatalog = [
 const skillInfo = {
   diagnostics: { name: "Диагност", description: "Двигатель, подвеска и поиск скрытых симптомов", maxLevel: 5 },
   mechanics: { name: "Механик", description: "Ремонт двигателя, ходовой и колёс", maxLevel: 5 },
+  engineRepair: { name: "Моторист", description: "Самостоятельный ремонт двигателя и его навесного оборудования", maxLevel: 5 },
+  chassisRepair: { name: "Мастер ходовой", description: "Тормоза, рулевое управление, подвеска и трансмиссия", maxLevel: 5 },
+  tireService: { name: "Шиномонтажник", description: "Ремонт, подбор и установка колёс и шин", maxLevel: 5 },
   electrics: { name: "Автоэлектрик", description: "Диагностика и ремонт электрооборудования", maxLevel: 5 },
   bodywork: { name: "Кузовной мастер", description: "Осмотр геометрии, сварка и окраска", maxLevel: 5 },
   appraisal: { name: "Оценщик", description: "VIN, история, пробег и рыночная стоимость", maxLevel: 5 }
@@ -110,6 +113,9 @@ const skillInfo = {
 const equipmentInfo = {
   diagnosticKit: { name: "Диагностический комплекс", description: "Сканер, эндоскоп и измерительные приборы", prices: [0, 28000, 82000, 175000] },
   workshop: { name: "Механическая мастерская", description: "Подъёмник, инструмент и динамоключ", prices: [0, 42000, 128000, 265000] },
+  engineStand: { name: "Моторный участок", description: "Стенд двигателя, съёмники и инструмент ГРМ", prices: [0, 38000, 118000, 248000] },
+  chassisTools: { name: "Пост ходовой", description: "Прессы, съёмники и стенд тормозной системы", prices: [0, 32000, 96000, 215000] },
+  tireStation: { name: "Шиномонтажный пост", description: "Станок, балансировка и ремонт бескамерных шин", prices: [0, 24000, 72000, 158000] },
   electricalBench: { name: "Стенд автоэлектрика", description: "Мультиметр, осциллограф и ремонт проводки", prices: [0, 22000, 68000, 145000] },
   bodyStation: { name: "Кузовная станция", description: "Толщиномер, сварка и покрасочное оборудование", prices: [0, 48000, 145000, 295000] },
   historyTerminal: { name: "Терминал истории", description: "VIN-базы, архивы пробегов и экспертиза документов", prices: [0, 18000, 56000, 120000] }
@@ -206,9 +212,11 @@ const partIndices = {};
 const paymentOrders = new Map();
 const containerAuctions = [];
 const containerTiers = {
-  cheap: { name: "Гаражная находка", minValue: 10000, maxValue: 650000, startMin: 5000, startMax: 90000, color: "#677568" },
-  middle: { name: "Дилерский склад", minValue: 500000, maxValue: 8000000, startMin: 180000, startMax: 1200000, color: "#b07a2e" },
-  premium: { name: "Коллекционный бокс", minValue: 6000000, maxValue: 100000000, startMin: 1500000, startMax: 15000000, color: "#8b3d35" }
+  salvage: { label: "Разборка", name: "Забытый бокс", description: "Дешёвые проекты с большим количеством неисправностей", minValue: 10000, maxValue: 180000, startMin: 2000, startMax: 25000, color: "#6f736b" },
+  cheap: { label: "Бюджетный", name: "Гаражная находка", description: "Массовые автомобили для первого оборота", minValue: 100000, maxValue: 850000, startMin: 25000, startMax: 130000, color: "#52715d" },
+  middle: { label: "Дилерский", name: "Дилерский склад", description: "Ликвидные машины среднего сегмента", minValue: 650000, maxValue: 8000000, startMin: 180000, startMax: 1200000, color: "#aa792d" },
+  performance: { label: "Спортивный", name: "Трековый ангар", description: "Купе, родстеры и мощные проекты", minValue: 3500000, maxValue: 35000000, startMin: 900000, startMax: 6500000, color: "#356d78" },
+  premium: { label: "Коллекционный", name: "Коллекционный бокс", description: "Редкие и премиальные автомобили верхнего сегмента", minValue: 15000000, maxValue: 100000000, startMin: 3500000, startMax: 18000000, color: "#8b3d35" }
 };
 const clients = new Set();
 let revision = 0;
@@ -253,11 +261,17 @@ function ensurePlayerDefaults(player) {
   player.equipment ||= {};
   player.skills.diagnostics ??= Math.max(player.skills.engine || 0, player.skills.chassis || 0);
   player.skills.mechanics ??= Math.max(player.skills.mechanic || 0, player.skills.tires || 0);
+  player.skills.engineRepair ??= player.skills.mechanics || 0;
+  player.skills.chassisRepair ??= player.skills.mechanics || 0;
+  player.skills.tireService ??= player.skills.mechanics || 0;
   player.skills.bodywork ??= Math.max(player.skills.body || 0, player.skills.bodyRepair || 0);
   player.skills.appraisal ??= player.skills.documents || 0;
   player.skills.electrics ??= player.skills.electrician || 0;
   player.equipment.diagnosticKit ??= Math.max(player.equipment.scanner || 0, player.equipment.endoscope || 0, player.equipment.tools || 0);
   player.equipment.workshop ??= Math.max(player.equipment.lift || 0, player.equipment.torque || 0, player.equipment.tools || 0);
+  player.equipment.engineStand ??= player.equipment.workshop || 0;
+  player.equipment.chassisTools ??= player.equipment.workshop || 0;
+  player.equipment.tireStation ??= player.equipment.workshop || 0;
   player.equipment.electricalBench ??= Math.max(player.equipment.multimeter || 0, player.equipment.scanner || 0);
   player.equipment.bodyStation ??= Math.max(player.equipment.gauge || 0, player.equipment.welder || 0);
   player.equipment.historyTerminal ??= player.equipment.vinScanner || 0;
@@ -681,8 +695,8 @@ function makeCar(index, seller = "Авторынок") {
 }
 
 function publicDefect(defect, car = null) {
-  const repairSkill = defect.category === "body" ? "bodywork" : defect.category === "electrics" ? "electrics" : "mechanics";
-  const repairEquipment = defect.category === "body" ? "bodyStation" : defect.category === "electrics" ? "electricalBench" : "workshop";
+  const repairSkill = defect.category === "engine" ? "engineRepair" : defect.category === "chassis" ? "chassisRepair" : defect.category === "tires" ? "tireService" : defect.category === "body" ? "bodywork" : defect.category === "electrics" ? "electrics" : "appraisal";
+  const repairEquipment = defect.category === "engine" ? "engineStand" : defect.category === "chassis" ? "chassisTools" : defect.category === "tires" ? "tireStation" : defect.category === "body" ? "bodyStation" : defect.category === "electrics" ? "electricalBench" : "historyTerminal";
   const selfRepairable = defect.category !== "documents";
   const partSpec = partSpecForDefect(defect);
   const analogOffer = car && partSpec ? partOffer(car, defect, "analog") : null;
@@ -959,6 +973,26 @@ function createPlayer(name, pin = null) {
 function restock() {
   const npcCount = market.filter((car) => !car.sellerId).length;
   for (let i = npcCount; i < 100; i += 1) market.push(makeCar(randomInt(0, catalog.length - 1)));
+  ensureNpcAuctions();
+}
+
+function configureNpcAuction(car) {
+  const estimate = saleEstimate(car);
+  const startFactor = 0.62 + Math.random() * 0.16;
+  car.saleType = "auction";
+  car.seller = ["Муниципальные торги", "Дилерский аукцион", "Страховой склад", "Лизинговый парк"][randomInt(0, 3)];
+  car.startingPrice = Math.max(1, Math.round(estimate.expectedNpcPrice * startFactor / 1000) * 1000);
+  car.price = car.startingPrice;
+  car.auctionEnd = Date.now() + randomInt(180, 420) * 1000;
+  car.highestBid = 0; car.highestBidderId = null; car.highestBidderName = null; car.highestBidderType = null;
+  car.bidCount = 0; car.participantIds = []; car.lastPlayerBidAt = null; car.lastNpcBidAt = null;
+}
+
+function ensureNpcAuctions() {
+  const target = 10;
+  const active = market.filter((car) => !car.sellerId && car.saleType === "auction" && car.auctionEnd > Date.now()).length;
+  const candidates = market.filter((car) => !car.sellerId && car.saleType !== "auction").sort(() => Math.random() - 0.5);
+  candidates.slice(0, Math.max(0, target - active)).forEach(configureNpcAuction);
 }
 
 function createContainerAuction(tierKey) {
@@ -972,9 +1006,15 @@ function restockContainers() {
 
 function containerRewardCar(tierKey, invested) {
   const tier = containerTiers[tierKey];
-  const pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
+  let pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
+  if (tierKey === "performance") pool = pool.filter((item) => ["coupe", "roadster", "premium"].includes(item.className));
   const item = pool[randomInt(0, pool.length - 1)] || catalog[0];
   const car = makeCar(catalog.indexOf(item), "Контейнерный аукцион");
+  if (tierKey === "salvage" && car.defects.length < 3) {
+    const existing = new Set(car.defects.map((defect) => defect.code));
+    car.defects.push(...defectCatalog.filter((defect) => !existing.has(defect.code)).sort(() => Math.random() - 0.5).slice(0, 3 - car.defects.length).map((defect) => ({ ...defect, repaired: false })));
+    car.condition = Math.min(car.condition, 48);
+  }
   car.price = invested; car.purchasePrice = invested; car.invested = invested; car.seller = "Контейнерный аукцион"; car.ownerId = null;
   car.history = [{ type: "container", text: `Получена из контейнера «${tier.name}» за ${invested.toLocaleString("ru-RU")} ₽`, at: Date.now() }];
   return car;
@@ -984,7 +1024,7 @@ function publicContainer(container, viewer = null) {
   const tier = containerTiers[container.tier];
   container.participantIds ||= [];
   const { participantIds, ...safeContainer } = container;
-  return { ...safeContainer, minValue: tier.minValue, maxValue: tier.maxValue, viewerLeading: Boolean(viewer && container.highestBidderType === "player" && container.highestBidderId === viewer.id), viewerParticipated: Boolean(viewer && participantIds.includes(viewer.id)) };
+  return { ...safeContainer, label: tier.label, description: tier.description, minValue: tier.minValue, maxValue: tier.maxValue, viewerLeading: Boolean(viewer && container.highestBidderType === "player" && container.highestBidderId === viewer.id), viewerParticipated: Boolean(viewer && participantIds.includes(viewer.id)) };
 }
 
 function finalizeContainers() {
@@ -1039,6 +1079,7 @@ function rebalanceNpcMarket() {
     car.marketTag = pricing.tag;
     car.listedAt = Date.now() - randomInt(0, NPC_ROTATION_MS);
   });
+  ensureNpcAuctions();
 }
 
 function rotateNpcMarket() {
@@ -1136,7 +1177,7 @@ function completeSale(car, buyer, amount) {
   car.sellerId = null;
   car.ownerId = buyer?.id || null;
   car.history.push({ type: "sold", text: `Сделка завершена за ${amount} ₽`, at: Date.now() });
-  car.discovered = [];
+  car.discovered = buyer ? [...new Set(car.publicDiscovered || [])] : [];
   car.checkedCategories = [];
   car.inspectionRecords = {};
   car.serviceDiagnosed = false;
@@ -1213,6 +1254,10 @@ function finalizeAuctions() {
     }
     const seller = players.get(car.sellerId);
     const index = market.findIndex((item) => item.id === car.id);
+    if (index >= 0 && !car.sellerId) {
+      market.splice(index, 1);
+      continue;
+    }
     if (index >= 0 && seller && seller.garage.length < seller.garageCapacity) {
       market.splice(index, 1);
       car.saleType = "fixed";
@@ -1228,6 +1273,7 @@ function finalizeAuctions() {
       car.auctionEnd = Date.now() + 60000;
     }
   }
+  restock();
   broadcast();
 }
 
@@ -1251,7 +1297,7 @@ function botAuctionCeiling(car, bot) {
 function runAuctionBots() {
   let changed = false;
   const now = Date.now();
-  const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > now + 1500 && car.sellerId);
+  const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > now + 1500);
   for (const car of active) {
     const humanInterest = car.participantIds.length > 0;
     const idleFor = now - (car.lastPlayerBidAt || car.listedAt || now);
@@ -1718,10 +1764,8 @@ async function api(req, res, pathname) {
     let repairCost = serviceLabor;
     if (selfRepair || assistedRepair) {
       if (!requirements.selfRepairable) return json(res, 400, { error: "Эту проблему нельзя законно устранить самостоятельно" });
-      const skillLevel = selfRepair ? requirements.repairSkillLevel : requirements.assistedSkillLevel;
-      const equipmentLevel = selfRepair ? requirements.repairEquipmentLevel : requirements.assistedEquipmentLevel;
-      if (player.skills[requirements.repairSkill] < skillLevel) return json(res, 400, { error: `Нужна профессия «${skillInfo[requirements.repairSkill].name}» уровня ${skillLevel}` });
-      if (player.equipment[requirements.repairEquipment] < equipmentLevel) return json(res, 400, { error: `Нужен комплект «${equipmentInfo[requirements.repairEquipment].name}» уровня ${equipmentLevel}` });
+      if (selfRepair && player.skills[requirements.repairSkill] < requirements.repairSkillLevel) return json(res, 400, { error: `Нужна профессия «${skillInfo[requirements.repairSkill].name}» уровня ${requirements.repairSkillLevel}` });
+      if (selfRepair && player.equipment[requirements.repairEquipment] < requirements.repairEquipmentLevel) return json(res, 400, { error: `Нужен комплект «${equipmentInfo[requirements.repairEquipment].name}» уровня ${requirements.repairEquipmentLevel}` });
       repairCost = selfRepair ? requirements.selfRepairCost : requirements.assistedRepairCost;
     }
     const mechanicDiscount = groupEmployeeRating(player, "mechanics") / 100 * (selfRepair ? 0.08 : 0.18);
@@ -1965,11 +2009,26 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/offer") {
     const car = market.find((item) => item.id === body.carId);
     const amount = Math.round(Number(body.amount));
-    if (!car || !car.sellerId || car.saleType === "auction") return json(res, 404, { error: "Торг доступен только в обычном объявлении другого игрока" });
+    if (!car || car.saleType === "auction") return json(res, 404, { error: "Торг доступен только в обычном объявлении" });
     if (car.sellerId === player.id) return json(res, 400, { error: "Нельзя торговаться с собой" });
     if (!Number.isFinite(amount) || amount < 1 || amount >= car.price) return json(res, 400, { error: "Предложение должно быть от 1 ₽ и ниже цены объявления" });
     if (amount > player.cash - reservedCash(player)) return json(res, 400, { error: "Свободных денег недостаточно: часть суммы зарезервирована в ставках" });
     for (const old of offers.values()) if (old.carId === car.id && old.buyerId === player.id && ["active", "counter"].includes(old.status)) old.status = "closed";
+    if (!car.sellerId) {
+      const estimate = saleEstimate(car);
+      const sellerFloor = Math.max(1, Math.round(Math.min(car.price * 0.94, estimate.expectedNpcPrice * 0.97) / 1000) * 1000);
+      const negotiationFloor = Math.max(1, Math.round(sellerFloor * 0.86 / 1000) * 1000);
+      if (amount >= sellerFloor) {
+        if (!completeSale(car, player, amount)) return json(res, 400, { error: "Не хватает места в гараже или свободных денег" });
+        broadcast(); return json(res, 200, snapshot(player));
+      }
+      if (amount < negotiationFloor) return json(res, 400, { error: `NPC отказался: предложение слишком низкое. Реальный торг начинается примерно от ${negotiationFloor.toLocaleString("ru-RU")} ₽` });
+      const counterAmount = Math.min(car.price - 1, Math.max(amount + 1, Math.round((amount * 0.35 + sellerFloor * 0.65) / 1000) * 1000));
+      const npcSeller = bots.filter((bot) => bot.budget >= car.price).sort(() => Math.random() - 0.5)[0] || bots[0];
+      const offer = { id: id("offer_"), carId: car.id, sellerId: null, buyerId: player.id, buyerName: player.name, buyerType: "player", sellerName: npcSeller.name, amount: counterAmount, originalAmount: amount, status: "counter", reason: `${npcSeller.name}: ниже не отдам, но готов уступить от цены объявления.`, createdAt: Date.now() };
+      offers.set(offer.id, offer);
+      broadcast(); return json(res, 200, snapshot(player));
+    }
     const offer = { id: id("offer_"), carId: car.id, sellerId: car.sellerId, buyerId: player.id, buyerName: player.name, buyerType: "player", amount, status: "active", reason: "Предложение другого игрока", createdAt: Date.now() };
     offers.set(offer.id, offer);
     broadcast();

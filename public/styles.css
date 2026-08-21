@@ -176,6 +176,13 @@ button { cursor: pointer; }
 .parts-panel-heading h3 { margin: 0; font-size: 22px; text-transform: uppercase; }
 .parts-panel-heading > span { color: var(--muted); font-size: 10px; }
 .parts-needs-list { display: grid; gap: 9px; }
+.parts-car-switcher { display: flex; gap: 7px; margin: -2px 0 14px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: thin; }
+.parts-car-switcher button { flex: 0 0 auto; min-width: 150px; min-height: 54px; padding: 9px 11px; border: 1px solid var(--line); background: white; text-align: left; }
+.parts-car-switcher button.active { border-color: var(--ink); background: var(--ink); color: white; }
+.parts-car-switcher strong, .parts-car-switcher span { display: block; }
+.parts-car-switcher strong { font-size: 10px; }
+.parts-car-switcher span { margin-top: 5px; color: var(--muted); font-size: 8px; }
+.parts-car-switcher button.active span { color: #bfc2ba; }
 .part-need-row { display: grid; grid-template-columns: 150px minmax(220px, .8fr) minmax(420px, 1.4fr); align-items: stretch; border: 1px solid var(--line); }
 .part-need-car { display: grid; align-content: center; padding: 15px; background: #252823; color: white; }
 .part-need-car span { color: var(--yellow); font-size: 9px; font-weight: 900; }
@@ -198,6 +205,9 @@ button { cursor: pointer; }
 .service-with-part { width: 100%; min-height: 38px; }
 .install-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .install-actions button { min-width: 0; min-height: 42px; padding: 7px; font-size: 9px; }
+.repair-readiness { width: 100%; min-height: 30px; border: 0; padding: 5px 7px; background: #f0ead8; color: #735d17; font-size: 8px; font-weight: 800; text-align: left; line-height: 1.35; }
+.repair-readiness.ready { display: block; background: #e3ece5; color: var(--green); }
+.parts-empty > button { margin-top: 14px; }
 .parts-inventory-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .inventory-part { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px; border: 1px solid var(--line); }
 .part-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -612,7 +622,8 @@ button { cursor: pointer; }
 .developer-note h3 { margin: 0 0 8px; font-size: 20px; text-transform: uppercase; }
 .developer-note p:not(.eyebrow) { max-width: 700px; margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .developer-note a { color: var(--ink); font-size: 11px; font-weight: 800; }
-.container-guide { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-bottom: 18px; background: var(--line); }
+.container-guide { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; margin-bottom: 18px; background: var(--line); }
+.container-range { display: block; margin-top: 6px; color: var(--muted); font-size: 9px; font-weight: 800; }
 .container-guide > div { padding: 14px 16px; background: var(--surface); }
 .container-guide strong, .container-guide span { display: block; }
 .container-guide strong { font-size: 12px; text-transform: uppercase; }
@@ -855,6 +866,8 @@ button { cursor: pointer; }
   .parts-mode-controls button { min-height: 54px; padding: 5px; font-size: 9px; line-height: 1.25; }
   .parts-mode-controls span { display: block; width: max-content; margin: 4px auto 0; }
   .quality-offers, .install-actions, .parts-inventory-grid { grid-template-columns: 1fr; }
+  .parts-car-switcher { margin-right: -14px; padding-right: 14px; }
+  .parts-car-switcher button { min-width: 138px; }
   .quality-offers button { min-height: 66px; }
   .inventory-part .part-list-action { grid-template-columns: 1fr; }
   .inventory-part .part-list-action button { min-height: 40px; }

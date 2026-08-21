@@ -78,10 +78,12 @@ async function run() {
   const buyer = await request("/api/register", null, { name: buyerName, pin: "1357" });
   check(seller.market.length >= 100, `Expected 100 market cars, got ${seller.market.length}`);
   check(new Set(seller.market.map((item) => item.className)).size >= 8, "Vehicle body variety is too low");
-  check(Object.keys(seller.skillInfo).length === 5 && Object.keys(seller.equipmentInfo).length === 5, "Career system was not simplified to five coherent branches");
+  check(Object.keys(seller.skillInfo).length >= 8 && Object.keys(seller.equipmentInfo).length >= 8, "Expanded inspection and repair specializations are missing");
+  check(seller.market.filter((car) => !car.sellerId && car.saleType === "auction").length >= 8, "NPC sellers did not publish enough car auctions");
+  check(new Set(seller.containerAuctions.map((container) => container.tier)).size === 5, "Five distinct container tiers were not stocked");
   const indexSeller = await request("/api/register", null, { name: `IndexSeller${suffix}`, pin: "1122" });
   const indexBuyer = await request("/api/register", null, { name: `IndexBuyer${suffix}`, pin: "3344" });
-  const indexCarSeed = indexSeller.market.find((item) => item.price < 450000 && indexSeller.marketStats[item.model].marketPrice < 400000);
+  const indexCarSeed = indexSeller.market.find((item) => item.saleType !== "auction" && item.price < 450000 && indexSeller.marketStats[item.model].marketPrice < 400000);
   const indexBeforeRise = indexSeller.marketStats[indexCarSeed.model].marketPrice;
   const indexPurchase = await request("/api/buy", indexSeller.token, { carId: indexCarSeed.id });
   const indexCar = indexPurchase.player.garage[0];
@@ -92,7 +94,7 @@ async function run() {
   check(indexSale.marketStats[indexCar.model].trend > 0, "Market trend did not report the upward move");
   let sellerReady = await request("/api/skill", seller.token, { skill: "diagnostics" });
   sellerReady = await request("/api/equipment", seller.token, { equipment: "diagnosticKit" });
-  const carSeed = sellerReady.market.filter((car) => car.price < 400000).sort((a, b) => a.price - b.price)[0];
+  const carSeed = sellerReady.market.filter((car) => car.saleType !== "auction" && car.price < 400000).sort((a, b) => a.price - b.price)[0];
   const purchased = await request("/api/buy", seller.token, { carId: carSeed.id });
   const car = purchased.player.garage[0];
   const inspected = await request("/api/check", seller.token, { carId: car.id, category: "engine" });
@@ -130,7 +132,7 @@ async function run() {
   const expertToken = expert.token;
   let repairCar;
   let repairDefect;
-  for (const candidate of expert.market.filter((item) => item.price < 600000).slice(0, 3)) {
+  for (const candidate of expert.market.filter((item) => item.saleType !== "auction" && item.price < 600000).slice(0, 3)) {
     expert = await request("/api/buy", expertToken, { carId: candidate.id });
     const owned = expert.player.garage.find((item) => item.id === candidate.id);
     expert = await request("/api/service-diagnostic", expertToken, { carId: owned.id });
@@ -153,7 +155,7 @@ async function run() {
   check(valuedRepairCar.saleEstimate.recommendedHigh >= valuedRepairCar.saleEstimate.recommendedLow && valuedRepairCar.saleEstimate.breakEven >= valuedRepairCar.invested, "Seller summary contains invalid pricing guidance");
   let assistedCar = repairCar;
   let assistedDefect = repairCar.defects.find((defect) => defect.selfRepairable && !defect.repaired && defect.code !== repairDefect.code);
-  for (const candidate of expert.market.filter((item) => item.price < 600000).slice(0, 2)) {
+  for (const candidate of expert.market.filter((item) => item.saleType !== "auction" && item.price < 600000).slice(0, 2)) {
     if (assistedDefect) break;
     expert = await request("/api/buy", expertToken, { carId: candidate.id });
     const owned = expert.player.garage.find((item) => item.id === candidate.id);
@@ -169,8 +171,45 @@ async function run() {
   check(expert.player.cash === cashBeforeAssisted - assistedDefect.assistedRepairCost, "Assisted repair charged the wrong amount");
   check(expert.player.stats.assistedRepairs === 1, "Assisted repair profile statistic was not updated");
 
+  let inspectedBeforePurchase;
+  let publicCheck = expert;
+  let publiclyFoundCodes = [];
+  for (const candidate of expert.market.filter((item) => !item.sellerId && item.saleType !== "auction" && item.price < expert.player.availableCash).slice(0, 5)) {
+    for (const category of expert.inspectionCategories) publicCheck = await request("/api/market-check", expertToken, { carId: candidate.id, category });
+    const revealed = publicCheck.market.find((item) => item.id === candidate.id).defects.filter((defect) => defect.partRequired);
+    if (revealed.length) { inspectedBeforePurchase = candidate; publiclyFoundCodes = revealed.map((defect) => defect.code); break; }
+  }
+  check(inspectedBeforePurchase && publiclyFoundCodes.length > 0, "Expert market inspection did not reveal any repairable defect");
+  expert = await request("/api/buy", expertToken, { carId: inspectedBeforePurchase.id });
+  const boughtAfterInspection = expert.player.garage.find((item) => item.id === inspectedBeforePurchase.id);
+  check(publiclyFoundCodes.every((code) => boughtAfterInspection.defects.some((defect) => defect.code === code)), "Known market defects disappeared after purchase");
+  check(!boughtAfterInspection.serviceDiagnosed && expert.partNeeds.some((need) => need.carId === boughtAfterInspection.id), "Known defect still requires a full service diagnostic before repair");
+
+  let negotiator = await request("/api/register", null, { name: `NpcNegotiator${suffix}`, pin: "6677" });
+  const negotiatorToken = negotiator.token;
+  const npcFixed = negotiator.market.filter((item) => !item.sellerId && item.saleType !== "auction" && item.price < negotiator.player.availableCash).sort((a, b) => a.price - b.price)[0];
+  negotiator = await request("/api/offer", negotiatorToken, { carId: npcFixed.id, amount: Math.max(1, Math.round(npcFixed.price * 0.9)) });
+  const npcCounter = negotiator.player.outgoingOffers.find((offer) => offer.carId === npcFixed.id && offer.status === "counter");
+  if (npcCounter) negotiator = await request("/api/offer/accept-counter", negotiatorToken, { offerId: npcCounter.id });
+  check(negotiator.player.garage.some((item) => item.id === npcFixed.id), "NPC fixed-price negotiation did not result in a purchase");
+
+  let novice = await request("/api/register", null, { name: `RepairNovice${suffix}`, pin: "7788" });
+  const noviceToken = novice.token;
+  check(Object.values(novice.player.skills).every((level) => level === 0) && Object.values(novice.player.equipment).every((level) => level === 0), "Repair novice unexpectedly has progression unlocks");
+  const noviceSeed = novice.market.filter((item) => item.saleType !== "auction" && item.price < 250000).sort((a, b) => a.price - b.price)[0];
+  novice = await request("/api/buy", noviceToken, { carId: noviceSeed.id });
+  novice = await request("/api/service-diagnostic", noviceToken, { carId: noviceSeed.id });
+  const noviceCar = novice.player.garage.find((item) => item.id === noviceSeed.id);
+  const noviceDefect = noviceCar.defects.find((defect) => defect.selfRepairable && !defect.repaired);
+  check(noviceDefect, "Diagnosed novice car has no physical repair need");
+  check(novice.partNeeds.filter((need) => need.carId === noviceCar.id).length === noviceCar.defects.filter((defect) => defect.selfRepairable && !defect.repaired).length, "Not every diagnosed physical defect received an exact part need");
+  novice = await request("/api/parts/order", noviceToken, { carId: noviceCar.id, defect: noviceDefect.code, quality: "economy" });
+  const novicePart = novice.player.partInventory.at(-1);
+  novice = await request("/api/repair", noviceToken, { carId: noviceCar.id, defect: noviceDefect.code, mode: "assisted", partId: novicePart.id });
+  check(novice.player.stats.assistedRepairs === 1, "A novice could not hire a mechanic to install an owned exact part");
+
   const sellerAgain = await request("/api/login", null, { name: sellerName, pin: "2468" });
-  const botLotSeed = sellerAgain.market.filter((item) => item.price < sellerAgain.player.availableCash).sort((a, b) => a.price - b.price)[0];
+  const botLotSeed = sellerAgain.market.filter((item) => item.saleType !== "auction" && item.price < sellerAgain.player.availableCash).sort((a, b) => a.price - b.price)[0];
   const botLotPurchase = await request("/api/buy", sellerAgain.token, { carId: botLotSeed.id });
   const botLot = botLotPurchase.player.garage[0];
   await request("/api/list", sellerAgain.token, { carId: botLot.id, price: 1, description: "Честный аукцион", saleType: "auction", durationSeconds: 14 });
@@ -213,7 +252,7 @@ async function run() {
   groupMember = await request("/api/state", memberToken);
   check(groupMember.player.groupRole === "Механик" && groupMember.player.group.permissions.garage, "Mechanic role permissions were not applied");
 
-  const garageSeed = groupOwner.market.filter((item) => item.price < groupOwner.player.availableCash).sort((a, b) => a.price - b.price)[0];
+  const garageSeed = groupOwner.market.filter((item) => item.saleType !== "auction" && item.price < groupOwner.player.availableCash).sort((a, b) => a.price - b.price)[0];
   groupOwner = await request("/api/buy", ownerToken, { carId: garageSeed.id });
   groupOwner = await request("/api/group/garage/deposit", ownerToken, { carId: garageSeed.id });
   check(groupOwner.player.group.garage.some((car) => car.id === garageSeed.id), "Car did not enter the shared garage");
@@ -245,7 +284,7 @@ async function run() {
   check(groupOwner.player.cash === sellerCashBeforePartSale + Math.round(listingPrice * 0.95), "Parts exchange did not apply the 5% commission correctly");
 
   let repairTarget = groupMember.player.garage.find((car) => car.defects.some((defect) => !defect.repaired && defect.partName));
-  for (const candidate of groupMember.market.filter((car) => car.price < 150000).slice(0, 8)) {
+  for (const candidate of groupMember.market.filter((car) => car.saleType !== "auction" && car.price < 150000).slice(0, 8)) {
     if (repairTarget) break;
     try {
       groupMember = await request("/api/buy", memberToken, { carId: candidate.id });
