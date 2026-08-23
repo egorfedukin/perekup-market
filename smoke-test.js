@@ -17,6 +17,10 @@ function check(value, message) {
 
 async function run() {
   const suffix = Date.now().toString().slice(-6);
+  const shellResponse = await fetch(base);
+  const shell = await shellResponse.text();
+  check(shellResponse.ok && ["cars", "containers", "mine"].every((mode) => shell.includes(`data-auction-mode="${mode}"`)), "Auction workspace modes are missing from the client shell");
+  check(shell.includes('id="auction-cars-panel"') && shell.includes('id="auction-containers-panel"'), "Auction workspace panels are missing from the client shell");
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
   check(seller.leaderboardCurrent?.id === seller.player.id && seller.leaderboardCurrent.rank >= 1, "Current player is missing from the activity-based leaderboard");
   check(Object.keys(seller.marketStats).length > 0, "Market statistics are missing");

@@ -28,6 +28,7 @@ let partsMode = "needs";
 let partsFilters = { component: "all", quality: "all", query: "" };
 let partsCarFilter = "all";
 let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
+let auctionMode = "cars";
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
 let assetMode = "all";
@@ -563,7 +564,9 @@ function renderParts() {
 
 function renderContainers() {
   const garageFull = state.player.garage.length >= state.player.garageCapacity;
-  const containers = [...(state.containerAuctions || [])].sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.endAt - b.endAt);
+  const allContainers = state.containerAuctions || [];
+  const containers = allContainers.filter((box) => auctionMode !== "mine" || box.viewerParticipated)
+    .sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.endAt - b.endAt);
   $("#container-grid").innerHTML = containers.map((box) => {
     const current = box.highestBid || box.startingPrice;
     const minimum = box.highestBid ? Math.ceil((current + Math.max(1000, Math.ceil(current * .02))) / 1000) * 1000 : Math.ceil(current / 1000) * 1000;
@@ -573,7 +576,7 @@ function renderContainers() {
       ? '<div class="leading-bid-note"><strong>Ставка зафиксирована</strong><span>Пока вы лидируете, повышать её не нужно. Кнопка вернётся, если ставку перебьют.</span></div>'
       : `<form data-container-bid="${box.id}"><label><span>Ваша ставка</span><input name="amount" type="number" min="${minimum}" step="1000" value="${minimum}" inputmode="numeric" required></label><button class="primary-button" ${garageFull ? "disabled" : ""}>${garageFull ? "Нет места в гараже" : "Поставить"}</button></form>`;
     return `<article class="container-card tier-${box.tier} ${box.viewerParticipated ? "player-lot" : ""} ${box.viewerParticipated && !leading ? "outbid-lot" : ""}" style="--box-color:${escapeHtml(box.color)}">${bidState ? `<div class="player-bid-status">${bidState}</div>` : ""}<div class="container-visual"><span>ЛОТ ${box.id.slice(-4).toUpperCase()}</span><i></i><b>?</b></div><div class="container-info"><p class="eyebrow">${escapeHtml(box.label || "Закрытый")} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>${escapeHtml(box.description || "Состав неизвестен до победы")}</span><small class="container-range">Возможная стоимость: ${money(box.minValue)}–${money(box.maxValue)}</small><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ${box.bidCount} ставок</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div>${bidControl}</div></article>`;
-  }).join("");
+  }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на контейнеры." : "Активных контейнерных лотов сейчас нет."}</div>`;
 }
 
 function renderAuctions() {
@@ -581,9 +584,26 @@ function renderAuctions() {
   const auctions = allAuctions.filter((car) => {
     const conditionOk = auctionFilters.condition === "all" || (auctionFilters.condition === "good" && car.condition >= 72) || (auctionFilters.condition === "medium" && car.condition >= 52 && car.condition < 72) || (auctionFilters.condition === "low" && car.condition < 52);
     const sellerOk = auctionFilters.seller === "all" || (auctionFilters.seller === "npc" ? !car.sellerId : Boolean(car.sellerId));
-    return conditionOk && sellerOk && (!auctionFilters.max || (car.highestBid || car.startingPrice) <= auctionFilters.max);
+    const modeOk = auctionMode !== "mine" || car.viewerParticipated || car.sellerId === state.player.id;
+    return modeOk && conditionOk && sellerOk && (!auctionFilters.max || (car.highestBid || car.startingPrice) <= auctionFilters.max);
   }).sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || (auctionFilters.sort === "price" ? (a.highestBid || a.startingPrice) - (b.highestBid || b.startingPrice) : auctionFilters.sort === "condition" ? b.condition - a.condition : a.auctionEnd - b.auctionEnd));
-  $("#auction-count").textContent = allAuctions.length + (state.containerAuctions?.length || 0);
+  const allContainers = state.containerAuctions || [];
+  const mineCars = allAuctions.filter((car) => car.viewerParticipated || car.sellerId === state.player.id).length;
+  const mineContainers = allContainers.filter((box) => box.viewerParticipated).length;
+  $("#auction-count").textContent = allAuctions.length + allContainers.length;
+  $("#auction-cars-count").textContent = allAuctions.length;
+  $("#auction-containers-count").textContent = allContainers.length;
+  $("#auction-mine-count").textContent = mineCars + mineContainers;
+  document.querySelectorAll("[data-auction-mode]").forEach((button) => {
+    const active = button.dataset.auctionMode === auctionMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("#auction-cars-panel").hidden = auctionMode === "containers";
+  $("#auction-containers-panel").hidden = auctionMode === "cars";
+  $("#auction-cars-title").textContent = auctionMode === "mine" ? "Автомобили под контролем" : "Автомобильные лоты";
+  $("#auction-containers-title").textContent = auctionMode === "mine" ? "Ваши контейнерные ставки" : "Контейнерные аукционы";
+  $("#auction-filters").closest(".auction-filter-panel").hidden = auctionMode === "mine";
   if ($("#auction-filter-result")) $("#auction-filter-result").textContent = `Показано ${auctions.length} из ${allAuctions.length}`;
   const auctionMarkup = auctions.map((car) => {
     const [condition, conditionClass] = conditionLabel(car.condition);
@@ -592,12 +612,13 @@ function renderAuctions() {
     const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
     const defects = car.defects || [];
     return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${escapeHtml(car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
-  }).join("") || '<div class="empty-filter">По выбранным фильтрам активных автомобильных лотов нет.</div>';
-  const auctionSignature = auctions.map((car) => `${car.id}:${car.highestBid}:${car.bidCount}:${car.viewerLeading}:${car.condition}`).join("|");
+  }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на автомобили." : "По выбранным фильтрам активных лотов нет."}</div>`;
+  const auctionSignature = `${auctionMode}/` + auctions.map((car) => `${car.id}:${car.highestBid}:${car.bidCount}:${car.viewerLeading}:${car.condition}`).join("|");
   if (renderSignatures.auctions !== auctionSignature) { $("#auction-car-grid").innerHTML = auctionMarkup; renderSignatures.auctions = auctionSignature; }
   const notifications = state.player.notifications || [];
   $("#auction-notifications").innerHTML = notifications.slice(0, 5).map((item) => `<article class="auction-alert ${item.read ? "read" : ""}"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></div><time>${new Date(item.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></article>`).join("");
-  $("#auction-notifications").hidden = !notifications.length;
+  $("#auction-notification-panel").hidden = !notifications.length;
+  $("#auction-notification-summary").textContent = `${notifications.length} ${notifications.length === 1 ? "уведомление" : notifications.length < 5 ? "уведомления" : "уведомлений"}`;
   const unread = state.player.unreadNotifications || 0;
   $("#notification-count").hidden = !unread; $("#notification-count").textContent = unread;
   const newest = notifications.find((item) => !item.read);
@@ -1021,6 +1042,8 @@ document.addEventListener("click", async (event) => {
   const assetModeButton = event.target.closest("[data-asset-mode]");
   if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; assetVisibleCount = 12; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
   if (event.target.closest("#asset-load-more")) { assetVisibleCount += 12; renderAssets(); return; }
+  const auctionModeButton = event.target.closest("[data-auction-mode]");
+  if (auctionModeButton) { auctionMode = auctionModeButton.dataset.auctionMode; renderAuctions(); renderContainers(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const partsModeButton = event.target.closest("[data-parts-mode]"); if (partsModeButton) { partsMode = partsModeButton.dataset.partsMode; renderParts(); return; }
   const partsModeLink = event.target.closest("[data-parts-mode-link]"); if (partsModeLink) { partsMode = partsModeLink.dataset.partsModeLink; renderParts(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const partsCarButton = event.target.closest("[data-parts-car]"); if (partsCarButton) { partsCarFilter = partsCarButton.dataset.partsCar; renderParts(); return; }
