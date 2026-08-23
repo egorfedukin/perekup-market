@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17130e">
+  <meta name="theme-color" content="#ffffff">
   <meta name="description" content="Рынок. — бесплатный многопользовательский симулятор торговли в браузере. Покупайте автомобили, вещи и недвижимость, торгуйтесь, участвуйте в аукционах и развивайте общий бизнес.">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Команда Рынок.">
@@ -24,8 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap&subset=cyrillic" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=redesign-3">
+  <link rel="stylesheet" href="styles.css?v=workspace-3">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -58,14 +57,14 @@
 
   <div id="game" class="game" hidden>
     <header class="topbar">
-      <a class="logo" href="#market" data-view="market" aria-label="Рынок, главная">РЫНОК<span>.</span></a>
+      <a class="logo" href="#market" data-view="market" aria-label="Рынок, главная">Рынок<span>.</span></a>
       <nav class="tabs" aria-label="Разделы игры">
-        <button class="tab active" data-view="market">Рынок <span id="market-count" class="badge">0</span></button>
-        <button class="tab" data-view="garage">Гараж <span id="garage-count" class="badge">0/4</span></button>
+        <button class="tab active" data-view="market">Купить <span id="market-count" class="badge">0</span></button>
+        <button class="tab" data-view="garage">Мои авто <span id="garage-count" class="badge">0/4</span></button>
         <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
-        <button class="tab" data-view="assets">Инвестиции</button>
+        <button class="tab" data-view="assets">Активы</button>
         <button class="tab desktop-team-tab" data-view="team">Команда</button>
-        <button class="tab mobile-profile-tab" data-view="profile">Профиль</button>
+        <button class="tab mobile-profile-tab" data-view="profile">Кабинет</button>
       </nav>
       <div class="wallet">
         <span>Баланс</span>
@@ -75,15 +74,18 @@
       <button id="notification-button" class="notification-button" data-view="auctions" title="Уведомления о ставках" aria-label="Уведомления о ставках">!<span id="notification-count" hidden>0</span></button>
       <button id="section-menu-button" class="section-menu-button" type="button" aria-label="Открыть разделы" aria-expanded="false"><i></i><i></i><i></i></button>
     </header>
-    <nav id="utility-nav" class="utility-nav" aria-label="Рабочие разделы">
-      <button data-view="team"><span>Команда</span><small>Группа и персонал</small></button>
-      <button data-view="deals"><span>Сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
-      <button data-view="parts"><span>Запчасти</span><small>Подбор и склад</small></button>
-      <button data-view="chat"><span>Чат <b id="chat-count" class="badge">0</b></span><small>Сообщество игроков</small></button>
-      <button data-view="rating"><span>Рейтинг</span><small>Лидеры рынка</small></button>
-      <button data-view="store"><span>Банк</span><small>Поддержка проекта</small></button>
-      <button data-view="profile"><span>Профиль</span><small>Навыки и инструменты</small></button>
-      <button id="admin-tab" data-view="admin" hidden><span>Админ</span><small>Управление игрой</small></button>
+    <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
+      <button class="utility-team-link" data-view="team"><span>Команда</span><small>Бизнес и сотрудники</small></button>
+      <span class="utility-group-label">Работа</span>
+      <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
+      <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
+      <span class="utility-group-label">Сообщество</span>
+      <button data-view="chat"><span>Чат <b id="chat-count" class="badge">0</b></span><small>Общение с игроками</small></button>
+      <button data-view="rating"><span>Рейтинг</span><small>Таблица лидеров</small></button>
+      <span class="utility-spacer"></span>
+      <button data-view="store"><span>Пополнить</span><small>Игровой баланс</small></button>
+      <button data-view="profile"><span>Личный кабинет</span><small>Прогресс и история</small></button>
+      <button id="admin-tab" data-view="admin" hidden><span>Управление</span><small>Игроки и модерация</small></button>
     </nav>
 
     <main class="content">
@@ -285,23 +287,28 @@
 
       <section id="profile-view" class="view">
         <div class="section-heading">
-          <div><p class="eyebrow">Карьера предпринимателя</p><h2>Профиль</h2></div>
+          <div><p class="eyebrow">Аккаунт и прогресс</p><h2>Личный кабинет</h2></div>
           <button class="secondary-button" data-logout>Выйти из аккаунта</button>
         </div>
         <div class="profile-hero">
           <div class="profile-monogram" id="profile-monogram">P</div>
-          <div><p class="eyebrow">Перекуп</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p></div>
-          <div class="profile-capital"><span>Капитал</span><strong id="profile-cash">0 ₽</strong></div>
+          <div class="profile-identity"><p class="eyebrow">Профиль игрока</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p><div class="profile-level-track"><i id="profile-xp-bar"></i></div><small id="profile-xp-label">0 XP до следующего уровня</small></div>
+          <div class="profile-capital"><span>Общий баланс</span><strong id="profile-cash">0 ₽</strong></div>
           <div class="profile-reputation"><span>Репутация</span><strong id="profile-reputation">50/100</strong></div>
         </div>
+        <nav class="profile-shortcuts" aria-label="Быстрые действия">
+          <button data-view="garage"><strong>Мои автомобили</strong><span>Осмотр, ремонт и продажа</span></button>
+          <button data-view="deals"><strong>Предложения</strong><span>Ответить покупателям и продавцам</span></button>
+          <button data-open-development><strong>Развитие</strong><span>Навыки, практика и оборудование</span></button>
+          <button data-view="team"><strong>Команда</strong><span>Общий бизнес и сотрудники</span></button>
+        </nav>
         <div id="profile-stats" class="profile-stats"></div>
-        <section class="deal-history-panel"><div class="workshop-heading"><div><p class="eyebrow">Движение денег и имущества</p><h3>История операций</h3></div><span id="ledger-summary">Последние события</span></div><div id="deal-history" class="deal-history"></div></section>
-        <section class="npc-panel"><div class="workshop-heading"><div><p class="eyebrow">Активность торговых площадок</p><h3>Участники рынка</h3></div></div><div id="npc-list" class="npc-list"></div></section>
         <div class="profile-columns">
-          <section><p class="eyebrow">Профессиональное развитие</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
-          <section><p class="eyebrow">Оснащение гаража</p><h3>Инструменты</h3><div id="profile-equipment" class="profile-list"></div></section>
+          <section><p class="eyebrow">Что вы умеете</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
+          <section><p class="eyebrow">Что есть в мастерской</p><h3>Оборудование</h3><div id="profile-equipment" class="profile-list"></div></section>
         </div>
-        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Разработчик</h3><p>«Рынок» — независимая браузерная игра о торговле автомобилями, вещами и недвижимостью. Все сделки проходят в общей экономике, а прогресс сохраняется на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Исходный код на GitHub ↗</a></section>
+        <section class="deal-history-panel"><div class="workshop-heading"><div><p class="eyebrow">Покупки, продажи и расходы</p><h3>История операций</h3></div><span id="ledger-summary">Последние события</span></div><div id="deal-history" class="deal-history"></div></section>
+        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Независимая браузерная игра</h3><p>«Рынок» — симулятор торговли автомобилями, вещами и недвижимостью. Экономика общая для всех игроков, прогресс хранится на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Проект на GitHub</a></section>
       </section>
     </main>
 
@@ -318,6 +325,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=redesign-2"></script>
+  <script src="app.js?v=workspace-3"></script>
 </body>
 </html>

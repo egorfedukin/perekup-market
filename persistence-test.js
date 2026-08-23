@@ -106,6 +106,17 @@ async function run() {
   check((await requestError("/api/state", offender.token)).includes("Аккаунт заблокирован"), "Banned player kept API access");
   await request("/api/admin/moderation", admin.token, { action: "unban", playerId: offender.player.id });
   check((await request("/api/state", offender.token)).player.id === offender.player.id, "Unbanned player did not regain access");
+  await request("/api/admin/player", admin.token, { playerId: reporter.player.id, cashMode: "set", cashValue: 123456789012, reason: "Exact balance test" });
+  await request("/api/admin/player", admin.token, { playerId: reporter.player.id, skillPointsMode: "set", skillPointsValue: 37, reason: "Skill points test" });
+  const editedPlayer = await request("/api/state", reporter.token);
+  check(editedPlayer.player.cash === 123456789012, "Admin could not set an exact large balance");
+  check(editedPlayer.player.skillPoints === 37, "Admin could not set skill points");
+  adminState = await request("/api/admin/state", admin.token);
+  check(adminState.players.find((item) => item.id === reporter.player.id)?.skillPoints === 37, "Admin state does not expose skill points");
+  const manualBidContainer = editedPlayer.containerAuctions.find((container) => container.startingPrice < 40000000 && container.endAt > Date.now() + 3000);
+  check(manualBidContainer, "No container available for a manual 40M bid test");
+  await request("/api/container/bid", reporter.token, { containerId: manualBidContainer.id, amount: 40000000 });
+  check((await requestError("/api/container/bid", reporter.token, { containerId: manualBidContainer.id, amount: 45000000 })).includes("уже лидируете"), "Container leader could raise the same bid repeatedly");
   const indexSeller = await request("/api/register", null, { name: `IndexSeller${suffix}`, pin: "1122" });
   const indexBuyer = await request("/api/register", null, { name: `IndexBuyer${suffix}`, pin: "3344" });
   const indexCarSeed = indexSeller.market.find((item) => item.saleType !== "auction" && item.price < 450000 && indexSeller.marketStats[item.model].marketPrice < 400000);

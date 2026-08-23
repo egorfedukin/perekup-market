@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
 const PORT = Number(process.env.PORT || 4173);
+const MAX_ADMIN_VALUE = Number.MAX_SAFE_INTEGER;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const STARTING_CASH = 650000;
 const MAX_GARAGE = 4;
@@ -1448,6 +1449,12 @@ function publicContainer(container, viewer = null) {
   return { ...safeContainer, label: tier.label, description: tier.description, minValue: tier.minValue, maxValue: tier.maxValue, viewerLeading: Boolean(viewer && container.highestBidderType === "player" && container.highestBidderId === viewer.id), viewerParticipated: Boolean(viewer && participantIds.includes(viewer.id)) };
 }
 
+function minimumContainerBid(auction) {
+  if (!auction.highestBid) return Math.ceil(auction.startingPrice / 1000) * 1000;
+  const rawMinimum = auction.highestBid + Math.max(1000, Math.ceil(auction.highestBid * 0.02));
+  return Math.ceil(rawMinimum / 1000) * 1000;
+}
+
 function finalizeContainers() {
   let changed = false;
   for (const auction of containerAuctions.filter((item) => item.endAt <= Date.now())) {
@@ -1464,7 +1471,7 @@ function finalizeContainers() {
     }
     containerAuctions.splice(containerAuctions.indexOf(auction), 1); changed = true;
   }
-  if (changed) { restockContainers(); broadcast(); }
+  if (changed) { restockContainers(); broadcast(); persistState(); }
 }
 
 function runContainerBots() {
@@ -1708,6 +1715,7 @@ function finalizeAuctions() {
   }
   restock();
   broadcast();
+  persistState();
 }
 
 setInterval(finalizeAuctions, 1000).unref();
@@ -1867,7 +1875,7 @@ async function api(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     return json(res, 200, {
-      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "" })),
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "" })),
       reports: moderationReports.filter((report) => report.status === "open").slice().reverse(),
       economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length }
     });
@@ -1913,10 +1921,31 @@ async function api(req, res, pathname) {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     const target = players.get(String(body.playerId || ""));
     if (!target) return json(res, 404, { error: "Игрок не найден" });
-    const delta = Math.round(Number(body.cashDelta));
-    if (!Number.isFinite(delta) || Math.abs(delta) > 10000000 || target.cash + delta < 0) return json(res, 400, { error: "Некорректное изменение баланса" });
-    target.cash += delta;
-    target.adminNotes.push({ adminId: player.id, delta, reason: String(body.reason || "Корректировка администратора").slice(0, 100), at: Date.now() });
+    const hasCash = body.cashValue !== undefined || body.cashDelta !== undefined;
+    const hasSkillPoints = body.skillPointsValue !== undefined;
+    if (!hasCash && !hasSkillPoints) return json(res, 400, { error: "Укажите баланс или очки навыков" });
+    const note = { adminId: player.id, reason: String(body.reason || "Корректировка администратора").slice(0, 100), at: Date.now() };
+    if (hasCash) {
+      const mode = body.cashMode === "set" ? "set" : "adjust";
+      const input = Math.round(Number(body.cashValue ?? body.cashDelta));
+      const nextCash = mode === "set" ? input : target.cash + input;
+      if (!Number.isSafeInteger(input) || !Number.isSafeInteger(nextCash) || nextCash < reservedCash(target) || nextCash > MAX_ADMIN_VALUE) {
+        return json(res, 400, { error: `Баланс должен быть целым числом от ${reservedCash(target).toLocaleString("ru-RU")} до ${MAX_ADMIN_VALUE.toLocaleString("ru-RU")} ₽` });
+      }
+      note.cashBefore = target.cash; note.cashAfter = nextCash; note.delta = nextCash - target.cash;
+      target.cash = nextCash;
+    }
+    if (hasSkillPoints) {
+      const mode = body.skillPointsMode === "adjust" ? "adjust" : "set";
+      const input = Math.round(Number(body.skillPointsValue));
+      const nextSkillPoints = mode === "set" ? input : target.skillPoints + input;
+      if (!Number.isSafeInteger(input) || !Number.isSafeInteger(nextSkillPoints) || nextSkillPoints < 0 || nextSkillPoints > MAX_ADMIN_VALUE) {
+        return json(res, 400, { error: `Очки навыков должны быть целым числом от 0 до ${MAX_ADMIN_VALUE.toLocaleString("ru-RU")}` });
+      }
+      note.skillPointsBefore = target.skillPoints; note.skillPointsAfter = nextSkillPoints;
+      target.skillPoints = nextSkillPoints;
+    }
+    target.adminNotes.push(note);
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/chat/report") {
@@ -2541,8 +2570,8 @@ async function api(req, res, pathname) {
     const auction = containerAuctions.find((item) => item.id === body.containerId);
     if (!auction || auction.endAt <= Date.now()) return json(res, 404, { error: "Аукцион контейнера завершён" });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
-    const current = auction.highestBid || auction.startingPrice;
-    const minimum = auction.highestBid ? current + Math.max(1000, Math.ceil(current * 0.02)) : current;
+    if (auction.highestBidderType === "player" && auction.highestBidderId === player.id) return json(res, 409, { error: "Вы уже лидируете. Новая ставка понадобится, только если вас перебьют" });
+    const minimum = minimumContainerBid(auction);
     const amount = Math.round(Number(body.amount)); const ownReservation = auction.highestBidderId === player.id ? auction.highestBid : 0;
     if (!Number.isFinite(amount) || amount < minimum) return json(res, 400, { error: `Минимальная ставка: ${minimum.toLocaleString("ru-RU")} ₽` });
     if (amount > player.cash - reservedCash(player) + ownReservation) return json(res, 400, { error: "Недостаточно свободных денег для ставки" });
