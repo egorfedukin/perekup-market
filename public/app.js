@@ -45,7 +45,7 @@ let plateFilters = { query: "", rarity: "all" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
 let assetMode = "all";
-const renderSignatures = { market: "", auctions: "" };
+const renderSignatures = { market: "", auctions: "", containers: "", garage: "", plateRegistration: "", plateInventory: "", plateMarket: "" };
 let modalContentSignature = "";
 let activeChallenge = null;
 let renderTimer = null;
@@ -92,7 +92,7 @@ async function resolveCarPhoto(query) {
     try {
       const params = new URLSearchParams({
         action: "query", generator: "search", gsrnamespace: "6", gsrsearch: `intitle:\"${normalizedQuery}\" filetype:bitmap`, gsrlimit: "12",
-        prop: "imageinfo", iiprop: "url|extmetadata|mime|size", iiurlwidth: "900", origin: "*", format: "json"
+        prop: "imageinfo", iiprop: "url|extmetadata|mime|size", iiurlwidth: window.matchMedia("(max-width: 760px)").matches ? "640" : "900", origin: "*", format: "json"
       });
       const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
       if (!response.ok) throw new Error("Wikimedia Commons unavailable");
@@ -120,6 +120,22 @@ async function resolveCarPhoto(query) {
   return result;
 }
 
+function optimizedPhotoUrl(value) {
+  if (!value || !window.matchMedia("(max-width: 760px)").matches) return value;
+  try {
+    const url = new URL(value, location.href);
+    if (url.hostname === "commons.wikimedia.org" && url.pathname.includes("/Special:FilePath/")) {
+      url.searchParams.set("width", "640");
+      return url.href;
+    }
+    if (url.hostname === "upload.wikimedia.org") {
+      url.pathname = url.pathname.replace(/\/(?:\d{3,4})px-([^/]+)$/i, "/640px-$1");
+      return url.href;
+    }
+  } catch { /* Keep a usable original URL. */ }
+  return value;
+}
+
 function hydrateCarPhotos(root = document) {
   root.querySelectorAll("img[data-car-photo]:not([data-photo-loading])").forEach((image) => {
     image.dataset.photoLoading = "true";
@@ -134,10 +150,10 @@ function hydrateCarPhotos(root = document) {
         if (credit) { credit.href = photo.source; credit.textContent = photo.license || "Wikimedia Commons"; credit.hidden = false; }
       };
       image.onerror = () => { image.hidden = true; art?.classList.add("photo-failed"); };
-      image.src = photo.url;
+      image.src = optimizedPhotoUrl(photo.url);
     };
     if ("IntersectionObserver" in window) {
-      const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) { observer.disconnect(); load(); } }, { rootMargin: "240px" });
+      const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) { observer.disconnect(); load(); } }, { rootMargin: window.matchMedia("(max-width: 760px)").matches ? "80px" : "240px" });
       observer.observe(image);
     } else load();
   });
@@ -185,7 +201,7 @@ function carArt(car, extraClass = "") {
   const ready = cached && cached.url;
   const unavailable = cached === null;
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass} ${ready ? "photo-loaded" : unavailable ? "photo-failed" : ""}" style="--car-color:${escapeHtml(car.color)}">
-    <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(cached.url)}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" referrerpolicy="no-referrer">
+    <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(optimizedPhotoUrl(cached.url))}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
     <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
     <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${car.registration?.plate ? `<span class="car-plate">${escapeHtml(car.registration.plate.number)}<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></span>` : ""}
@@ -523,7 +539,7 @@ function renderGarage() {
   $("#training-count").textContent = `${state.player.training?.completed || 0} заданий`;
   $("#garage-value").textContent = money(garage.reduce((sum, car) => sum + car.invested, 0));
   $("#empty-garage").hidden = garage.length > 0;
-  $("#garage-grid").innerHTML = garage.map((car) => {
+  const garageMarkup = garage.map((car) => {
     const open = car.defects.filter((defect) => !defect.repaired);
     const checked = car.inspection?.checked || 0;
     return `<article class="garage-car">
@@ -541,7 +557,11 @@ function renderGarage() {
       </div>
     </article>`;
   }).join("");
-  renderProgression();
+  const garageSignature = JSON.stringify(garage.map((car) => ({ id: car.id, model: car.model, year: car.year, mileage: car.mileage, invested: car.invested, condition: car.condition, inspection: car.inspection, defects: car.defects, photoUrl: car.photoUrl, registration: car.registration }))) + `|${Boolean(state.player.group)}`;
+  if (renderSignatures.garage !== garageSignature) {
+    $("#garage-grid").innerHTML = garageMarkup;
+    renderSignatures.garage = garageSignature;
+  }
 }
 
 function plateCard(plate, actions = "") {
@@ -556,18 +576,33 @@ function renderPlates() {
   $("#plate-inventory-count").textContent = number(inventory.length);
   $("#plate-installed-count").textContent = number(installed);
   $("#plate-market-count").textContent = number(market.length);
-  $("#registration-cars").innerHTML = garage.length ? garage.map((car) => {
+  const registrationMarkup = garage.length ? garage.map((car) => {
     const registration = car.registration || { registered: false, plate: null };
     const plateSelect = registration.registered && !registration.plate && inventory.length ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${inventory.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="attach" data-car-id="${car.id}">Установить номер</button>` : "";
     return `<article class="registration-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><span class="registration-status ${registration.registered ? "registered" : ""}">${registration.registered ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : registration.registered ? "Номер не установлен" : "Для установки номера нужна регистрация"}</small></div><div class="registration-actions">${registration.registered ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>` : `<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт · 8 500 ₽</button>`}${registration.plate ? `<button class="secondary-button" data-registration="detach" data-car-id="${car.id}">Снять номер</button>` : plateSelect}</div></article>`;
   }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
-  $("#plate-inventory").innerHTML = inventory.length ? inventory.map((plate) => plateCard(plate, `<div class="plate-list-action"><input id="plate-price-${plate.id}" type="number" min="1" max="100000000" value="${plate.estimatedValue}" aria-label="Цена номера ${escapeHtml(plate.number)}"><button class="secondary-button" data-list-plate="${plate.id}">Продать</button></div>`)).join("") : '<div class="plate-empty">Свободных номеров нет. Получите номер в МРЭО или купите на бирже.</div>';
+  const registrationSignature = JSON.stringify({ garage: garage.map((car) => ({ id: car.id, model: car.model, year: car.year, photoUrl: car.photoUrl, registration: car.registration })), plates: inventory.map((plate) => ({ id: plate.id, number: plate.number, rarityName: plate.rarityName })) });
+  if (renderSignatures.plateRegistration !== registrationSignature) {
+    $("#registration-cars").innerHTML = registrationMarkup;
+    renderSignatures.plateRegistration = registrationSignature;
+  }
+  const inventoryMarkup = inventory.length ? inventory.map((plate) => plateCard(plate, `<div class="plate-list-action"><input id="plate-price-${plate.id}" type="number" min="1" max="100000000" value="${plate.estimatedValue}" aria-label="Цена номера ${escapeHtml(plate.number)}"><button class="secondary-button" data-list-plate="${plate.id}">Продать</button></div>`)).join("") : '<div class="plate-empty">Свободных номеров нет. Получите номер в МРЭО или купите на бирже.</div>';
+  const inventorySignature = JSON.stringify(inventory.map((plate) => ({ id: plate.id, number: plate.number, region: plate.region, rarity: plate.rarity, rarityName: plate.rarityName, estimatedValue: plate.estimatedValue })));
+  if (renderSignatures.plateInventory !== inventorySignature) {
+    $("#plate-inventory").innerHTML = inventoryMarkup;
+    renderSignatures.plateInventory = inventorySignature;
+  }
   const query = normalizePlateQuery(plateFilters.query);
   const filtered = market.filter((lot) => {
     const searchable = normalizePlateQuery(`${lot.plate.number} ${lot.plate.region} ${lot.plate.rarityName} ${lot.seller}`);
     return (plateFilters.rarity === "all" || lot.plate.rarity === plateFilters.rarity) && (!query || searchable.includes(query));
   });
-  $("#plate-market").innerHTML = filtered.length ? filtered.map((lot) => plateCard(lot.plate, `<div class="plate-offer"><strong>${money(lot.price)}</strong><small>${playerNameButton(lot.sellerId, lot.seller)}</small>${lot.sellerId === state.player.id ? `<button class="secondary-button" data-unlist-plate="${lot.id}">Снять с биржи</button>` : `<button class="primary-button" data-buy-plate="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</div>`)).join("") : '<div class="plate-empty">Совпадений нет. Можно вводить номер русскими или латинскими буквами, с пробелами или без.</div>';
+  const marketMarkup = filtered.length ? filtered.map((lot) => plateCard(lot.plate, `<div class="plate-offer"><strong>${money(lot.price)}</strong><small>${playerNameButton(lot.sellerId, lot.seller)}</small>${lot.sellerId === state.player.id ? `<button class="secondary-button" data-unlist-plate="${lot.id}">Снять с биржи</button>` : `<button class="primary-button" data-buy-plate="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</div>`)).join("") : '<div class="plate-empty">Совпадений нет. Можно вводить номер русскими или латинскими буквами, с пробелами или без.</div>';
+  const marketSignature = JSON.stringify({ query: plateFilters.query, rarity: plateFilters.rarity, cash: state.player.availableCash, lots: filtered.map((lot) => ({ id: lot.id, price: lot.price, sellerId: lot.sellerId, seller: lot.seller, plate: lot.plate })) });
+  if (renderSignatures.plateMarket !== marketSignature) {
+    $("#plate-market").innerHTML = marketMarkup;
+    renderSignatures.plateMarket = marketSignature;
+  }
 }
 
 function partQualityName(part) {
@@ -639,7 +674,7 @@ function renderContainers() {
   const allContainers = state.containerAuctions || [];
   const containers = allContainers.filter((box) => auctionMode !== "mine" || box.viewerParticipated)
     .sort((a, b) => Number(b.viewerLeading) - Number(a.viewerLeading) || Number(b.viewerParticipated) - Number(a.viewerParticipated) || a.endAt - b.endAt);
-  $("#container-grid").innerHTML = containers.map((box) => {
+  const containerMarkup = containers.map((box) => {
     const current = box.highestBid || box.startingPrice;
     const minimum = box.highestBid ? Math.ceil((current + Math.max(1000, Math.ceil(current * .02))) / 1000) * 1000 : Math.ceil(current / 1000) * 1000;
     const leading = box.highestBidderId === state.player.id;
@@ -649,6 +684,11 @@ function renderContainers() {
       : `<form data-container-bid="${box.id}"><label><span>Ваша ставка</span><input name="amount" type="number" min="${minimum}" step="1000" value="${minimum}" inputmode="numeric" required></label><button class="primary-button" ${garageFull ? "disabled" : ""}>${garageFull ? "Нет места в гараже" : "Поставить"}</button></form>`;
     return `<article class="container-card tier-${box.tier} ${box.viewerParticipated ? "player-lot" : ""} ${box.viewerParticipated && !leading ? "outbid-lot" : ""}" style="--box-color:${escapeHtml(box.color)}">${bidState ? `<div class="player-bid-status">${bidState}</div>` : ""}<div class="container-visual"><span>ЛОТ ${box.id.slice(-4).toUpperCase()}</span><i></i><b>?</b></div><div class="container-info"><p class="eyebrow">${escapeHtml(box.label || "Закрытый")} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>${escapeHtml(box.description || "Состав неизвестен до победы")}</span><small class="container-range">Возможная стоимость: ${money(box.minValue)}–${money(box.maxValue)}</small><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ${box.bidCount} ставок</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div>${bidControl}</div></article>`;
   }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на контейнеры." : "Активных контейнерных лотов сейчас нет."}</div>`;
+  const containerSignature = `${auctionMode}|${garageFull}|${containers.map((box) => `${box.id}:${box.highestBid}:${box.bidCount}:${box.highestBidderId}:${box.viewerParticipated}`).join("|")}`;
+  if (renderSignatures.containers !== containerSignature) {
+    $("#container-grid").innerHTML = containerMarkup;
+    renderSignatures.containers = containerSignature;
+  }
 }
 
 function renderAuctions() {
@@ -903,20 +943,52 @@ function restoreActiveDraft(draft) {
   }
 }
 
-function render() {
-  if (!state.player) return;
-  const draft = captureActiveDraft();
+function updateShell() {
   $("#cash").textContent = money(state.player.availableCash);
   $("#cash-compact").textContent = compactMoney(state.player.availableCash);
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderActivities(); renderGarage(); renderPlates(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderAssets(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
+  $("#market-count").textContent = state.market.filter((car) => car.saleType !== "auction").length;
+  $("#garage-count").textContent = `${state.player.garage.length}/${state.player.garageCapacity}`;
+  $("#auction-count").textContent = (state.market || []).filter((car) => car.saleType === "auction").length + (state.containerAuctions || []).length;
+  $("#offers-count").textContent = (state.player.incomingOffers || []).length + (state.player.outgoingOffers || []).filter((offer) => offer.status === "counter").length;
+  $("#chat-count").textContent = state.directUnread || 0;
+  const unreadNotifications = state.player.unreadNotifications || 0;
+  $("#notification-count").hidden = !unreadNotifications;
+  $("#notification-count").textContent = unreadNotifications;
+  $("#admin-tab").hidden = !state.player.isAdmin;
+}
+
+function renderView(view) {
+  if (view === "market") { renderMarketStats(); renderMarket(); renderActivities(); }
+  if (view === "garage") {
+    if (garageMode === "cars") renderGarage();
+    if (garageMode === "development") renderProgression();
+    if (garageMode === "plates") renderPlates();
+  }
+  if (view === "parts") renderParts();
+  if (view === "deals") renderOffers();
+  if (view === "rating") renderLeaderboard();
+  if (view === "profile" || view === "team") renderProfile();
+  if (view === "chat") renderChat();
+  if (view === "assets") renderAssets();
+  if (view === "store") renderStore();
+  if (view === "admin") renderAdmin();
+  if (view === "auctions") { renderContainers(); renderAuctions(); }
+}
+
+function render() {
+  if (!state.player) return;
+  const draft = captureActiveDraft();
+  const activeView = document.querySelector(".view.active-view")?.id?.replace(/-view$/, "") || "market";
+  updateShell();
+  renderView(activeView);
   renderWorkspaceModes();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
   restoreActiveDraft(draft);
-  hydrateCarPhotos();
+  hydrateCarPhotos(document.querySelector(".view.active-view") || document);
 }
 
 function renderWorkspaceModes() {
@@ -951,8 +1023,10 @@ function setView(view) {
   document.querySelector("[data-mobile-menu]")?.setAttribute("aria-expanded", "false");
   if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
   if (view === "auctions" && state.player.unreadNotifications) markNotificationsRead();
+  renderView(view);
   renderWorkspaceModes();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  hydrateCarPhotos(document.querySelector(".view.active-view") || document);
+  window.scrollTo({ top: 0, behavior: window.matchMedia("(max-width: 760px)").matches ? "auto" : "smooth" });
 }
 
 function toggleSectionMenu(force) {
@@ -1174,7 +1248,7 @@ document.addEventListener("click", async (event) => {
   const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
   if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
   const garageModeButton = event.target.closest("[data-garage-mode]");
-  if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderView("garage"); renderWorkspaceModes(); hydrateCarPhotos($("#garage-view")); window.scrollTo({ top: 0, behavior: window.matchMedia("(max-width: 760px)").matches ? "auto" : "smooth" }); return; }
   const profileModeButton = event.target.closest("[data-profile-mode]");
   if (profileModeButton) { profileMode = profileModeButton.dataset.profileMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const chatModeButton = event.target.closest("[data-chat-mode]");
@@ -1192,7 +1266,7 @@ document.addEventListener("click", async (event) => {
   const partsModeLink = event.target.closest("[data-parts-mode-link]"); if (partsModeLink) { partsMode = partsModeLink.dataset.partsModeLink; renderParts(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const partsCarButton = event.target.closest("[data-parts-car]"); if (partsCarButton) { partsCarFilter = partsCarButton.dataset.partsCar; renderParts(); return; }
   const garageCarButton = event.target.closest("[data-open-garage-car]"); if (garageCarButton) { const car = state.player.garage.find((item) => item.id === garageCarButton.dataset.openGarageCar); if (car) { setView("garage"); openModal(garageModal(car), car.id, "garage"); } return; }
-  if (event.target.closest("[data-open-development]")) { closeModal(); setView("garage"); garageMode = "development"; renderWorkspaceModes(); return; }
+  if (event.target.closest("[data-open-development]")) { closeModal(); setView("garage"); garageMode = "development"; renderView("garage"); renderWorkspaceModes(); return; }
   if (event.target.closest("[data-go-market]")) return setView("market");
   if (event.target.closest("[data-close-modal]")) return closeModal();
   if (event.target.closest("[data-open-parts-center]")) { closeModal(); partsMode = "needs"; setView("parts"); renderParts(); return; }

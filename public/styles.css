@@ -2255,6 +2255,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @media (max-width: 760px) {
+  html { scroll-behavior: auto; }
+  .car-card,
+  .garage-car,
+  .auction-car-lot { content-visibility: auto; contain-intrinsic-size: 320px; }
+  .car-card,
+  .garage-car,
+  .plate-card,
+  .registration-car,
+  .auction-car-lot,
+  .primary-button,
+  .secondary-button,
+  .danger-button { transition-duration: 0s; }
   .utility-nav {
     top: auto;
     right: 10px;
