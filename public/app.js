@@ -29,6 +29,7 @@ let partsFilters = { component: "all", quality: "all", query: "" };
 let partsCarFilter = "all";
 let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
+let assetVisibleCount = 12;
 let assetMode = "all";
 const renderSignatures = { market: "", auctions: "" };
 let modalContentSignature = "";
@@ -489,8 +490,7 @@ function renderGarage() {
       <div class="garage-actions">
         <button class="secondary-button" data-open-garage="${car.id}">Осмотр и ремонт</button>
         <button class="primary-button" data-list-car="${car.id}">Выставить на рынок</button>
-        <button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>
-        ${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">В общий гараж</button>` : ""}
+        <details class="garage-more-actions"><summary>Другие действия</summary><div><button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
       </div>
     </article>`;
   }).join("");
@@ -635,10 +635,15 @@ function renderOffers() {
 }
 
 function renderLeaderboard() {
+  const rows = state.leaderboard || [];
+  const current = state.leaderboardCurrent || rows.find((player) => player.id === state.player.id);
   $("#my-profit").textContent = money(state.player.profit);
   $("#my-profit").className = state.player.profit >= 0 ? "profit-positive" : "profit-negative";
-  $("#leader-list").innerHTML = state.leaderboard.map((player, index) => `<div class="leader-row ${player.id === state.player.id ? "current" : ""}">
-    <div class="leader-player"><span class="place">${index + 1}</span><span>${escapeHtml(player.name)}${player.id === state.player.id ? " (ты)" : ""} · ур. ${player.level}</span></div>
+  $("#my-rank").textContent = current ? `Ваше место: ${current.rank} из ${state.leaderboardTotal || rows.length}` : "Ваше место";
+  $("#leader-podium").innerHTML = rows.slice(0, 3).map((player) => `<article class="podium-place podium-${player.rank} ${player.isCurrent ? "current" : ""}"><span>${player.rank} место</span><strong>${escapeHtml(player.name)}${player.isCurrent ? " · вы" : ""}</strong><small>${player.deals} сделок · уровень ${player.level}</small><b class="${player.profit >= 0 ? "profit-positive" : "profit-negative"}">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</b></article>`).join("");
+  const tableRows = current && current.rank > 20 ? [...rows, { divider: true }, current] : rows;
+  $("#leader-list").innerHTML = tableRows.map((player) => player.divider ? '<div class="leader-divider">Ваш результат вне топ-20</div>' : `<div class="leader-row ${player.isCurrent ? "current" : ""}">
+    <div class="leader-player"><span class="place">${player.rank}</span><span>${escapeHtml(player.name)}${player.isCurrent ? " · вы" : ""}<small>Уровень ${player.level}</small></span></div>
     <span>${player.deals}</span><span class="leader-profit ${player.profit >= 0 ? "profit-positive" : "profit-negative"}">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</span>
   </div>`).join("");
 }
@@ -746,8 +751,11 @@ function renderAssets() {
   $("#property-income-explanation").textContent = properties.length ? (nextIncomeAt ? `Следующее начисление ${auctionTime(nextIncomeAt)} · максимум 10 минут накопления на объект` : "Доход готов к получению") : "Купите объект недвижимости, чтобы получать аренду";
   const incomeButton = $("#property-income-panel [data-asset-income]");
   incomeButton.disabled = (state.player.assetIncomeAvailable || 0) < 1;
-  $("#asset-filter-result").textContent = `Показано ${filtered.length} из ${listings.length}`;
-  $("#asset-market-grid").innerHTML = filtered.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); const crypto = asset.type === "crypto"; return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${crypto ? `КРИПТО · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "НЕДВИЖИМОСТЬ" : escapeHtml(categories[asset.category] || "ВЕЩЬ")}</span><strong>${crypto ? escapeHtml(asset.symbol[0]) : asset.type === "property" ? "▦" : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics">${crypto ? `<span>Курс<strong>${money(asset.unitPrice)}</strong></span><span>Пакет<strong>${number(asset.quantity)} ${escapeHtml(asset.symbol)}</strong></span><span>Движение<strong class="crypto-move ${asset.changePct >= 0 ? "up" : "down"}">${asset.changePct >= 0 ? "+" : ""}${asset.changePct}%</strong></span>` : `<span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span>${asset.income ? `<span>Доход / мин<strong>${money(asset.income)}</strong></span>` : `<span>Риск<strong>${asset.risk}/5</strong></span>`}`}</div><div class="asset-estimate"><span>${crypto ? "Диапазон риск-оценки" : "Ваша оценка"}: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}%</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>${state.skillInfo[asset.skill]?.name || "Оценка"} ${asset.skillLevel}/5${crypto ? " · биржевая наценка 1,2%" : ` · остаток ${asset.stock}`}</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>${crypto ? "Купить пакет" : "Купить"}</button></div></div></article>`; }).join("") || '<div class="empty-filter">На этом рынке лотов по выбранным условиям нет.</div>';
+  const visibleListings = filtered.slice(0, assetVisibleCount);
+  $("#asset-filter-result").textContent = `Показано ${visibleListings.length} из ${filtered.length}`;
+  $("#asset-market-grid").innerHTML = visibleListings.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); const crypto = asset.type === "crypto"; return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${crypto ? `КРИПТО · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "НЕДВИЖИМОСТЬ" : escapeHtml(categories[asset.category] || "ВЕЩЬ")}</span><strong>${crypto ? escapeHtml(asset.symbol[0]) : asset.type === "property" ? "▦" : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics">${crypto ? `<span>Курс<strong>${money(asset.unitPrice)}</strong></span><span>Пакет<strong>${number(asset.quantity)} ${escapeHtml(asset.symbol)}</strong></span><span>Движение<strong class="crypto-move ${asset.changePct >= 0 ? "up" : "down"}">${asset.changePct >= 0 ? "+" : ""}${asset.changePct}%</strong></span>` : `<span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span>${asset.income ? `<span>Доход / мин<strong>${money(asset.income)}</strong></span>` : `<span>Риск<strong>${asset.risk}/5</strong></span>`}`}</div><div class="asset-estimate"><span>${crypto ? "Диапазон риск-оценки" : "Ваша оценка"}: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}%</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>${state.skillInfo[asset.skill]?.name || "Оценка"} ${asset.skillLevel}/5${crypto ? " · биржевая наценка 1,2%" : ` · остаток ${asset.stock}`}</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>${crypto ? "Купить пакет" : "Купить"}</button></div></div></article>`; }).join("") || '<div class="empty-filter">На этом рынке лотов по выбранным условиям нет.</div>';
+  $("#asset-load-more-wrap").hidden = visibleListings.length >= filtered.length;
+  $("#asset-load-more-label").textContent = `${visibleListings.length} из ${filtered.length}`;
   const visibleOwned = owned.filter((asset) => assetMode === "all" || asset.type === assetMode);
   $("#owned-assets").innerHTML = visibleOwned.length ? visibleOwned.map((asset) => { const delta = asset.resaleValue - asset.purchasePrice; const income = asset.incomeState; return `<article class="owned-asset"><div><span>${asset.type === "crypto" ? `Криптовалюта · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "Недвижимость" : escapeHtml(categories[asset.category] || "Вещь")}</span><strong>${escapeHtml(asset.name)}</strong><small>${asset.type === "crypto" ? `${number(asset.quantity)} ${escapeHtml(asset.symbol)} · куплено за ${money(asset.purchasePrice)}` : `Куплено за ${money(asset.purchasePrice)} · состояние ${asset.condition}%`}</small>${income?.perCycle ? `<small class="asset-income-line">Аренда ${money(income.perCycle)}/мин · накоплено ${money(income.amount)}</small>` : ""}</div><div><span>${asset.type === "crypto" ? "По курсу после комиссии" : "Быстрая продажа"}</span><strong>${money(asset.resaleValue)}</strong><small class="${delta >= 0 ? "profit-positive" : "profit-negative"}">${delta >= 0 ? "+" : ""}${money(delta)}</small><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">В выбранном разделе портфеля пока ничего нет.</div>';
 }
@@ -805,10 +813,21 @@ function setView(view) {
   document.querySelectorAll(".utility-nav [data-view]").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
   $("#utility-nav")?.classList.remove("open");
+  $("#utility-menu-backdrop").hidden = true;
   $("#section-menu-button")?.setAttribute("aria-expanded", "false");
+  document.querySelector("[data-mobile-menu]")?.setAttribute("aria-expanded", "false");
   if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
   if (view === "auctions" && state.player.unreadNotifications) markNotificationsRead();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function toggleSectionMenu(force) {
+  const menu = $("#utility-nav");
+  const open = typeof force === "boolean" ? force : !menu.classList.contains("open");
+  menu.classList.toggle("open", open);
+  $("#utility-menu-backdrop").hidden = !open;
+  $("#section-menu-button")?.setAttribute("aria-expanded", String(open));
+  document.querySelector("[data-mobile-menu]")?.setAttribute("aria-expanded", String(open));
 }
 
 async function markNotificationsRead() {
@@ -995,10 +1014,13 @@ async function perform(path, body, success) {
 }
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-mobile-menu]")) { toggleSectionMenu(); return; }
+  if (event.target.closest("[data-close-section-menu]")) { toggleSectionMenu(false); return; }
   const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
-  if (event.target.closest("#section-menu-button")) { const menu = $("#utility-nav"); const open = menu.classList.toggle("open"); $("#section-menu-button").setAttribute("aria-expanded", String(open)); return; }
+  if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
   const assetModeButton = event.target.closest("[data-asset-mode]");
-  if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
+  if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; assetVisibleCount = 12; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
+  if (event.target.closest("#asset-load-more")) { assetVisibleCount += 12; renderAssets(); return; }
   const partsModeButton = event.target.closest("[data-parts-mode]"); if (partsModeButton) { partsMode = partsModeButton.dataset.partsMode; renderParts(); return; }
   const partsModeLink = event.target.closest("[data-parts-mode-link]"); if (partsModeLink) { partsMode = partsModeLink.dataset.partsModeLink; renderParts(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const partsCarButton = event.target.closest("[data-parts-car]"); if (partsCarButton) { partsCarFilter = partsCarButton.dataset.partsCar; renderParts(); return; }
@@ -1196,6 +1218,7 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "asset-filters") {
     event.preventDefault(); const data = new FormData(event.target);
     assetFilters = { type: assetMode, category: data.get("category") || "all", min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, sort: data.get("sort") || "deal" };
+    assetVisibleCount = 12;
     renderAssets(); return;
   }
   if (event.target.id === "chat-form") {
@@ -1238,6 +1261,7 @@ $("#market-filters").addEventListener("reset", () => {
 
 $("#asset-filters").addEventListener("reset", () => {
   assetFilters = { type: assetMode, category: "all", min: null, max: null, sort: "deal" };
+  assetVisibleCount = 12;
   setTimeout(renderAssets, 0);
 });
 

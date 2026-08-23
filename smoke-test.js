@@ -18,6 +18,7 @@ function check(value, message) {
 async function run() {
   const suffix = Date.now().toString().slice(-6);
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
+  check(seller.leaderboardCurrent?.id === seller.player.id && seller.leaderboardCurrent.rank >= 1, "Current player is missing from the activity-based leaderboard");
   check(Object.keys(seller.marketStats).length > 0, "Market statistics are missing");
   check(Object.values(seller.marketStats).every((stats) => stats.dealAverage > 0 && stats.normalLow >= 1), "Market price ranges are incomplete");
   check(seller.catalogCount === 10000, `Expected 10,000 catalog variants, got ${seller.catalogCount}`);

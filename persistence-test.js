@@ -76,6 +76,8 @@ async function run() {
   const buyerName = `AuctionBuyer${suffix}`;
   const seller = await request("/api/register", null, { name: sellerName, pin: "2468" });
   const buyer = await request("/api/register", null, { name: buyerName, pin: "1357" });
+  check(seller.leaderboard.length === 1 && seller.leaderboard[0].isCurrent, "New player is missing from their own leaderboard");
+  check(buyer.leaderboard.length === 1 && buyer.leaderboard[0].id === buyer.player.id, "Inactive accounts leaked into another player's leaderboard");
   check(seller.market.length >= 100, `Expected 100 market cars, got ${seller.market.length}`);
   check(new Set(seller.market.map((item) => item.className)).size >= 8, "Vehicle body variety is too low");
   check(Object.keys(seller.skillInfo).length >= 8 && Object.keys(seller.equipmentInfo).length >= 8, "Expanded inspection and repair specializations are missing");

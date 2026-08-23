@@ -1672,3 +1672,244 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .auction-filters > * { min-width: 0; }
   .auction-filters span { grid-column: 1 / -1; width: auto; white-space: normal; }
 }
+
+/* Leaderboard and cross-device gameplay ergonomics. Keep this layer last. */
+.utility-menu-head,
+.utility-menu-backdrop { display: none; }
+
+.leader-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.podium-place {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-top: 4px solid #98a2b3;
+  border-radius: var(--radius-m);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+.podium-place.podium-1 { border-top-color: #d89a25; }
+.podium-place.podium-2 { border-top-color: #8591a2; }
+.podium-place.podium-3 { border-top-color: #a66b45; }
+.podium-place.current { box-shadow: inset 0 0 0 2px #8eb1eb; }
+.podium-place span,
+.podium-place strong,
+.podium-place small,
+.podium-place b { display: block; }
+.podium-place span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.podium-place strong { overflow-wrap: anywhere; margin-top: 8px; font-size: 17px; }
+.podium-place small { margin-top: 5px; color: var(--muted); font-size: 10px; }
+.podium-place b { margin-top: 14px; font-family: var(--font-mono); font-size: 17px; }
+.leader-player { min-width: 0; }
+.leader-player strong,
+.leader-player small { display: block; }
+.leader-player strong { overflow-wrap: anywhere; }
+.leader-player small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.leader-row.current { background: #eef5ff; box-shadow: inset 3px 0 0 #3974cf; }
+.leader-divider { padding: 9px 24px; border-bottom: 1px solid var(--line); background: #f2f4f7; color: var(--muted); font-size: 10px; font-weight: 700; text-align: center; }
+
+.garage-more-actions { width: 100%; }
+.garage-more-actions summary {
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  color: #475467;
+  background: white;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  list-style: none;
+}
+.garage-more-actions summary::-webkit-details-marker { display: none; }
+.garage-more-actions summary::after { content: " +"; }
+.garage-more-actions[open] summary::after { content: " -"; }
+.garage-more-actions > div { display: grid; gap: 7px; margin-top: 7px; }
+
+@media (max-width: 760px) {
+  body { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+  .section-menu-button { display: none; }
+  .utility-menu-backdrop {
+    position: fixed;
+    z-index: 42;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(16, 24, 40, .44);
+  }
+  .utility-nav {
+    position: fixed;
+    z-index: 44;
+    top: auto;
+    right: 10px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    left: 10px;
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    max-height: min(72dvh, 620px);
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 18px 50px rgba(16, 24, 40, .24);
+    overscroll-behavior: contain;
+  }
+  .utility-nav.open { display: grid; }
+  .utility-menu-head {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 52px;
+    padding: 2px 2px 8px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .utility-menu-head strong,
+  .utility-menu-head small { display: block; }
+  .utility-menu-head strong { color: var(--ink); font-size: 15px; }
+  .utility-menu-head small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+  .utility-menu-head button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: white;
+    color: var(--ink);
+    font-size: 25px;
+    text-align: center;
+  }
+  .utility-nav > button {
+    min-width: 0;
+    min-height: 58px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    text-align: left;
+  }
+  .utility-nav > button span { font-size: 11px; }
+  .utility-nav > button small { margin-top: 4px; font-size: 9px; line-height: 1.3; }
+  .tabs { height: calc(66px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); }
+  .tabs .tab { min-height: 64px; padding: 0 6px; line-height: 1.15; }
+  .tabs [data-mobile-menu][aria-expanded="true"] { color: var(--accent-dark); background: #eff6ff; }
+
+  .content { width: calc(100% - 24px); padding-top: 18px; padding-bottom: 28px; }
+  .section-heading { min-height: 0; align-items: start; margin-bottom: 18px; }
+  .section-heading h2 { font-size: 26px; line-height: 1.08; }
+  .section-heading .eyebrow { margin-bottom: 7px; font-size: 9px; }
+  .view button:not(.modal-backdrop),
+  .view input,
+  .view select { min-height: 44px; }
+  .view input,
+  .view select { font-size: 16px; }
+  .primary-button,
+  .secondary-button,
+  .danger-button { padding-right: 13px; padding-left: 13px; }
+  .mobile-filter-toggle { min-height: 46px; }
+  .quick-filter { min-height: 42px; padding: 0 14px; }
+
+  .market-dashboard {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+  .market-dashboard > div { min-width: 0; padding: 9px 6px; text-align: center; }
+  .market-dashboard span { min-height: 24px; font-size: 8px; line-height: 1.35; }
+  .market-dashboard strong { margin-top: 3px; font-size: 15px; }
+  .market-cars-label,
+  .garage-cars-heading,
+  .auction-section-head,
+  .asset-section-head { align-items: start; margin-top: 18px; }
+  .market-cars-label h3,
+  .garage-cars-heading h3,
+  .auction-section-head h3,
+  .asset-section-head h3 { font-size: 18px; }
+  .market-cars-label > span,
+  .garage-cars-heading > span,
+  .auction-section-head > span,
+  .asset-section-head > span { max-width: 42%; font-size: 9px; line-height: 1.4; text-align: right; }
+  .market-load-more { flex-direction: column; gap: 7px; padding: 12px; }
+  .market-load-more button { width: 100%; min-height: 48px; }
+  .activity-board { margin-top: 24px; }
+
+  .garage-car { gap: 0; }
+  .garage-main,
+  .garage-status,
+  .garage-actions { padding: 12px 14px; }
+  .garage-main,
+  .garage-status { border-bottom: 1px solid var(--line); }
+  .garage-actions { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .garage-actions > button { min-height: 48px; }
+  .garage-more-actions { grid-column: 1 / -1; }
+  .garage-more-actions summary { min-height: 44px; }
+  .garage-more-actions > div button { width: 100%; min-height: 44px; }
+
+  .parts-purchase button,
+  .repair-readiness,
+  .part-order-button,
+  .chat-report { min-height: 44px; }
+  .repair-readiness { padding: 9px 10px; font-size: 10px; }
+  .chat-report { padding: 0 10px; font-size: 10px; text-decoration: none; }
+  .parts-mode-controls button { min-height: 56px; }
+  .team-role select,
+  .team-role button,
+  .employee-card button,
+  .group-panel button,
+  .npc-panel button { min-height: 44px; }
+
+  .modal { align-items: end; padding: 0; }
+  .modal-panel {
+    width: 100%;
+    max-height: calc(100dvh - 8px);
+    border-radius: 12px 12px 0 0;
+    scrollbar-gutter: auto;
+  }
+  .modal-body { padding: 18px 14px 24px; }
+  .modal-body h2,
+  .reward-title h2 { padding-right: 40px; font-size: 24px; line-height: 1.1; }
+  .close-button { width: 44px; height: 44px; }
+  .modal .primary-button,
+  .modal .secondary-button,
+  .modal .danger-button { min-height: 48px; }
+
+  .leader-podium {
+    grid-template-columns: repeat(3, minmax(145px, 1fr));
+    overflow-x: auto;
+    gap: 8px;
+    margin: 0 -12px 12px;
+    padding: 0 12px 6px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .leader-podium::-webkit-scrollbar { display: none; }
+  .podium-place { padding: 13px; scroll-snap-align: start; }
+  .podium-place strong { font-size: 14px; }
+  .podium-place b { margin-top: 10px; font-size: 13px; }
+  .leader-head,
+  .leader-row { grid-template-columns: minmax(0, 1fr) 48px minmax(96px, auto); min-height: 58px; padding: 0 10px; gap: 5px; }
+  .leader-head { font-size: 8px; }
+  .leader-row { font-size: 11px; }
+  .leader-profit { overflow-wrap: anywhere; font-size: 10px; text-align: right; }
+  .leader-divider { padding: 9px 10px; }
+  .my-profit { flex: 0 0 auto; margin-top: 0; text-align: right; }
+  .my-profit span { font-size: 8px; }
+  .my-profit strong { font-size: 15px; }
+
+  .asset-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 430px) {
+  .garage-actions { grid-template-columns: 1fr; }
+  .garage-more-actions { grid-column: auto; }
+  #rating-view .section-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  #rating-view .section-heading h2 { font-size: 23px; }
+}

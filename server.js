@@ -1203,7 +1203,21 @@ function playerView(player) {
   };
 }
 
+function leaderboardView(viewer) {
+  const isActive = (candidate) => candidate.deals > 0 || candidate.profit !== 0 || candidate.xp > 0
+    || candidate.stats?.purchases > 0 || candidate.stats?.bids > 0 || candidate.stats?.inspections > 0
+    || candidate.stats?.assetsBought > 0 || candidate.training?.completed > 0;
+  const participants = [...players.values()].filter((candidate) => isActive(candidate) || candidate.id === viewer?.id)
+    .sort((a, b) => b.profit - a.profit || b.deals - a.deals || b.xp - a.xp || a.name.localeCompare(b.name, "ru"));
+  const rows = participants.map((candidate, index) => ({
+    id: candidate.id, name: candidate.name, profit: candidate.profit, deals: candidate.deals,
+    level: levelForXp(candidate.xp), rank: index + 1, isCurrent: candidate.id === viewer?.id
+  }));
+  return { rows: rows.slice(0, 20), current: rows.find((row) => row.isCurrent) || null, total: rows.length };
+}
+
 function snapshot(player) {
+  const leaderboard = leaderboardView(player);
   return {
     revision,
     player: player ? playerView(player) : null,
@@ -1228,8 +1242,9 @@ function snapshot(player) {
     containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
     assetMarket: assetMarket.filter((listing) => listing.stock > 0).map((listing) => publicAssetListing(listing, player)),
     assetCategories: { electronics: "Техника", collectibles: "Коллекции", business: "Оборудование", residential: "Жилая недвижимость", commercial: "Коммерческая недвижимость", crypto: "Криптовалюта" },
-    leaderboard: [...players.values()].sort((a, b) => b.profit - a.profit).slice(0, 8)
-      .map((p) => ({ id: p.id, name: p.name, profit: p.profit, deals: p.deals, level: levelForXp(p.xp) }))
+    leaderboard: leaderboard.rows,
+    leaderboardCurrent: leaderboard.current,
+    leaderboardTotal: leaderboard.total
   };
 }
 

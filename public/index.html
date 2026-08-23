@@ -24,7 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=workspace-3">
+  <link rel="stylesheet" href="styles.css?v=mobile-1">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -64,7 +64,7 @@
         <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
         <button class="tab" data-view="assets">Активы</button>
         <button class="tab desktop-team-tab" data-view="team">Команда</button>
-        <button class="tab mobile-profile-tab" data-view="profile">Кабинет</button>
+        <button class="tab mobile-profile-tab" data-mobile-menu aria-expanded="false">Ещё</button>
       </nav>
       <div class="wallet">
         <span>Баланс</span>
@@ -74,7 +74,9 @@
       <button id="notification-button" class="notification-button" data-view="auctions" title="Уведомления о ставках" aria-label="Уведомления о ставках">!<span id="notification-count" hidden>0</span></button>
       <button id="section-menu-button" class="section-menu-button" type="button" aria-label="Открыть разделы" aria-expanded="false"><i></i><i></i><i></i></button>
     </header>
+    <button id="utility-menu-backdrop" class="utility-menu-backdrop" type="button" data-close-section-menu aria-label="Закрыть меню" hidden></button>
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
+      <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
       <button class="utility-team-link" data-view="team"><span>Команда</span><small>Бизнес и сотрудники</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
@@ -103,10 +105,6 @@
           <div><span>Аукционы</span><strong id="market-kpi-auctions">0</strong></div>
           <div><span>Моделей в продаже</span><strong id="market-kpi-models">0</strong></div>
         </div>
-        <section class="activity-board" aria-labelledby="activity-board-title">
-          <div class="activity-board-head"><div><p class="eyebrow">Короткие задания с наградой</p><h3 id="activity-board-title">Доска сделок</h3></div><span id="activity-streak">Сегодня: 0/4</span></div>
-          <div id="activity-grid" class="activity-grid"></div>
-        </section>
         <aside id="ad-market" class="ad-slot ad-slot-market" aria-label="Реклама" hidden></aside>
         <div class="market-quick-filters" aria-label="Быстрые фильтры">
           <button type="button" class="quick-filter active" data-market-preset="all">Все лоты</button>
@@ -131,6 +129,10 @@
         <div class="market-cars-label"><div><p class="eyebrow">Лоты ниже индекса и свежий завоз</p><h3>Автомобили на торгах</h3></div><span>Нажмите на карточку для подробностей</span></div>
         <div id="market-grid" class="car-grid"></div>
         <div id="market-load-more-wrap" class="market-load-more" hidden><button id="market-load-more" class="secondary-button" type="button">Показать ещё</button><span id="market-load-more-label"></span></div>
+        <section class="activity-board" aria-labelledby="activity-board-title">
+          <div class="activity-board-head"><div><p class="eyebrow">Короткие задания с наградой</p><h3 id="activity-board-title">Доска сделок</h3></div><span id="activity-streak">Сегодня: 0/4</span></div>
+          <div id="activity-grid" class="activity-grid"></div>
+        </section>
         <details class="market-index">
           <summary class="market-index-head"><div><p class="eyebrow">Цены на основе объявлений и завершённых сделок</p><h3>Подробный индекс рынка</h3></div><span>Открыть статистику по моделям</span></summary>
           <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
@@ -225,13 +227,14 @@
       <section id="rating-view" class="view">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Лучшие сделки текущей сессии</p>
-            <h2>Таблица предпринимателей</h2>
+            <p class="eyebrow">Результаты активных игроков за всё время</p>
+            <h2>Рейтинг игроков</h2>
           </div>
-          <div class="my-profit"><span>Твоя прибыль</span><strong id="my-profit">0 ₽</strong></div>
+          <div class="my-profit"><span id="my-rank">Ваше место</span><strong id="my-profit">0 ₽</strong></div>
         </div>
+        <div id="leader-podium" class="leader-podium"></div>
         <div class="leaderboard">
-          <div class="leader-head"><span>Место и игрок</span><span>Сделки</span><span>Прибыль</span></div>
+          <div class="leader-head"><span>Игрок</span><span>Сделки</span><span>Чистая прибыль</span></div>
           <div id="leader-list"></div>
         </div>
       </section>
@@ -257,6 +260,7 @@
         </form>
         <div class="asset-section-head"><div><p class="eyebrow">Частные объявления и ликвидационные площадки</p><h3>Доступные лоты</h3></div><span>Навык сужает диапазон оценки и улучшает цену перепродажи</span></div>
         <div id="asset-market-grid" class="asset-grid"></div>
+        <div id="asset-load-more-wrap" class="market-load-more" hidden><button id="asset-load-more" class="secondary-button" type="button">Показать ещё</button><span id="asset-load-more-label"></span></div>
         <div class="asset-section-head"><div><p class="eyebrow">Ваш капитал вне автопарка</p><h3>Мой портфель</h3></div><span>Криптовалюта продаётся по текущему курсу, недвижимость приносит аренду</span></div>
         <div id="owned-assets" class="owned-assets"></div>
       </section>
@@ -325,6 +329,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=workspace-3"></script>
+  <script src="app.js?v=mobile-1"></script>
 </body>
 </html>
