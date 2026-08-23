@@ -24,6 +24,7 @@ async function run() {
   check(shell.includes('id="auction-cars-panel"') && shell.includes('id="auction-containers-panel"'), "Auction workspace panels are missing from the client shell");
   check(["cars", "development"].every((mode) => shell.includes(`data-garage-mode="${mode}"`)), "Garage workspace modes are missing from the client shell");
   check(shell.includes('data-garage-mode="plates"') && ["public", "direct"].every((mode) => shell.includes(`data-chat-mode="${mode}"`)), "Plate or direct-message workspaces are missing from the client shell");
+  check(shell.includes('id="player-modal"') && !shell.includes('id="direct-search"') && clientScript.includes('/api/player/profile') && clientScript.includes('includePlate'), "Profile-based messaging or plate-inclusive listing UI is missing");
   check(["overview", "progress", "history"].every((mode) => shell.includes(`data-profile-mode="${mode}"`)), "Profile workspace modes are missing from the client shell");
   check(clientScript.includes('max="2000000000"'), "Vehicle listing form does not match the server price ceiling");
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
@@ -115,8 +116,18 @@ async function run() {
   const plateBuyer = await request("/api/join", null, { name: `PlateBuyer${suffix}` });
   const plateBuyerState = await request("/api/plates/buy", plateBuyer.token, { lotId: plateLot.id });
   check(plateBuyerState.player.plateInventory.some((plate) => plate.id === issuedPlate.id), "Player-to-player plate purchase failed");
-  serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 1, description: "Срочная продажа" });
-  check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 1), "One-ruble listing was rejected");
+  serviceState = await request("/api/plates/issue", servicePlayer.token, {});
+  const includedPlate = serviceState.player.plateInventory[0];
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register" });
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "attach", plateId: includedPlate.id });
+  serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 1, description: "Срочная продажа с номером", includePlate: true });
+  const includedLot = serviceState.market.find((item) => item.id === serviceCar.id);
+  check(includedLot?.price === 1 && includedLot.plateIncluded && includedLot.registration.plate?.id === includedPlate.id, "One-ruble listing with an included plate was rejected");
+  const publicProfile = await request(`/api/player/profile?id=${servicePlayer.player.id}`, plateBuyer.token);
+  check(publicProfile.listings.some((item) => item.id === serviceCar.id) && !Object.hasOwn(publicProfile, "cash"), "Public player profile is missing a listing or exposes private balance data");
+  const vehicleBuyer = await request("/api/join", null, { name: `VehicleBuyer${suffix}` });
+  const vehicleBuyerState = await request("/api/buy", vehicleBuyer.token, { carId: serviceCar.id });
+  check(vehicleBuyerState.player.garage.some((car) => car.id === serviceCar.id && car.registration.registered && car.registration.plate?.id === includedPlate.id), "Plate did not transfer with the purchased vehicle");
 
   const npcSeller = await request("/api/join", null, { name: `NpcSeller${suffix}` });
   const npcCarSeed = npcSeller.market.filter((item) => item.saleType !== "auction" && item.price < 500000).sort((a, b) => b.price - a.price)[0];

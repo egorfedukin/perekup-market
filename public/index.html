@@ -24,7 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=community-1">
+  <link rel="stylesheet" href="styles.css?v=profiles-1">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -190,7 +190,7 @@
           <div class="plate-dashboard"><div><span>В коллекции</span><strong id="plate-inventory-count">0</strong></div><div><span>Установлено</span><strong id="plate-installed-count">0</strong></div><div><span>На бирже</span><strong id="plate-market-count">0</strong></div><button class="primary-button" data-issue-plate>Получить случайный номер · 12 000 ₽</button></div>
           <section class="registration-panel"><div class="parts-panel-heading"><div><p class="eyebrow">Регистрационные действия</p><h3>Учёт автомобилей</h3></div><span>Номер можно установить только после постановки автомобиля на учёт</span></div><div id="registration-cars" class="registration-list"></div></section>
           <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Ваши свободные номера</p><h3>Моя коллекция</h3></div><span>Установите номер на автомобиль или выставьте его на биржу</span></div><div id="plate-inventory" class="plate-grid"></div></section>
-          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Уникальные комбинации игроков и площадки</p><h3>Биржа номеров</h3></div><span>Комиссия с продажи игрока — 5%</span></div><form id="plate-filters" class="plate-filters"><input id="plate-query" type="search" placeholder="Поиск номера или региона" aria-label="Поиск номера"><select id="plate-rarity" aria-label="Редкость номера"><option value="all">Любая редкость</option><option value="common">Обычные</option><option value="rare">Зеркальные</option><option value="premium">Три одинаковые</option><option value="legendary">Коллекционные</option></select></form><div id="plate-market" class="plate-grid"></div></section>
+          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Уникальные комбинации игроков и площадки</p><h3>Биржа номеров</h3></div><span>Комиссия с продажи игрока — 5%</span></div><form id="plate-filters" class="plate-filters"><input id="plate-query" type="search" placeholder="Например, А777АА 77 или A777AA" aria-label="Поиск по номеру, региону или продавцу"><select id="plate-rarity" aria-label="Редкость номера"><option value="all">Любая редкость</option><option value="common">Обычные</option><option value="rare">Зеркальные</option><option value="premium">Три одинаковые</option><option value="legendary">Коллекционные</option></select></form><div id="plate-market" class="plate-grid"></div></section>
         </section>
       </section>
 
@@ -240,7 +240,7 @@
           </form>
         </section>
         <section id="direct-chat-panel" class="workspace-panel direct-shell" hidden>
-          <aside class="direct-sidebar"><label>Найти игрока<input id="direct-search" type="search" placeholder="Поиск"></label><div id="direct-users" class="direct-users"></div></aside>
+          <aside class="direct-sidebar"><div class="direct-sidebar-head"><strong>Диалоги</strong><span>Только начатые переписки</span></div><div id="direct-users" class="direct-users"></div></aside>
           <div class="direct-conversation"><header id="direct-head"><strong>Выберите игрока</strong><span>Диалог откроется здесь</span></header><div id="direct-messages" class="chat-messages direct-messages" aria-live="polite"></div><form id="direct-form" class="chat-form" hidden><input id="direct-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Личное сообщение" required><button class="primary-button" type="submit">Отправить</button></form></div>
         </section>
       </section>
@@ -361,11 +361,19 @@
       </section>
     </div>
 
+    <div id="player-modal" class="modal player-modal" hidden>
+      <button class="modal-backdrop" data-close-player-modal aria-label="Закрыть профиль"></button>
+      <section class="modal-panel player-profile-panel" role="dialog" aria-modal="true" aria-labelledby="player-profile-title">
+        <button class="icon-button close-button" data-close-player-modal title="Закрыть" aria-label="Закрыть">×</button>
+        <div id="player-profile-content"></div>
+      </section>
+    </div>
+
     <div id="toast" class="toast" role="status"></div>
     <div id="skill-challenge" class="skill-challenge" hidden></div>
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=community-1"></script>
+  <script src="app.js?v=profiles-1"></script>
 </body>
 </html>

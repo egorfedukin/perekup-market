@@ -40,7 +40,7 @@ let garageMode = "cars";
 let profileMode = "overview";
 let chatMode = "public";
 let activeDirectUserId = null;
-let directSearch = "";
+const directContacts = new Map();
 let plateFilters = { query: "", rarity: "all" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
@@ -49,6 +49,16 @@ const renderSignatures = { market: "", auctions: "" };
 let modalContentSignature = "";
 let activeChallenge = null;
 let renderTimer = null;
+
+function playerNameButton(playerId, name, className = "player-name-link") {
+  if (!playerId || playerId === state.player?.id) return escapeHtml(name);
+  return `<span class="${className}" role="button" tabindex="0" data-player-profile="${escapeHtml(playerId)}">${escapeHtml(name)}</span>`;
+}
+
+function normalizePlateQuery(value) {
+  const latinToCyrillic = { a: "а", b: "в", e: "е", k: "к", m: "м", h: "н", o: "о", p: "р", c: "с", t: "т", y: "у", x: "х" };
+  return String(value || "").toLocaleLowerCase("ru-RU").replace(/[abekmhopctyx]/g, (char) => latinToCyrillic[char] || char).replace(/rus|россия|рф/giu, "").replace(/[^а-яё0-9]/giu, "");
+}
 
 function photoTokens(value) {
   return String(value).toLocaleLowerCase("en-US").replace(/[^a-z0-9а-яё]+/giu, " ").trim().split(/\s+/).filter((token) => token.length > 1);
@@ -178,7 +188,7 @@ function carArt(car, extraClass = "") {
     <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(cached.url)}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
     <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
-    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${car.registration?.plate ? `<span class="car-plate">${escapeHtml(car.registration.plate.number)}</span>` : ""}
+    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${car.registration?.plate ? `<span class="car-plate">${escapeHtml(car.registration.plate.number)}<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></span>` : ""}
   </div>`;
 }
 
@@ -377,6 +387,26 @@ async function request(path, options = {}) {
   return data;
 }
 
+function closePlayerProfile() {
+  $("#player-modal").hidden = true;
+  $("#player-profile-content").innerHTML = "";
+  if ($("#car-modal").hidden) document.body.style.overflow = "";
+}
+
+async function openPlayerProfile(playerId) {
+  if (!playerId || playerId === state.player.id) { setView("profile"); return; }
+  try {
+    const profile = await request(`/api/player/profile?id=${encodeURIComponent(playerId)}`);
+    directContacts.set(profile.id, { id: profile.id, name: profile.name, level: profile.level, reputation: profile.reputation });
+    const supporter = supporterTierNames[profile.supporterTier];
+    const listings = profile.listings || [];
+    $("#player-profile-content").innerHTML = `<div class="public-profile-head"><div class="public-profile-avatar">${escapeHtml(profile.name[0].toUpperCase())}</div><div><p class="eyebrow">Публичный профиль</p><h2 id="player-profile-title">${escapeHtml(profile.name)}</h2><span>Уровень ${profile.level}${supporter ? ` · ${escapeHtml(supporter)}` : ""}</span></div><button class="primary-button" data-message-player="${profile.id}">Написать сообщение</button></div><div class="public-profile-stats"><div><span>Репутация</span><strong>${profile.reputation}/100</strong></div><div><span>Завершено сделок</span><strong>${number(profile.completedDeals)}</strong></div><div><span>Активных лотов</span><strong>${number(profile.listingsCount)}</strong></div><div><span>Команда</span><strong>${escapeHtml(profile.groupName || "Не состоит")}</strong></div></div><section class="public-profile-listings"><div><p class="eyebrow">Объявления игрока</p><h3>Сейчас в продаже</h3></div>${listings.length ? listings.map((car) => `<button data-profile-car="${car.id}">${carArt(car)}<span><strong>${escapeHtml(car.model)}</strong><small>${car.year} · ${money(car.price)}</small></span></button>`).join("") : '<div class="no-offers">У игрока сейчас нет активных автомобильных лотов.</div>'}</section>`;
+    $("#player-modal").hidden = false;
+    document.body.style.overflow = "hidden";
+    hydrateCarPhotos($("#player-profile-content"));
+  } catch (error) { showToast(error.message, true); }
+}
+
 function renderMarket() {
   const regularMarket = state.market.filter((car) => car.saleType !== "auction");
   $("#market-count").textContent = regularMarket.length;
@@ -411,7 +441,7 @@ function renderMarket() {
       ${carArt(car)}
       <div class="car-info">
         <h3>${escapeHtml(car.model)}</h3>
-        <div class="car-meta"><span>${number(car.mileage)} км</span><span>${own ? "Ваше объявление" : escapeHtml(car.seller)}</span></div>
+        <div class="car-meta"><span>${number(car.mileage)} км</span><span>${own ? "Ваше объявление" : playerNameButton(car.sellerId, car.seller)}</span></div>
         <div class="car-price-row"><strong>${money(car.price)}</strong><span class="condition ${className}">${label}</span></div>
         <span class="price-signal ${priceClass}">${priceLabel}${difference ? ` · ${difference > 0 ? "+" : ""}${difference}%` : ""}</span>
         ${car.marketTag ? `<span class="market-tag">${escapeHtml(car.marketTag)}</span>` : ""}
@@ -484,6 +514,7 @@ function renderProgression() {
 
 function renderGarage() {
   const garage = state.player.garage;
+  const openMoreActions = new Set([...document.querySelectorAll(".garage-more-actions[open]")].map((details) => details.dataset.carId));
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-workspace-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-plate-count").textContent = `${number((state.player.plateInventory || []).length)} номеров`;
@@ -506,7 +537,7 @@ function renderGarage() {
       <div class="garage-actions">
         <button class="secondary-button" data-open-garage="${car.id}">Осмотр и ремонт</button>
         <button class="primary-button" data-list-car="${car.id}">Выставить на рынок</button>
-        <details class="garage-more-actions"><summary>Другие действия</summary><div><button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
+        <details class="garage-more-actions" data-car-id="${car.id}" ${openMoreActions.has(car.id) ? "open" : ""}><summary>Другие действия</summary><div><button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
       </div>
     </article>`;
   }).join("");
@@ -514,7 +545,7 @@ function renderGarage() {
 }
 
 function plateCard(plate, actions = "") {
-  return `<article class="plate-card rarity-${escapeHtml(plate.rarity)}"><div class="license-plate"><strong>${escapeHtml(plate.number.split(" ")[0])}</strong><span>RUS<br>${escapeHtml(plate.region)}</span></div><div class="plate-meta"><strong>${escapeHtml(plate.rarityName)}</strong><small>Оценка ${money(plate.estimatedValue)}</small></div>${actions}</article>`;
+  return `<article class="plate-card rarity-${escapeHtml(plate.rarity)}"><div class="license-plate"><strong>${escapeHtml(plate.number.split(" ")[0])}</strong><span class="plate-region"><i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i><small>RUS</small><em>${escapeHtml(plate.region)}</em></span></div><div class="plate-meta"><strong>${escapeHtml(plate.rarityName)}</strong><small>Оценка ${money(plate.estimatedValue)}</small></div>${actions}</article>`;
 }
 
 function renderPlates() {
@@ -531,9 +562,12 @@ function renderPlates() {
     return `<article class="registration-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><span class="registration-status ${registration.registered ? "registered" : ""}">${registration.registered ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : registration.registered ? "Номер не установлен" : "Для установки номера нужна регистрация"}</small></div><div class="registration-actions">${registration.registered ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>` : `<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт · 8 500 ₽</button>`}${registration.plate ? `<button class="secondary-button" data-registration="detach" data-car-id="${car.id}">Снять номер</button>` : plateSelect}</div></article>`;
   }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
   $("#plate-inventory").innerHTML = inventory.length ? inventory.map((plate) => plateCard(plate, `<div class="plate-list-action"><input id="plate-price-${plate.id}" type="number" min="1" max="100000000" value="${plate.estimatedValue}" aria-label="Цена номера ${escapeHtml(plate.number)}"><button class="secondary-button" data-list-plate="${plate.id}">Продать</button></div>`)).join("") : '<div class="plate-empty">Свободных номеров нет. Получите номер в МРЭО или купите на бирже.</div>';
-  const query = plateFilters.query.toLocaleLowerCase("ru-RU").replace(/\s+/g, "");
-  const filtered = market.filter((lot) => (plateFilters.rarity === "all" || lot.plate.rarity === plateFilters.rarity) && (!query || `${lot.plate.number}${lot.seller}`.toLocaleLowerCase("ru-RU").replace(/\s+/g, "").includes(query)));
-  $("#plate-market").innerHTML = filtered.length ? filtered.map((lot) => plateCard(lot.plate, `<div class="plate-offer"><strong>${money(lot.price)}</strong><small>${escapeHtml(lot.seller)}</small>${lot.sellerId === state.player.id ? `<button class="secondary-button" data-unlist-plate="${lot.id}">Снять с биржи</button>` : `<button class="primary-button" data-buy-plate="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</div>`)).join("") : '<div class="plate-empty">По этим фильтрам номеров нет.</div>';
+  const query = normalizePlateQuery(plateFilters.query);
+  const filtered = market.filter((lot) => {
+    const searchable = normalizePlateQuery(`${lot.plate.number} ${lot.plate.region} ${lot.plate.rarityName} ${lot.seller}`);
+    return (plateFilters.rarity === "all" || lot.plate.rarity === plateFilters.rarity) && (!query || searchable.includes(query));
+  });
+  $("#plate-market").innerHTML = filtered.length ? filtered.map((lot) => plateCard(lot.plate, `<div class="plate-offer"><strong>${money(lot.price)}</strong><small>${playerNameButton(lot.sellerId, lot.seller)}</small>${lot.sellerId === state.player.id ? `<button class="secondary-button" data-unlist-plate="${lot.id}">Снять с биржи</button>` : `<button class="primary-button" data-buy-plate="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</div>`)).join("") : '<div class="plate-empty">Совпадений нет. Можно вводить номер русскими или латинскими буквами, с пробелами или без.</div>';
 }
 
 function partQualityName(part) {
@@ -596,7 +630,7 @@ function renderParts() {
     const part = lot.item || {};
     return (partsFilters.component === "all" || part.component === partsFilters.component) && (partsFilters.quality === "all" || part.quality === partsFilters.quality) && (!query || `${part.name} ${part.partKey} ${part.compatibleModel} ${part.brand}`.toLocaleLowerCase("ru-RU").includes(query));
   }).sort((a, b) => Number(neededKeys.has(`${b.item?.partKey}:${b.item?.compatibleModel}`)) - Number(neededKeys.has(`${a.item?.partKey}:${a.item?.compatibleModel}`)) || a.price - b.price);
-  $("#parts-market-list").innerHTML = filteredMarket.map((lot) => { const part = lot.item; const needed = neededKeys.has(`${part.partKey}:${part.compatibleModel}`); return `<article class="exchange-part ${needed ? "needed" : ""}"><div><span class="quality-tag quality-${part.quality}">${escapeHtml(partQualityName(part))}</span>${needed ? '<span class="needed-tag">Нужно для вашей машины</span>' : ""}<strong>${escapeHtml(part.name)}</strong><small>${escapeHtml(part.brand)} · ${escapeHtml(part.partKey)} · ${escapeHtml(part.compatibleModel)} · ресурс ${part.conditionPct}%</small></div><div class="exchange-price"><strong>${money(lot.price)}</strong><small>оценка ${money(part.estimatedValue)} · ${escapeHtml(lot.seller)}</small></div><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id || state.player.availableCash < lot.price ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`; }).join("") || '<div class="parts-empty"><strong>Ничего не найдено</strong><span>Измените фильтры или дождитесь нового предложения от разборок.</span></div>';
+  $("#parts-market-list").innerHTML = filteredMarket.map((lot) => { const part = lot.item; const needed = neededKeys.has(`${part.partKey}:${part.compatibleModel}`); return `<article class="exchange-part ${needed ? "needed" : ""}"><div><span class="quality-tag quality-${part.quality}">${escapeHtml(partQualityName(part))}</span>${needed ? '<span class="needed-tag">Нужно для вашей машины</span>' : ""}<strong>${escapeHtml(part.name)}</strong><small>${escapeHtml(part.brand)} · ${escapeHtml(part.partKey)} · ${escapeHtml(part.compatibleModel)} · ресурс ${part.conditionPct}%</small></div><div class="exchange-price"><strong>${money(lot.price)}</strong><small>оценка ${money(part.estimatedValue)} · ${playerNameButton(lot.sellerId, lot.seller)}</small></div><button class="secondary-button" data-buy-part-market="${lot.id}" ${lot.sellerId === state.player.id || state.player.availableCash < lot.price ? "disabled" : ""}>${lot.sellerId === state.player.id ? "Ваш лот" : "Купить"}</button></article>`; }).join("") || '<div class="parts-empty"><strong>Ничего не найдено</strong><span>Измените фильтры или дождитесь нового предложения от разборок.</span></div>';
   $("#parts-market-trends").innerHTML = Object.values(state.partsMarketStats || {}).map((stat) => `<span><b>${escapeHtml(partComponentName(stat.component))}</b> ${money(stat.averagePrice)}<small>${stat.active} лотов · ${stat.deals} сделок</small></span>`).join("");
 }
 
@@ -649,7 +683,7 @@ function renderAuctions() {
     const current = car.highestBid || car.startingPrice;
     const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
     const defects = car.defects || [];
-    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${escapeHtml(car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
+    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${playerNameButton(car.sellerId, car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · номер ${escapeHtml(car.registration.plate.number)} входит в лот` : ""}</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
   }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на автомобили." : "По выбранным фильтрам активных лотов нет."}</div>`;
   const auctionSignature = `${auctionMode}/` + auctions.map((car) => `${car.id}:${car.highestBid}:${car.bidCount}:${car.viewerLeading}:${car.condition}`).join("|");
   if (renderSignatures.auctions !== auctionSignature) { $("#auction-car-grid").innerHTML = auctionMarkup; renderSignatures.auctions = auctionSignature; }
@@ -699,10 +733,10 @@ function renderLeaderboard() {
   $("#my-profit").textContent = money(state.player.profit);
   $("#my-profit").className = state.player.profit >= 0 ? "profit-positive" : "profit-negative";
   $("#my-rank").textContent = current ? `Ваше место: ${current.rank} из ${state.leaderboardTotal || rows.length}` : "Ваше место";
-  $("#leader-podium").innerHTML = rows.slice(0, 3).map((player) => `<article class="podium-place podium-${player.rank} ${player.isCurrent ? "current" : ""}"><span>${player.rank} место</span><strong>${escapeHtml(player.name)}${player.isCurrent ? " · вы" : ""}</strong><small>${player.deals} сделок · уровень ${player.level}</small><b class="${player.profit >= 0 ? "profit-positive" : "profit-negative"}">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</b></article>`).join("");
+  $("#leader-podium").innerHTML = rows.slice(0, 3).map((player) => `<article class="podium-place podium-${player.rank} ${player.isCurrent ? "current" : ""}"><span>${player.rank} место</span><strong>${playerNameButton(player.id, player.name)}${player.isCurrent ? " · вы" : ""}</strong><small>${player.deals} сделок · уровень ${player.level}</small><b class="${player.profit >= 0 ? "profit-positive" : "profit-negative"}">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</b></article>`).join("");
   const tableRows = current && current.rank > 20 ? [...rows, { divider: true }, current] : rows;
   $("#leader-list").innerHTML = tableRows.map((player) => player.divider ? '<div class="leader-divider">Ваш результат вне топ-20</div>' : `<div class="leader-row ${player.isCurrent ? "current" : ""}">
-    <div class="leader-player"><span class="place">${player.rank}</span><span>${escapeHtml(player.name)}${player.isCurrent ? " · вы" : ""}<small>Уровень ${player.level}</small></span></div>
+    <div class="leader-player"><span class="place">${player.rank}</span><span>${playerNameButton(player.id, player.name)}${player.isCurrent ? " · вы" : ""}<small>Уровень ${player.level}</small></span></div>
     <span>${player.deals}</span><span class="leader-profit ${player.profit >= 0 ? "profit-positive" : "profit-negative"}">${player.profit >= 0 ? "+" : ""}${money(player.profit)}</span>
   </div>`).join("");
 }
@@ -790,21 +824,23 @@ function renderChat() {
   $("#chat-count").textContent = unread;
   $("#direct-unread-label").textContent = unread ? `Новых: ${unread}` : "Нет новых";
   container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
-    <div><strong>${escapeHtml(message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-open-direct="${message.playerId}" title="Написать лично">В ЛС</button><button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
+    <div><strong>${playerNameButton(message.playerId, message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
     <p>${escapeHtml(message.text)}</p>
   </div>`).join("") : '<div class="chat-empty">Сообщений пока нет.</div>';
   if (nearBottom) container.scrollTop = container.scrollHeight;
-  const directory = (state.playerDirectory || []).filter((user) => !directSearch || user.name.toLocaleLowerCase("ru-RU").includes(directSearch.toLocaleLowerCase("ru-RU"))).map((user) => {
+  const knownContacts = new Map((state.playerDirectory || []).map((user) => [user.id, user]));
+  for (const [playerId, contact] of directContacts) knownContacts.set(playerId, { ...knownContacts.get(playerId), ...contact });
+  const directory = [...knownContacts.values()].map((user) => {
     const conversation = directMessages.filter((message) => message.senderId === user.id || message.recipientId === user.id);
     const unreadFromUser = conversation.filter((message) => message.senderId === user.id && message.recipientId === state.player.id && !message.readAt).length;
     const last = conversation.at(-1);
     return { ...user, last, unread: unreadFromUser };
   }).sort((a, b) => b.unread - a.unread || (b.last?.createdAt || 0) - (a.last?.createdAt || 0) || a.name.localeCompare(b.name, "ru-RU"));
   if (activeDirectUserId && !directory.some((user) => user.id === activeDirectUserId)) activeDirectUserId = null;
-  $("#direct-users").innerHTML = directory.length ? directory.map((user) => `<button class="direct-user ${user.id === activeDirectUserId ? "active" : ""}" data-direct-user="${user.id}"><span>${escapeHtml(user.name)}${user.unread ? `<b>${user.unread}</b>` : ""}</span><small>${user.last ? escapeHtml(user.last.text) : `Уровень ${user.level} · репутация ${user.reputation}`}</small></button>`).join("") : '<div class="plate-empty">Игроки не найдены.</div>';
+  $("#direct-users").innerHTML = directory.length ? directory.map((user) => `<button class="direct-user ${user.id === activeDirectUserId ? "active" : ""}" data-direct-user="${user.id}"><span>${escapeHtml(user.name)}${user.unread ? `<b>${user.unread}</b>` : ""}</span><small>${user.last ? escapeHtml(user.last.text) : "Новый диалог"}</small></button>`).join("") : '<div class="direct-empty">Откройте профиль игрока в чате, рейтинге или объявлении и нажмите «Написать».</div>';
   const activeUser = directory.find((user) => user.id === activeDirectUserId);
   const conversation = activeUser ? directMessages.filter((message) => (message.senderId === activeUser.id && message.recipientId === state.player.id) || (message.senderId === state.player.id && message.recipientId === activeUser.id)) : [];
-  $("#direct-head").innerHTML = activeUser ? `<strong>${escapeHtml(activeUser.name)}</strong><span>Уровень ${activeUser.level} · репутация ${activeUser.reputation}/100</span>` : "<strong>Выберите игрока</strong><span>Диалог откроется здесь</span>";
+  $("#direct-head").innerHTML = activeUser ? `<button class="direct-profile-link" data-player-profile="${activeUser.id}">${escapeHtml(activeUser.name)}</button><span>Уровень ${activeUser.level || 1} · репутация ${activeUser.reputation || 50}/100</span>` : "<strong>Выберите диалог</strong><span>Новый разговор начинается из профиля игрока</span>";
   $("#direct-messages").innerHTML = activeUser ? (conversation.length ? conversation.map((message) => `<div class="chat-message ${message.senderId === state.player.id ? "own" : ""}"><div><strong>${escapeHtml(message.senderName)}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.senderId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}">Пожаловаться</button>` : ""}</span></div><p>${escapeHtml(message.text)}</p></div>`).join("") : '<div class="chat-empty">Начните личный диалог.</div>') : '<div class="chat-empty">Выберите собеседника слева.</div>';
   $("#direct-form").hidden = !activeUser;
   document.querySelectorAll("[data-chat-mode]").forEach((button) => button.classList.toggle("active", button.dataset.chatMode === chatMode));
@@ -940,8 +976,8 @@ function marketModal(car) {
   const stats = state.marketStats[car.model];
   const [priceLabel, priceClass] = pricePosition(car);
   return `${carArt(car, "modal-car-art")}<div class="modal-body">
-    <p class="eyebrow">${own ? "Ваше объявление" : `Продавец: ${escapeHtml(car.seller)}`}</p>
-    <h2 id="modal-title">${escapeHtml(car.model)}</h2><p class="modal-subtitle">${car.year} год · ${number(car.mileage)} км</p>
+    <p class="eyebrow">${own ? "Ваше объявление" : `Продавец: ${playerNameButton(car.sellerId, car.seller)}`}</p>
+    <h2 id="modal-title">${escapeHtml(car.model)}</h2><p class="modal-subtitle">${car.year} год · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · госномер ${escapeHtml(car.registration.plate.number)} входит в сделку` : ""}</p>
     <div class="inspection-grid">
       <div><span>Состояние</span><strong class="condition ${conditionClass}">${condition}</strong></div>
       <div><span>Пробег</span><strong>${number(car.mileage)} км</strong></div>
@@ -1025,6 +1061,7 @@ function listModal(car) {
         <label><input type="radio" name="saleType" value="auction"><strong>Аукцион</strong><small>Победит максимальная ставка</small></label>
       </div>
       <label>Цена продажи или стартовая ставка<input name="price" type="number" min="1" max="2000000000" step="1" value="${suggested}" inputmode="numeric" required><small class="field-hint">Допустимо от 1 ₽ до 2 млрд ₽, включая редкие коллекционные автомобили.</small></label>
+      ${car.registration?.plate ? `<label class="include-plate-option"><input type="checkbox" name="includePlate" value="true"><span><strong>Продать вместе с номером ${escapeHtml(car.registration.plate.number)}</strong><small>Автомобиль останется на учёте, а номер перейдёт покупателю. Добавьте стоимость номера к цене.</small></span></label>` : ""}
       <label class="auction-duration">Длительность аукциона<select name="durationSeconds"><option value="60">1 минута</option><option value="180">3 минуты</option><option value="300" selected>5 минут</option><option value="900">15 минут</option></select></label>
       <label>Текст объявления<input name="description" maxlength="120" value="${car.repairs.length ? "Обслужена, список работ в истории." : "На ходу, разумный торг у капота."}" required></label>
       <button class="danger-button" type="submit">Опубликовать объявление</button>
@@ -1112,6 +1149,26 @@ async function perform(path, body, success) {
 }
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-close-player-modal]")) { closePlayerProfile(); return; }
+  const playerProfile = event.target.closest("[data-player-profile]");
+  if (playerProfile) { await openPlayerProfile(playerProfile.dataset.playerProfile); return; }
+  const messagePlayer = event.target.closest("[data-message-player]");
+  if (messagePlayer) {
+    activeDirectUserId = messagePlayer.dataset.messagePlayer;
+    chatMode = "direct";
+    closePlayerProfile();
+    setView("chat");
+    renderChat();
+    $("#direct-input")?.focus();
+    return;
+  }
+  const profileCar = event.target.closest("[data-profile-car]");
+  if (profileCar) {
+    const car = state.market.find((item) => item.id === profileCar.dataset.profileCar);
+    closePlayerProfile();
+    if (car) openModal(marketModal(car), car.id, "market");
+    return;
+  }
   if (event.target.closest("[data-mobile-menu]")) { toggleSectionMenu(); return; }
   if (event.target.closest("[data-close-section-menu]")) { toggleSectionMenu(false); return; }
   const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
@@ -1125,7 +1182,7 @@ document.addEventListener("click", async (event) => {
   const directUser = event.target.closest("[data-direct-user]");
   if (directUser) { activeDirectUserId = directUser.dataset.directUser; chatMode = "direct"; renderChat(); if ((state.directMessages || []).some((message) => message.senderId === activeDirectUserId && message.recipientId === state.player.id && !message.readAt)) await perform("/api/direct/read", { playerId: activeDirectUserId }); return; }
   const openDirect = event.target.closest("[data-open-direct]");
-  if (openDirect) { activeDirectUserId = openDirect.dataset.openDirect; chatMode = "direct"; renderChat(); return; }
+  if (openDirect) { await openPlayerProfile(openDirect.dataset.openDirect); return; }
   const assetModeButton = event.target.closest("[data-asset-mode]");
   if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; assetVisibleCount = 12; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
   if (event.target.closest("#asset-load-more")) { assetVisibleCount += 12; renderAssets(); return; }
@@ -1354,7 +1411,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.id === "list-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
-    if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds") }, data.get("saleType") === "auction" ? "Аукцион запущен. Вы остались в гараже" : "Объявление опубликовано. Вы остались в гараже")) closeModal();
+    if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds"), includePlate: data.get("includePlate") === "true" }, data.get("saleType") === "auction" ? "Аукцион запущен. Вы остались в гараже" : "Объявление опубликовано. Вы остались в гараже")) closeModal();
   }
   if (event.target.id === "offer-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
@@ -1369,7 +1426,6 @@ document.addEventListener("submit", async (event) => {
 document.addEventListener("input", (event) => {
   if (event.target.matches("#list-form input[name='price']")) updateListingSummary();
   if (event.target.id === "parts-filter-query") { partsFilters.query = event.target.value; renderParts(); }
-  if (event.target.id === "direct-search") { directSearch = event.target.value; renderChat(); }
   if (event.target.id === "plate-query") { plateFilters.query = event.target.value; renderPlates(); }
 });
 
@@ -1398,7 +1454,11 @@ $("#auction-filters").addEventListener("reset", () => {
   setTimeout(renderAuctions, 0);
 });
 
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("#car-modal").hidden) closeModal(); });
+document.addEventListener("keydown", (event) => {
+  if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-player-profile][role='button']")) { event.preventDefault(); openPlayerProfile(event.target.dataset.playerProfile); return; }
+  if (event.key === "Escape" && !$("#player-modal").hidden) closePlayerProfile();
+  else if (event.key === "Escape" && !$("#car-modal").hidden) closeModal();
+});
 window.addEventListener("hashchange", () => { const view = location.hash.slice(1); if (document.getElementById(`${view}-view`) && state.player) setView(view); });
 initAds();
 async function restore() { if (!token) return; try { await enterGame(await request("/api/state")); } catch { localStorage.removeItem("perekup-token"); token = ""; } }

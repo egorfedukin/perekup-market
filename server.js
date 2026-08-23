@@ -595,6 +595,7 @@ function ensureCarDefaults(car) {
   car.registration.registeredAt ??= null;
   car.registration.plate ??= null;
   if (car.registration.plate) car.registration.plate = ensurePlate(car.registration.plate);
+  car.plateIncluded ??= false;
 }
 
 function notifyOutbid(playerId, lotType, lotName, amount, lotId) {
@@ -928,7 +929,8 @@ function saleEstimate(car, player = null) {
     const qualityBonus = part.quality === "original" ? 1.35 : part.quality === "economy" ? 0.55 : part.quality === "restored" ? 0.7 : 1;
     return sum + part.estimatedValue * qualityBonus * (0.16 + part.reliability / 500);
   }, 0));
-  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium) / 1000) * 1000);
+  const platePremium = car.plateIncluded && car.registration?.plate ? car.registration.plate.estimatedValue : 0;
+  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium + platePremium) / 1000) * 1000);
   const recommendedLow = Math.max(1, Math.round(expectedNpcPrice * 0.94 / 1000) * 1000);
   const recommendedHigh = Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000);
   const breakEven = Math.max(1, Math.ceil(car.invested * 1.02 / 1000) * 1000);
@@ -937,7 +939,7 @@ function saleEstimate(car, player = null) {
     expectedNpcPrice, recommendedLow, recommendedHigh, breakEven, invested: car.invested,
     unresolvedCount: unresolved.length, repairedCount: repaired.length,
     inspectionConfidence: inspection.confidence, inspectionLabel: inspection.label, upgradeValue: car.upgradeValue, upgradeCount: car.upgrades.length,
-    employeePremium: Math.round(employeePremium), installedPartsPremium: Math.round(installedPartsPremium)
+    employeePremium: Math.round(employeePremium), installedPartsPremium: Math.round(installedPartsPremium), platePremium: Math.round(platePremium)
   };
 }
 
@@ -1129,6 +1131,7 @@ function publicCar(car, ownerView = false, viewer = null) {
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
     condition: car.condition, description: car.description, repairs: car.repairs,
     registration: { registered: Boolean(car.registration.registered), plate: car.registration.plate ? { ...car.registration.plate } : null },
+    plateIncluded: Boolean(car.plateIncluded),
     marketTag: car.sellerId ? null : car.marketTag, listedAt: car.listedAt,
     offerCount: [...offers.values()].filter((offer) => offer.carId === car.id && ["active", "counter"].includes(offer.status)).length,
     saleType: car.saleType || "fixed", auctionEnd: car.auctionEnd || null,
@@ -1311,9 +1314,30 @@ function leaderboardView(viewer) {
   return { rows: rows.slice(0, 20), current: rows.find((row) => row.isCurrent) || null, total: rows.length };
 }
 
+function publicPlayerProfile(candidate, viewer) {
+  const activeListings = market
+    .filter((car) => car.sellerId === candidate.id)
+    .map((car) => publicCar(car, false, viewer));
+  const group = candidate.groupId && groups.get(candidate.groupId);
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    level: levelForXp(candidate.xp),
+    reputation: candidate.reputation?.score || 50,
+    completedDeals: candidate.reputation?.completed || candidate.deals || 0,
+    deals: candidate.deals || 0,
+    supporterTier: candidate.supporterTier || "none",
+    groupName: group?.name || null,
+    groupRole: candidate.groupRole || null,
+    listings: activeListings,
+    listingsCount: activeListings.length
+  };
+}
+
 function snapshot(player) {
   const leaderboard = leaderboardView(player);
   const playerDirectMessages = player ? directMessages.filter((message) => message.senderId === player.id || message.recipientId === player.id).slice(-300) : [];
+  const directContactIds = new Set(playerDirectMessages.flatMap((message) => [message.senderId, message.recipientId]).filter((playerId) => playerId !== player?.id));
   return {
     revision,
     player: player ? playerView(player) : null,
@@ -1327,7 +1351,7 @@ function snapshot(player) {
     chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none" })),
     directMessages: playerDirectMessages,
     directUnread: playerDirectMessages.filter((message) => message.recipientId === player?.id && !message.readAt).length,
-    playerDirectory: player ? [...players.values()].filter((candidate) => candidate.id !== player.id && !banMessage(candidate)).sort((a, b) => a.name.localeCompare(b.name, "ru-RU")).slice(0, 200).map((candidate) => ({ id: candidate.id, name: candidate.name, level: levelForXp(candidate.xp), reputation: candidate.reputation?.score || 50 })) : [],
+    playerDirectory: player ? [...directContactIds].map((playerId) => players.get(playerId)).filter((candidate) => candidate && !banMessage(candidate)).map((candidate) => ({ id: candidate.id, name: candidate.name, level: levelForXp(candidate.xp), reputation: candidate.reputation?.score || 50 })) : [],
     partsMarket: partsMarket.slice(-100),
     plateMarket: plateMarket.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
     partNeeds: player ? playerPartNeeds(player) : [],
@@ -1732,6 +1756,7 @@ function completeSale(car, buyer, amount) {
   car.seller = buyer ? buyer.name : "NPC-покупатель";
   car.sellerId = null;
   car.ownerId = buyer?.id || null;
+  car.plateIncluded = false;
   car.history.push({ type: "sold", text: `Сделка завершена за ${amount} ₽`, at: Date.now() });
   car.discovered = buyer ? [...new Set(car.publicDiscovered || [])] : [];
   car.checkedCategories = [];
@@ -1995,6 +2020,12 @@ async function api(req, res, pathname) {
   const blocked = banMessage(player);
   if (blocked) return json(res, 403, { error: blocked });
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
+  if (req.method === "GET" && pathname === "/api/player/profile") {
+    const playerId = new URL(req.url, `http://${req.headers.host}`).searchParams.get("id");
+    const candidate = players.get(String(playerId || ""));
+    if (!candidate || banMessage(candidate)) return json(res, 404, { error: "Профиль игрока недоступен" });
+    return json(res, 200, publicPlayerProfile(candidate, player));
+  }
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     return json(res, 200, {
@@ -2702,9 +2733,15 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
-    detachPlate(player, car, "Перед продажей снят личный номер");
-    if (car.registration.registered) car.history.push({ type: "registration", text: "Перед продажей автомобиль снят с регистрационного учёта", at: Date.now() });
-    car.registration.registered = false; car.registration.registeredAt = null;
+    const includePlate = body.includePlate === true && Boolean(car.registration?.registered && car.registration?.plate);
+    car.plateIncluded = includePlate;
+    if (includePlate) {
+      car.history.push({ type: "registration", text: `Госномер ${car.registration.plate.number} включён в продажу автомобиля`, at: Date.now() });
+    } else {
+      detachPlate(player, car, "Перед продажей снят личный номер");
+      if (car.registration.registered) car.history.push({ type: "registration", text: "Перед продажей автомобиль снят с регистрационного учёта", at: Date.now() });
+      car.registration.registered = false; car.registration.registeredAt = null;
+    }
     car.price = price;
     car.seller = player.name;
     car.sellerId = player.id;
@@ -2751,6 +2788,7 @@ async function api(req, res, pathname) {
     const car = market[index];
     if (car.saleType === "auction" && car.highestBidderId) return json(res, 400, { error: "Нельзя снять аукцион после первой ставки" });
     market.splice(index, 1);
+    car.plateIncluded = false;
     player.garage.push(car);
     for (const offer of offers.values()) if (offer.carId === car.id && ["active", "counter"].includes(offer.status)) offer.status = "closed";
     broadcast();
