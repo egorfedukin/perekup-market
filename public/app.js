@@ -1003,7 +1003,7 @@ document.addEventListener("click", async (event) => {
 
   const claimReward = event.target.closest("[data-claim-reward]");
   if (claimReward) {
-    if (await perform("/api/container/reward/ack", { rewardId: claimReward.dataset.claimReward }, "Автомобиль добавлен в гараж")) { closeModal(true); setView("garage"); maybeOpenContainerReward(); }
+    if (await perform("/api/container/reward/ack", { rewardId: claimReward.dataset.claimReward }, "Автомобиль добавлен в гараж. Вы остались в торгах")) { closeModal(true); maybeOpenContainerReward(); }
     return;
   }
   const preset = event.target.closest("[data-market-preset]");
@@ -1195,7 +1195,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.id === "list-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
-    if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds") }, data.get("saleType") === "auction" ? "Аукцион запущен" : "Объявление опубликовано и доступно покупателям")) { closeModal(); setView("market"); }
+    if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds") }, data.get("saleType") === "auction" ? "Аукцион запущен. Вы остались в гараже" : "Объявление опубликовано. Вы остались в гараже")) closeModal();
   }
   if (event.target.id === "offer-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);

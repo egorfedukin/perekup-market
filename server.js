@@ -93,6 +93,8 @@ const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "T
 const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
 const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
 const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
+const VEHICLE_PRICING_VERSION = 2;
+const MAX_VEHICLE_VALUE = 2000000000;
 
 function parseVehicleCatalog() {
   if (!fs.existsSync(VEHICLE_CATALOG_FILE)) throw new Error(`Каталог автомобилей не найден: ${VEHICLE_CATALOG_FILE}`);
@@ -144,9 +146,30 @@ const makeReferencePrices = {
   Audi: 7200000, BMW: 7600000, "Mercedes-Benz": 8200000, Lexus: 7000000, Infiniti: 5400000, Acura: 5200000,
   Cadillac: 7800000, Genesis: 7200000, "Land Rover": 12000000, "Range Rover": 15000000, Jaguar: 9000000,
   "Alfa Romeo": 6000000, Maserati: 16000000, Tesla: 6500000, Polestar: 6500000, Rivian: 12000000, Lucid: 13000000,
-  Porsche: 17000000, Ferrari: 48000000, Lamborghini: 52000000, Bentley: 32000000, "Rolls-Royce": 45000000,
-  "Aston Martin": 30000000, McLaren: 50000000, Bugatti: 100000000, Pagani: 85000000, Koenigsegg: 95000000,
-  Lotus: 12000000, Alpine: 7000000, Maybach: 40000000
+  Porsche: 22000000, Ferrari: 65000000, Lamborghini: 70000000, Bentley: 42000000, "Rolls-Royce": 65000000,
+  "Aston Martin": 38000000, McLaren: 70000000, Bugatti: 350000000, Pagani: 300000000, Koenigsegg: 450000000,
+  Lotus: 15000000, Alpine: 8000000, Maybach: 70000000
+};
+const modelPriceOverrides = {
+  "Maybach 57": 70000000, "Maybach 57 and 62": 85000000, "Maybach Exelero": 650000000,
+  "McLaren 570S": 32000000, "McLaren F1": 1500000000, "McLaren F1 LM": 2000000000,
+  "Bugatti EB110": 280000000, "Bugatti 18/3 Chiron": 500000000,
+  "Pagani Huayra": 420000000, "Pagani Zonda": 320000000, "Pagani Zonda C 12 S": 360000000,
+  "Pagani Zonda C12 6.0": 330000000, "Pagani Zonda C12-S 7.0": 380000000,
+  "Pagani Zonda C12-S Monza": 480000000, "Pagani Zonda Cinque": 750000000, "Pagani Zonda R": 520000000,
+  "Lamborghini Aventador": 75000000, "Lamborghini Murciélago": 60000000, "Lamborghini Gallardo": 30000000,
+  "Lamborghini Countach": 180000000, "Lamborghini Egoista": 1200000000,
+  "Rolls-Royce Ghost": 55000000, "Rolls-Royce Phantom Coupé": 80000000,
+  "Bentley Bentayga": 42000000, "Bentley Continental Flying Spur": 35000000,
+  "Ferrari 250 GT 2+2": 250000000
+};
+const collectibleValueFloors = {
+  "Maybach 57": 0.82, "Maybach 57 and 62": 0.84, "Maybach Exelero": 0.82,
+  "McLaren F1": 0.82, "McLaren F1 LM": 0.88,
+  "Bugatti EB110": 0.72, "Bugatti 18/3 Chiron": 0.85, "Pagani Huayra": 0.78,
+  "Pagani Zonda": 0.75, "Pagani Zonda C 12 S": 0.76, "Pagani Zonda C12 6.0": 0.75,
+  "Pagani Zonda C12-S 7.0": 0.76, "Pagani Zonda C12-S Monza": 0.82, "Pagani Zonda Cinque": 0.86,
+  "Pagani Zonda R": 0.82, "Lamborghini Egoista": 0.88, "Ferrari 250 GT 2+2": 0.78
 };
 
 function vehicleProfile(entry) {
@@ -159,7 +182,8 @@ function vehicleProfile(entry) {
   if (className === "van") currentBase *= 1.08;
   if (/\b(360|600|700|800|1000|1100|1200|1300|1400|1500|1600)\b/.test(entry.model) && !premiumMakes.has(entry.make) && !exoticMakes.has(entry.make)) currentBase *= 0.78;
   if (/\b(flagship|turbo|performance|super|continental|phantom|veyron|chiron|aventador|murciélago|911|gallardo|corvette)\b/i.test(entry.model)) currentBase *= 1.32;
-  currentBase = Math.round(Math.max(500000, Math.min(100000000, currentBase)) / 10000) * 10000;
+  currentBase = modelPriceOverrides[entry.model] || currentBase;
+  currentBase = Math.round(Math.max(500000, Math.min(MAX_VEHICLE_VALUE, currentBase)) / 10000) * 10000;
   const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model);
   const modernHint = /\b(ev|electric|électrique|e-tron|ioniq|model [3sxy]|polestar|rivian|lucid)\b/i.test(entry.model) || ["BYD", "Genesis"].includes(entry.make);
   const knownYears = vehicleProductionYears[entry.model];
@@ -186,9 +210,11 @@ const catalog = Array.from({ length: CATALOG_SIZE }, (_, index) => {
   const depreciation = floor + (1 - floor) * Math.pow(className === "electric" ? 0.91 : 0.945, age);
   const trimMultiplier = 0.91 + stableVehicleUnit(`${model}:${year}`, "variant") * 0.18;
   const rarityPremium = age > 24 && ["classic", "coupe", "premium"].includes(className) ? 1 + Math.min(0.65, (age - 24) * 0.025) : 1;
+  const calculatedBase = currentBase * depreciation * trimMultiplier * rarityPremium;
+  const collectibleFloor = currentBase * (collectibleValueFloors[model] || 0);
   return {
     make, model, photoQuery: model, photoUrl, photoSource, year,
-    base: Math.max(60000, Math.min(100000000, Math.round(currentBase * depreciation * trimMultiplier * rarityPremium / 1000) * 1000)),
+    base: Math.max(60000, Math.min(MAX_VEHICLE_VALUE, Math.round(Math.max(calculatedBase, collectibleFloor) / 1000) * 1000)),
     className, color: vehicleColors[(index * 7 + cycle) % vehicleColors.length]
   };
 });
@@ -284,7 +310,8 @@ const bots = [
   { id: "bot_collector", name: "Клуб Старый гараж", type: "collector", skill: 3, risk: 1.08, budget: 1600000, repairPremium: 0.16 },
   { id: "bot_family", name: "Семья Орловых", type: "endBuyer", skill: 3, risk: 1.01, budget: 1450000, repairPremium: 0.12 },
   { id: "bot_invest", name: "ИнвестАвто", type: "dealer", skill: 5, risk: 0.93, budget: 18000000, repairPremium: 0.08 },
-  { id: "bot_lux", name: "Премиум Коллекшн", type: "collector", skill: 5, risk: 1.06, budget: 120000000, repairPremium: 0.18 }
+  { id: "bot_lux", name: "Премиум Коллекшн", type: "collector", skill: 5, risk: 1.06, budget: 350000000, repairPremium: 0.18 },
+  { id: "bot_museum", name: "Частный автомобильный музей", type: "collector", skill: 5, risk: 1.11, budget: 2000000000, repairPremium: 0.22 }
 ];
 
 const partComponents = {
@@ -386,18 +413,20 @@ const containerTiers = {
   cheap: { label: "Бюджетный", name: "Гаражная находка", description: "Массовые автомобили для первого оборота", minValue: 100000, maxValue: 850000, startMin: 25000, startMax: 130000, color: "#52715d" },
   middle: { label: "Дилерский", name: "Дилерский склад", description: "Ликвидные машины среднего сегмента", minValue: 650000, maxValue: 8000000, startMin: 180000, startMax: 1200000, color: "#aa792d" },
   performance: { label: "Спортивный", name: "Трековый ангар", description: "Купе, родстеры и мощные проекты", minValue: 3500000, maxValue: 35000000, startMin: 900000, startMax: 6500000, color: "#356d78" },
-  premium: { label: "Коллекционный", name: "Коллекционный бокс", description: "Редкие и премиальные автомобили верхнего сегмента", minValue: 15000000, maxValue: 100000000, startMin: 3500000, startMax: 18000000, color: "#8b3d35" }
+  premium: { label: "Коллекционный", name: "Коллекционный бокс", description: "Редкие и премиальные автомобили верхнего сегмента", minValue: 15000000, maxValue: MAX_VEHICLE_VALUE, startMin: 3500000, startMax: 120000000, color: "#8b3d35" }
 };
 const clients = new Set();
 let revision = 0;
 let marketRotationNextAt = Date.now() + NPC_ROTATION_MS;
 let persistTimer = null;
+let loadedVehiclePricingVersion = 0;
 
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
     offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, moderationReports, assetMarket,
-    groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions
+    groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions,
+    vehiclePricingVersion: VEHICLE_PRICING_VERSION
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
@@ -417,6 +446,7 @@ function loadState() {
   if (!row) return false;
   try {
     const saved = JSON.parse(row.payload);
+    loadedVehiclePricingVersion = Number(saved.vehiclePricingVersion || 0);
     for (const [key, value] of saved.players || []) { ensurePlayerDefaults(value); players.set(key, value); }
     for (const [key, value] of saved.sessions || []) sessions.set(key, value);
     for (const car of saved.market || []) { ensureCarDefaults(car); market.push(car); }
@@ -1263,7 +1293,7 @@ function refreshLegacyNpcCatalog() {
   const npcCars = market.filter((car) => !car.sellerId);
   const hasLegacyModels = npcCars.some((car) => !catalogByModel.has(car.model));
   const uniqueModels = new Set(npcCars.map((car) => car.model)).size;
-  if (!hasLegacyModels && uniqueModels >= Math.min(85, npcCars.length)) return;
+  if (loadedVehiclePricingVersion >= VEHICLE_PRICING_VERSION && !hasLegacyModels && uniqueModels >= Math.min(85, npcCars.length)) return;
 
   // Keep lots with real player participation; only replace free NPC inventory.
   for (let index = market.length - 1; index >= 0; index -= 1) {
@@ -1280,6 +1310,7 @@ function refreshLegacyNpcCatalog() {
     occupiedModels.add(item.model);
   }
   marketStatsCache = null;
+  loadedVehiclePricingVersion = VEHICLE_PRICING_VERSION;
   persistState();
 }
 if (!loadState()) {
@@ -2425,7 +2456,7 @@ async function api(req, res, pathname) {
     const index = player.garage.findIndex((item) => item.id === body.carId);
     if (index < 0) return json(res, 404, { error: "Машины нет в гараже" });
     const price = Math.round(Number(body.price));
-    if (!Number.isFinite(price) || price < 1 || price > 150000000) return json(res, 400, { error: "Цена должна быть от 1 ₽ до 150 000 000 ₽" });
+    if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
     car.price = price;
