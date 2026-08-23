@@ -100,6 +100,16 @@ const catalog = Array.from({ length: 10000 }, (_, index) => {
 });
 
 const catalogByModel = new Map(catalog.map((item) => [item.model, item]));
+const modelReferenceValues = new Map();
+for (const item of catalog) {
+  const values = modelReferenceValues.get(item.model) || [];
+  values.push(item.base);
+  modelReferenceValues.set(item.model, values);
+}
+for (const [model, values] of modelReferenceValues) {
+  values.sort((a, b) => a - b);
+  modelReferenceValues.set(model, values[Math.floor(values.length / 2)]);
+}
 let marketStatsCache = null;
 let marketStatsCacheAt = 0;
 
@@ -674,7 +684,7 @@ function saleEstimate(car, player = null) {
   ensureCarDefaults(car);
   const employeePlayer = player || (car.sellerId && players.get(car.sellerId)) || null;
   const technicalValue = currentValue(car);
-  const marketPrice = marketIndices[car.model]?.price || technicalValue;
+  const marketPrice = clamp(marketIndices[car.model]?.price || technicalValue, technicalValue * 0.72, technicalValue * 1.38);
   const unresolved = car.defects.filter((defect) => !defect.repaired);
   const repaired = car.defects.filter((defect) => defect.repaired);
   const inspection = inspectionSummary(car);
@@ -716,11 +726,17 @@ function upgradeOptions(car, player) {
 
 function initializeMarketIndices() {
   for (const item of catalog) {
-    if (marketIndices[item.model]?.price) continue;
+    const reference = modelReferenceValues.get(item.model) || item.base;
+    if (marketIndices[item.model]?.price) {
+      const index = marketIndices[item.model];
+      index.price = Math.max(1000, Math.round(clamp(index.price, reference * 0.55, reference * 1.45) / 1000) * 1000);
+      index.previousPrice = Math.max(1000, Math.round(clamp(index.previousPrice || index.price, reference * 0.55, reference * 1.45) / 1000) * 1000);
+      continue;
+    }
     const history = salesHistory.filter((sale) => sale.model === item.model).map((sale) => sale.price);
     const comparable = market.find((car) => car.model === item.model);
     marketIndices[item.model] = {
-      price: average(history) || (comparable ? currentValue(comparable) : Math.round(item.base * 0.75 / 1000) * 1000),
+      price: average(history) || (comparable ? currentValue(comparable) : Math.round(reference * 0.75 / 1000) * 1000),
       previousPrice: 0, trend: 0, transactions: history.length
     };
   }
@@ -734,7 +750,8 @@ function recordMarketSale(car, amount) {
   let after = Math.max(1, Math.round((before * 0.78 + guardedAmount * 0.22) / indexStep) * indexStep);
   if (after === before && guardedAmount !== before) after = Math.max(1, before + (guardedAmount > before ? indexStep : -indexStep));
   index.previousPrice = before;
-  index.price = after;
+  const reference = modelReferenceValues.get(car.model) || car.cleanValue || before;
+  index.price = Math.max(1000, Math.round(clamp(after, reference * 0.5, reference * 1.6) / 1000) * 1000);
   index.trend = Math.round(((after - before) / before) * 1000) / 10;
   index.transactions += 1;
   marketIndices[car.model] = index;
@@ -828,7 +845,7 @@ function makeCar(index, seller = "Авторынок") {
   const provisional = { cleanValue, defects: pool.map((d) => ({ ...d, repaired: false })) };
   const fair = currentValue(provisional);
   const indexed = marketIndices[item.model]?.price;
-  const pricingBase = indexed || fair;
+  const pricingBase = clamp(indexed || fair, fair * 0.78, fair * 1.28);
   const asking = Math.max(1, Math.round((pricingBase * (pricing.min + Math.random() * (pricing.max - pricing.min))) / 1000) * 1000);
   const listedAt = Date.now();
   return {
@@ -1306,7 +1323,8 @@ function rebalanceNpcMarket() {
   npcCars.forEach((car, index) => {
     const ratio = (index + 0.5) / Math.max(1, npcCars.length);
     const pricing = npcPricingProfile(ratio);
-    const reference = marketIndices[car.model]?.price || currentValue(car);
+    const fair = currentValue(car);
+    const reference = clamp(marketIndices[car.model]?.price || fair, fair * 0.78, fair * 1.28);
     const multiplier = pricing.min + Math.random() * (pricing.max - pricing.min);
     car.price = Math.max(1, Math.round(reference * multiplier / 1000) * 1000);
     car.purchasePrice = car.price;
@@ -1314,6 +1332,11 @@ function rebalanceNpcMarket() {
     car.marketTag = pricing.tag;
     car.listedAt = Date.now() - randomInt(0, NPC_ROTATION_MS);
   });
+  for (const car of market.filter((item) => !item.sellerId && item.saleType === "auction" && !item.bidCount)) {
+    const fair = saleEstimate(car).expectedNpcPrice;
+    car.startingPrice = Math.max(1000, Math.round(clamp(car.startingPrice || car.price, fair * 0.58, fair * 0.82) / 1000) * 1000);
+    car.price = car.startingPrice;
+  }
   ensureNpcAuctions();
 }
 
