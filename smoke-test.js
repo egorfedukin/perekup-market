@@ -20,6 +20,9 @@ async function run() {
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
   check(Object.keys(seller.marketStats).length > 0, "Market statistics are missing");
   check(Object.values(seller.marketStats).every((stats) => stats.dealAverage > 0 && stats.normalLow >= 1), "Market price ranges are incomplete");
+  check(seller.catalogCount === 10000, `Expected 10,000 catalog variants, got ${seller.catalogCount}`);
+  check(seller.market.every((car) => /^https:\/\//.test(car.photoUrl || "") && /^https:\/\//.test(car.photoSource || "")), "Direct catalog photos are missing");
+  check(new Set(seller.market.filter((car) => !car.sellerId).map((car) => car.model)).size >= 85, "NPC market model variety is too low");
   const npcPriceBands = seller.market.filter((car) => !car.sellerId).reduce((bands, car) => {
     const stats = seller.marketStats[car.model];
     const band = car.price < stats.normalLow ? "below" : car.price > stats.normalHigh ? "above" : "fair";

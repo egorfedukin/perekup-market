@@ -2,3 +2,5 @@ data/
 *.log
 .env
 node_modules/
+data-test-catalog*/
+АВТО_10000_ССЫЛКИ.txt

@@ -76,24 +76,118 @@ const realVehicleSeeds = [
   ["Mini", "Cooper", "hatch", 2001, 2026, 3900000, ["Cooper", "Cooper S", "John Cooper Works"]], ["Bentley", "Continental GT", "premium", 2004, 2026, 32000000, ["V8", "Speed", "Mulliner"]],
   ["Ferrari", "Roma", "coupe", 2020, 2026, 48000000, ["Roma", "Spider"]], ["Lamborghini", "Urus", "premium", 2019, 2026, 52000000, ["Urus", "S", "Performante"]]
 ];
+const VEHICLE_CATALOG_FILE = path.join(__dirname, "vehicle-catalog.tsv");
+const VEHICLE_YEARS_FILE = path.join(__dirname, "vehicle-production-years.json");
+const vehicleProductionYears = fs.existsSync(VEHICLE_YEARS_FILE) ? JSON.parse(fs.readFileSync(VEHICLE_YEARS_FILE, "utf8")) : {};
+const vehicleMakeNames = [
+  "Mercedes-Benz", "Alfa Romeo", "Land Rover", "Range Rover", "Rolls-Royce", "Aston Martin", "Great Wall",
+  "Volkswagen", "Mitsubishi", "Chevrolet", "SsangYong", "Lamborghini", "Koenigsegg", "Oldsmobile",
+  "Citroën", "Renault", "Peugeot", "Škoda", "Suzuki", "Hyundai", "Toyota", "Nissan", "Honda", "Mazda",
+  "Subaru", "Chrysler", "Cadillac", "Infiniti", "Maserati", "Porsche", "Ferrari", "Bentley", "McLaren",
+  "Bugatti", "Pagani", "Maybach", "Dacia", "Daewoo", "Fiat", "Opel", "SEAT", "Kia", "Lada", "Ford",
+  "Volvo", "Jeep", "GMC", "Isuzu", "Chery", "Geely", "Haval", "BYD", "Acura", "Lexus", "Audi", "BMW",
+  "Tesla", "Polestar", "Rivian", "Lucid", "Saab", "Rover", "Vauxhall", "Mercury", "Plymouth", "Holden",
+  "Mini", "Smart", "Tata", "Proton", "Daihatsu", "Lotus", "Alpine", "Genesis", "Dodge", "Buick", "Pontiac", "MG"
+].sort((a, b) => b.length - a.length);
+const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "Tata"]);
+const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
+const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
+const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
+
+function parseVehicleCatalog() {
+  if (!fs.existsSync(VEHICLE_CATALOG_FILE)) throw new Error(`Каталог автомобилей не найден: ${VEHICLE_CATALOG_FILE}`);
+  const lines = fs.readFileSync(VEHICLE_CATALOG_FILE, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  const headers = lines.shift().split("\t");
+  const column = (name) => headers.indexOf(name);
+  const modelColumn = column("АВТОМОБИЛЬ");
+  const photoColumn = column("ССЫЛКА_НА_ФОТО");
+  const sourceColumn = column("ИСТОЧНИК");
+  if (modelColumn < 0 || photoColumn < 0) throw new Error("В vehicle-catalog.tsv отсутствуют обязательные колонки");
+  const seen = new Set();
+  return lines.map((line) => {
+    const cells = line.split("\t");
+    const model = String(cells[modelColumn] || "").trim();
+    const make = vehicleMakeNames.find((name) => model === name || model.startsWith(`${name} `)) || model.split(" ")[0];
+    return { model, make, photoUrl: String(cells[photoColumn] || "").trim(), photoSource: String(cells[sourceColumn] || "").trim() };
+  }).filter((item) => item.model && item.photoUrl && !seen.has(item.model) && seen.add(item.model));
+}
+
+function stableVehicleUnit(value, salt = "") {
+  const digest = crypto.createHash("sha256").update(`${value}:${salt}`).digest();
+  return digest.readUInt32BE(0) / 0xffffffff;
+}
+
+function vehicleClass(model, make) {
+  const value = model.toLowerCase();
+  if (["Tesla", "Polestar", "Rivian", "Lucid", "BYD"].includes(make) || /\b(ev|electric|électrique|e-tron|ioniq)\b/i.test(value)) return "electric";
+  if (/\b(roadster|spider|spyder|cabrio|cabriolet|convertible)\b/i.test(value)) return "roadster";
+  if (/\b(pickup|pick-up|ranger|amarok|hilux|colorado|silverado|ram)\b/i.test(value)) return "pickup";
+  if (/\b(van|transit|transporter|multivan|starex|caravan|voyager|berlingo|partner|doblo|ducato|sprinter|vito)\b/i.test(value)) return "van";
+  if (/\b(suv|cross|crossover|land cruiser|range rover|patrol|pajero|outlander|forester|rav4|cr-v|x-trail|qashqai|tiguan|touareg|cayenne|x[1-7]|q[2-9]|gl[abcdeks]|wrangler|cherokee|tahoe|escalade|captiva|sportage|sorento|santa fe|terracan|duster|niva|4x4)\b/i.test(value)) return "suv";
+  if (exoticMakes.has(make) || /\b(coupe|coupé|gt|gtr|gt-r|sport)\b/i.test(value)) return "coupe";
+  if (/\b(type|litre|hp|cv)\b/i.test(value)) return "classic";
+  if (premiumMakes.has(make)) return "premium";
+  if (/\b(wagon|estate|touring|variant|avant|allroad)\b/i.test(value)) return "wagon";
+  if (/\b(hatch|golf|polo|focus|fiesta|corsa|astra|ceed|rio|picanto|swift|yaris|micra)\b/i.test(value)) return "hatch";
+  const bodyUnit = stableVehicleUnit(model, "body");
+  return bodyUnit < 0.24 ? "hatch" : bodyUnit < 0.34 ? "wagon" : "sedan";
+}
+
+const makeReferencePrices = {
+  Lada: 1200000, Dacia: 1500000, Daewoo: 900000, Tata: 1400000, Proton: 1300000, Daihatsu: 1500000,
+  Fiat: 2100000, Renault: 2300000, Peugeot: 2500000, "Citroën": 2500000, "Škoda": 2700000, Suzuki: 2500000,
+  Hyundai: 3000000, Kia: 3000000, Opel: 2300000, SEAT: 2400000, Vauxhall: 2400000, Chery: 3100000,
+  Geely: 3300000, Haval: 3500000, BYD: 4300000, SsangYong: 2900000, Toyota: 4200000, Honda: 3700000,
+  Nissan: 3500000, Mazda: 3400000, Mitsubishi: 3600000, Subaru: 4200000, Volkswagen: 3500000, Ford: 3000000,
+  Chevrolet: 3500000, Jeep: 5500000, Volvo: 5200000, GMC: 5000000, Dodge: 4300000, Buick: 4000000,
+  Pontiac: 3200000, Chrysler: 3800000, Isuzu: 3300000, Holden: 2800000, Mini: 3800000, Smart: 2400000,
+  Audi: 7200000, BMW: 7600000, "Mercedes-Benz": 8200000, Lexus: 7000000, Infiniti: 5400000, Acura: 5200000,
+  Cadillac: 7800000, Genesis: 7200000, "Land Rover": 12000000, "Range Rover": 15000000, Jaguar: 9000000,
+  "Alfa Romeo": 6000000, Maserati: 16000000, Tesla: 6500000, Polestar: 6500000, Rivian: 12000000, Lucid: 13000000,
+  Porsche: 17000000, Ferrari: 48000000, Lamborghini: 52000000, Bentley: 32000000, "Rolls-Royce": 45000000,
+  "Aston Martin": 30000000, McLaren: 50000000, Bugatti: 100000000, Pagani: 85000000, Koenigsegg: 95000000,
+  Lotus: 12000000, Alpine: 7000000, Maybach: 40000000
+};
+
+function vehicleProfile(entry) {
+  const unit = stableVehicleUnit(entry.model, "price");
+  const className = vehicleClass(entry.model, entry.make);
+  const makeBase = makeReferencePrices[entry.make] || (premiumMakes.has(entry.make) ? 7500000 : exoticMakes.has(entry.make) ? 30000000 : budgetMakes.has(entry.make) ? 1400000 : valueMakes.has(entry.make) ? 2700000 : 3800000);
+  let currentBase = makeBase * (0.76 + unit * (exoticMakes.has(entry.make) ? 0.72 : 0.48));
+  if (["suv", "pickup"].includes(className)) currentBase *= 1.18;
+  if (["coupe", "roadster"].includes(className)) currentBase *= 1.12;
+  if (className === "van") currentBase *= 1.08;
+  if (/\b(360|600|700|800|1000|1100|1200|1300|1400|1500|1600)\b/.test(entry.model) && !premiumMakes.has(entry.make) && !exoticMakes.has(entry.make)) currentBase *= 0.78;
+  if (/\b(flagship|turbo|performance|super|continental|phantom|veyron|chiron|aventador|murciélago|911|gallardo|corvette)\b/i.test(entry.model)) currentBase *= 1.32;
+  currentBase = Math.round(Math.max(500000, Math.min(100000000, currentBase)) / 10000) * 10000;
+  const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model);
+  const modernHint = /\b(ev|electric|électrique|e-tron|ioniq|model [3sxy]|polestar|rivian|lucid)\b/i.test(entry.model) || ["BYD", "Genesis"].includes(entry.make);
+  const knownYears = vehicleProductionYears[entry.model];
+  const inferredStartYear = classicHint ? 1950 + Math.floor(stableVehicleUnit(entry.model, "year") * 28) : modernHint ? 2012 + Math.floor(stableVehicleUnit(entry.model, "year") * 10) : 1988 + Math.floor(stableVehicleUnit(entry.model, "year") * 27);
+  const startYear = knownYears?.startYear || inferredStartYear;
+  const endYear = knownYears?.endYear || Math.min(2026, startYear + 8 + Math.floor(stableVehicleUnit(entry.model, "span") * 15));
+  return { ...entry, className, startYear, endYear, currentBase };
+}
+
+const vehicleModels = parseVehicleCatalog().map(vehicleProfile);
+if (vehicleModels.length < 100) throw new Error(`В каталоге слишком мало автомобилей: ${vehicleModels.length}`);
 const vehicleColors = ["#b9473d", "#35698c", "#4e7652", "#d39232", "#555f6d", "#292b30", "#7b4e78", "#6999a4", "#806247", "#8d927e", "#e2e0d5", "#1f2022"];
 const depreciationFloor = { classic: 0.38, hatch: 0.15, sedan: 0.16, suv: 0.2, coupe: 0.24, van: 0.22, electric: 0.2, premium: 0.22, wagon: 0.17, pickup: 0.25, roadster: 0.28 };
-const catalog = Array.from({ length: 10000 }, (_, index) => {
-  const seed = realVehicleSeeds[index % realVehicleSeeds.length];
-  const [make, name, className, startYear, endYear, currentBase, trims] = seed;
-  const cycle = Math.floor(index / realVehicleSeeds.length);
+const CATALOG_SIZE = 10000;
+const CATALOG_VARIANTS_PER_MODEL = Math.ceil(CATALOG_SIZE / vehicleModels.length);
+const catalog = Array.from({ length: CATALOG_SIZE }, (_, index) => {
+  const seed = vehicleModels[index % vehicleModels.length];
+  const { make, model, className, startYear, endYear, currentBase, photoUrl, photoSource } = seed;
+  const cycle = Math.floor(index / vehicleModels.length);
   const yearSpan = endYear - startYear + 1;
-  const year = startYear + ((cycle * 3 + index) % yearSpan);
-  const trim = trims[(cycle + index) % trims.length];
+  const year = startYear + Math.round(cycle * Math.max(0, yearSpan - 1) / Math.max(1, CATALOG_VARIANTS_PER_MODEL - 1));
   const age = Math.max(0, 2026 - year);
   const floor = depreciationFloor[className] || 0.18;
   const depreciation = floor + (1 - floor) * Math.pow(className === "electric" ? 0.91 : 0.945, age);
-  const trimPosition = trims.length > 1 ? trims.indexOf(trim) / (trims.length - 1) : 0.5;
-  const trimMultiplier = 0.88 + trimPosition * 0.28;
+  const trimMultiplier = 0.91 + stableVehicleUnit(`${model}:${year}`, "variant") * 0.18;
   const rarityPremium = age > 24 && ["classic", "coupe", "premium"].includes(className) ? 1 + Math.min(0.65, (age - 24) * 0.025) : 1;
   return {
-    // Комплектация влияет на цену, но не создаёт отдельную модель или фотографию.
-    make, photoQuery: `${make} ${name}`, model: `${make} ${name}`, trim, year,
+    make, model, photoQuery: model, photoUrl, photoSource, year,
     base: Math.max(60000, Math.min(100000000, Math.round(currentBase * depreciation * trimMultiplier * rarityPremium / 1000) * 1000)),
     className, color: vehicleColors[(index * 7 + cycle) % vehicleColors.length]
   };
@@ -101,7 +195,7 @@ const catalog = Array.from({ length: 10000 }, (_, index) => {
 
 const catalogByModel = new Map(catalog.map((item) => [item.model, item]));
 const modelReferenceValues = new Map();
-const modelCurrentValues = new Map(realVehicleSeeds.map(([make, name, , , , currentBase]) => [`${make} ${name}`, currentBase]));
+const modelCurrentValues = new Map(vehicleModels.map(({ model, currentBase }) => [model, currentBase]));
 for (const item of catalog) {
   const values = modelReferenceValues.get(item.model) || [];
   values.push(item.base);
@@ -113,9 +207,8 @@ for (const [model, values] of modelReferenceValues) {
 }
 
 function minimumNpcPrice(model) {
-  const current = modelCurrentValues.get(model) || modelReferenceValues.get(model) || 100000;
-  const factor = current <= 500000 ? 0.22 : current <= 2000000 ? 0.28 : current <= 5000000 ? 0.24 : current <= 15000000 ? 0.2 : 0.16;
-  return Math.max(40000, Math.round(current * factor / 1000) * 1000);
+  const reference = modelReferenceValues.get(model) || modelCurrentValues.get(model) || 100000;
+  return Math.max(40000, Math.round(reference * 0.38 / 1000) * 1000);
 }
 let marketStatsCache = null;
 let marketStatsCacheAt = 0;
@@ -428,7 +521,10 @@ function ensureCarDefaults(car) {
     car.history.push({ type: "migration", text: `Каталог обновлён: автомобиль идентифицирован как ${replacement.model}`, at: Date.now() });
   }
   car.make ||= String(car.model || "Автомобиль").split(" ")[0];
-  car.photoQuery ||= catalog.find((item) => item.model === car.model)?.photoQuery || car.model;
+  const catalogPhoto = catalogByModel.get(car.model) || catalog.find((item) => item.model === car.model);
+  car.photoQuery ||= catalogPhoto?.photoQuery || car.model;
+  car.photoUrl = catalogPhoto?.photoUrl || car.photoUrl || "";
+  car.photoSource = catalogPhoto?.photoSource || car.photoSource || "";
   car.discovered ||= [];
   car.repairs ||= [];
   car.checkedCategories ||= [];
@@ -847,6 +943,10 @@ function makeCar(index, seller = "Авторынок") {
   const naturalDefects = randomInt(1, Math.min(4, Math.floor(age / 4) + 1));
   const count = pricing.key === "project" ? Math.max(3, naturalDefects) : naturalDefects;
   const pool = [...defectCatalog].sort(() => Math.random() - 0.5).slice(0, count);
+  if (!pool.some((defect) => defectPartCatalog[defect.code])) {
+    const physicalDefects = defectCatalog.filter((defect) => defectPartCatalog[defect.code]);
+    pool[0] = physicalDefects[randomInt(0, physicalDefects.length - 1)];
+  }
   const wear = Math.min(0.4, mileage / 850000);
   const cleanValue = Math.round(item.base * (1 - wear) / 1000) * 1000;
   const provisional = { cleanValue, defects: pool.map((d) => ({ ...d, repaired: false })) };
@@ -856,7 +956,7 @@ function makeCar(index, seller = "Авторынок") {
   const asking = Math.max(minimumNpcPrice(item.model), Math.round((pricingBase * (pricing.min + Math.random() * (pricing.max - pricing.min))) / 1000) * 1000);
   const listedAt = Date.now();
   return {
-    id: id("car_"), make: item.make, photoQuery: item.photoQuery, model: item.model, year: item.year, mileage, price: asking,
+    id: id("car_"), make: item.make, photoQuery: item.photoQuery, photoUrl: item.photoUrl, photoSource: item.photoSource, model: item.model, year: item.year, mileage, price: asking,
     purchasePrice: asking, invested: asking, seller, sellerId: null, ownerId: null,
     color: item.color, className: item.className, cleanValue,
     condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92),
@@ -900,7 +1000,7 @@ function publicCar(car, ownerView = false, viewer = null) {
     ...(car.saleType === "auction" ? car.defects.filter((defect) => !defect.repaired).map((defect) => defect.code) : [])
   ]);
   const result = {
-    id: car.id, make: car.make, photoQuery: car.photoQuery, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
+    id: car.id, make: car.make, photoQuery: car.photoQuery, photoUrl: car.photoUrl, photoSource: car.photoSource, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
     condition: car.condition, description: car.description, repairs: car.repairs,
     marketTag: car.sellerId ? null : car.marketTag, listedAt: car.listedAt,
@@ -1148,7 +1248,8 @@ function finalizeGroupJobs() {
 setInterval(finalizeGroupJobs, 1000).unref();
 
 function seedMarket() {
-  for (let i = 0; i < 100; i += 1) market.push(makeCar(i));
+  // A prime step spreads the first market across models, years and price segments.
+  for (let i = 0; i < 100; i += 1) market.push(makeCar((i * 137) % catalog.length));
   for (const item of catalog) {
     const comparable = market.find((car) => car.model === item.model);
     const anchor = comparable ? currentValue(comparable) : Math.round(item.base * 0.78 / 1000) * 1000;
@@ -1302,7 +1403,7 @@ function finalizeContainers() {
         addLedger(winner, "container", `Автомобиль из контейнера: ${rewardCar.model}`, -auction.highestBid, { carId: rewardCar.id, category: "Автомобили" });
         const item = catalog.find((entry) => entry.model === rewardCar.model);
         const marketPrice = marketIndices[rewardCar.model]?.price || rewardCar.cleanValue;
-        winner.containerRewards.push({ id: id("reward_"), containerId: auction.id, tier: auction.tier, containerName: auction.name, paid: auction.highestBid, awardedAt: Date.now(), acknowledged: false, car: { id: rewardCar.id, make: rewardCar.make, photoQuery: rewardCar.photoQuery, model: rewardCar.model, year: rewardCar.year, mileage: rewardCar.mileage, condition: rewardCar.condition, className: rewardCar.className, color: rewardCar.color, cleanValue: rewardCar.cleanValue, estimatedValue: currentValue(rewardCar), marketPrice, defectCount: rewardCar.defects.length, rarity: item?.base >= 30000000 ? "Легендарный" : item?.base >= 8000000 ? "Редкий" : item?.base >= 1000000 ? "Необычный" : "Обычный" } });
+        winner.containerRewards.push({ id: id("reward_"), containerId: auction.id, tier: auction.tier, containerName: auction.name, paid: auction.highestBid, awardedAt: Date.now(), acknowledged: false, car: { id: rewardCar.id, make: rewardCar.make, photoQuery: rewardCar.photoQuery, photoUrl: rewardCar.photoUrl, photoSource: rewardCar.photoSource, model: rewardCar.model, year: rewardCar.year, mileage: rewardCar.mileage, condition: rewardCar.condition, className: rewardCar.className, color: rewardCar.color, cleanValue: rewardCar.cleanValue, estimatedValue: currentValue(rewardCar), marketPrice, defectCount: rewardCar.defects.length, rarity: item?.base >= 30000000 ? "Легендарный" : item?.base >= 8000000 ? "Редкий" : item?.base >= 1000000 ? "Необычный" : "Обычный" } });
       }
     }
     containerAuctions.splice(containerAuctions.indexOf(auction), 1); changed = true;
@@ -2170,6 +2271,8 @@ async function api(req, res, pathname) {
     else player.stats.workshopRepairs += 1;
     addXp(player, (selfRepair ? 60 : assistedRepair ? 40 : 25) + defect.severity * 10 + (selfRepair ? Math.round(interactionScore / 10) : 0));
     addLedger(player, "repair", `Ремонт: ${car.model} · ${defect.name}`, -totalCashCost, { carId: car.id, score: selfRepair ? interactionScore : null, category: "Гараж" });
+    // Repairs mutate nested part history; persist before responding so a restart cannot lose the installed component.
+    persistState();
     broadcast();
     return json(res, 200, snapshot(player));
   }

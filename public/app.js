@@ -100,7 +100,8 @@ function hydrateCarPhotos(root = document) {
     image.dataset.photoLoading = "true";
     const load = async () => {
       const art = image.closest(".car-art");
-      const photo = await resolveCarPhoto(image.dataset.carPhoto);
+      const directUrl = image.dataset.photoUrl;
+      const photo = directUrl ? { url: directUrl, source: image.dataset.photoSource || directUrl, license: "Источник фото" } : await resolveCarPhoto(image.dataset.carPhoto);
       if (!photo) { image.hidden = true; art?.classList.add("photo-failed"); return; }
       image.onload = () => {
         art?.classList.add("photo-loaded");
@@ -155,11 +156,11 @@ function initAds() {
 
 function carArt(car, extraClass = "") {
   const query = car.photoQuery || car.model;
-  const cached = storedCarPhotos[query];
+  const cached = car.photoUrl ? { url: car.photoUrl, source: car.photoSource || car.photoUrl, license: "Источник фото" } : storedCarPhotos[query];
   const ready = cached && cached.url;
   const unavailable = cached === null;
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass} ${ready ? "photo-loaded" : unavailable ? "photo-failed" : ""}" style="--car-color:${escapeHtml(car.color)}">
-    <img class="car-photo" data-car-photo="${escapeHtml(query)}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(cached.url)}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" referrerpolicy="no-referrer">
+    <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(cached.url)}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
     <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
     <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>

@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node smoke-test.js",
-    "test:persistence": "node persistence-test.js"
+    "test:persistence": "node persistence-test.js",
+    "catalog:years": "node enrich-vehicle-years.js"
   }
 }

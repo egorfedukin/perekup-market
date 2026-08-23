@@ -1,0 +1,1710 @@
+{
+  "Citroën 2CV": {
+    "startYear": 1948,
+    "endYear": 1990
+  },
+  "Peugeot 104": {
+    "startYear": 1974,
+    "endYear": 1982
+  },
+  "Peugeot 1007": {
+    "startYear": 2004,
+    "endYear": 2009
+  },
+  "Suzuki Alto": {
+    "startYear": 1979,
+    "endYear": 1987
+  },
+  "Suzuki Aerio": {
+    "startYear": 2006,
+    "endYear": 2014
+  },
+  "Hyundai Atos": {
+    "startYear": 1997,
+    "endYear": 2014
+  },
+  "Chevrolet Captiva": {
+    "startYear": 2018,
+    "endYear": 2026
+  },
+  "Proton Arena": {
+    "startYear": 2002,
+    "endYear": 2010
+  },
+  "Mitsubishi 380": {
+    "startYear": 1985,
+    "endYear": 1993
+  },
+  "Škoda 100": {
+    "startYear": 1969,
+    "endYear": 1977
+  },
+  "Hyundai Terracan": {
+    "startYear": 2001,
+    "endYear": 2007
+  },
+  "Lada 110": {
+    "startYear": 1995,
+    "endYear": 2009
+  },
+  "Opel (Olympia) Rekord P1": {
+    "startYear": 1957,
+    "endYear": 1965
+  },
+  "Peugeot 106": {
+    "startYear": 1991,
+    "endYear": 1999
+  },
+  "Renault 12": {
+    "startYear": 1969,
+    "endYear": 1977
+  },
+  "Suzuki Cappuccino": {
+    "startYear": 1991,
+    "endYear": 1998
+  },
+  "Fiat 1100": {
+    "startYear": 1953,
+    "endYear": 1969
+  },
+  "Kia Bongo": {
+    "startYear": 1980,
+    "endYear": 1988
+  },
+  "Smart Forfour": {
+    "startYear": 2003,
+    "endYear": 2006
+  },
+  "Daihatsu Applause": {
+    "startYear": 1989,
+    "endYear": 2000
+  },
+  "Škoda 110 R": {
+    "startYear": 1981,
+    "endYear": 1989
+  },
+  "Kia Heart": {
+    "startYear": 2008,
+    "endYear": 2025
+  },
+  "Dacia 1310": {
+    "startYear": 1999,
+    "endYear": 2006
+  },
+  "Proton Exora": {
+    "startYear": 2009,
+    "endYear": 2023
+  },
+  "Tata Aria": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "Proton EMAS": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "Hyundai BlueOn": {
+    "startYear": 2009,
+    "endYear": 2010
+  },
+  "Peugeot 107": {
+    "startYear": 2005,
+    "endYear": 2013
+  },
+  "Kia Pride": {
+    "startYear": 2011,
+    "endYear": 2017
+  },
+  "Proton GEN•2": {
+    "startYear": 2004,
+    "endYear": 2012
+  },
+  "Daewoo Espero": {
+    "startYear": 1990,
+    "endYear": 1997
+  },
+  "SEAT 128": {
+    "startYear": 1976,
+    "endYear": 1980
+  },
+  "Smart Fortwo": {
+    "startYear": 1998,
+    "endYear": 2024
+  },
+  "Peugeot 108": {
+    "startYear": 2014,
+    "endYear": 2022
+  },
+  "Dacia 1325": {
+    "startYear": 1991,
+    "endYear": 1996
+  },
+  "Proton Inspira": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "Hyundai Creta": {
+    "startYear": 2014,
+    "endYear": 2022
+  },
+  "Citroën Ami 6": {
+    "startYear": 1961,
+    "endYear": 1978
+  },
+  "Tata Indica": {
+    "startYear": 1998,
+    "endYear": 2006
+  },
+  "Daihatsu Bee": {
+    "startYear": 1951,
+    "endYear": 1952
+  },
+  "Kia Carnival": {
+    "startYear": 1998,
+    "endYear": 2026
+  },
+  "Mitsubishi Carisma": {
+    "startYear": 1995,
+    "endYear": 2004
+  },
+  "Hyundai Dynasty": {
+    "startYear": 1996,
+    "endYear": 2004
+  },
+  "SEAT 133": {
+    "startYear": 1974,
+    "endYear": 1979
+  },
+  "Proton Juara": {
+    "startYear": 2001,
+    "endYear": 2009
+  },
+  "Suzuki Cervo": {
+    "startYear": 1976,
+    "endYear": 1984
+  },
+  "Fiat 1200": {
+    "startYear": 1957,
+    "endYear": 1965
+  },
+  "Chevrolet Orlando": {
+    "startYear": 2010,
+    "endYear": 2023
+  },
+  "Hyundai Eon": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Dacia Dokker": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Proton P2-30A": {
+    "startYear": 2014,
+    "endYear": 2025
+  },
+  "Citroën AX": {
+    "startYear": 1986,
+    "endYear": 1998
+  },
+  "Tata Indigo": {
+    "startYear": 2002,
+    "endYear": 2018
+  },
+  "Mitsubishi Colt": {
+    "startYear": 1960,
+    "endYear": 1968
+  },
+  "Daihatsu Boon": {
+    "startYear": 2004,
+    "endYear": 2023
+  },
+  "Daewoo Lacetti": {
+    "startYear": 2004,
+    "endYear": 2012
+  },
+  "Hyundai Equus": {
+    "startYear": 1999,
+    "endYear": 2016
+  },
+  "Daewoo Lanos": {
+    "startYear": 1997,
+    "endYear": 2002
+  },
+  "Fiat Sedici": {
+    "startYear": 2005,
+    "endYear": 2013
+  },
+  "Proton Persona": {
+    "startYear": 1993,
+    "endYear": 2026
+  },
+  "Smart Roadster": {
+    "startYear": 2002,
+    "endYear": 2010
+  },
+  "Kia Cee'd": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Chevrolet Aveo T200": {
+    "startYear": 2002,
+    "endYear": 2010
+  },
+  "Proton Prevé": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Proton Perdana": {
+    "startYear": 1995,
+    "endYear": 2003
+  },
+  "Peugeot 205": {
+    "startYear": 1983,
+    "endYear": 1999
+  },
+  "Daihatsu Compagno": {
+    "startYear": 1963,
+    "endYear": 1970
+  },
+  "Chevrolet SSR": {
+    "startYear": 2003,
+    "endYear": 2006
+  },
+  "Kia Credos": {
+    "startYear": 1998,
+    "endYear": 2006
+  },
+  "Daewoo LeMans": {
+    "startYear": 1996,
+    "endYear": 1998
+  },
+  "Daewoo Leganza": {
+    "startYear": 1997,
+    "endYear": 2002
+  },
+  "Hyundai Galloper": {
+    "startYear": 1991,
+    "endYear": 2004
+  },
+  "Proton Putra": {
+    "startYear": 2004,
+    "endYear": 2012
+  },
+  "Dacia Nova": {
+    "startYear": 1995,
+    "endYear": 2000
+  },
+  "Hyundai Genesis": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "Mitsubishi Colt 600": {
+    "startYear": 1962,
+    "endYear": 1970
+  },
+  "Suzuki Ertiga": {
+    "startYear": 2013,
+    "endYear": 2017
+  },
+  "Ford Sierra": {
+    "startYear": 1982,
+    "endYear": 1993
+  },
+  "Volvo 140 Series": {
+    "startYear": 1966,
+    "endYear": 1974
+  },
+  "Mazda 121": {
+    "startYear": 1996,
+    "endYear": 2002
+  },
+  "Peugeot 206": {
+    "startYear": 1998,
+    "endYear": 2024
+  },
+  "Buick Apollo": {
+    "startYear": 1973,
+    "endYear": 1975
+  },
+  "Hyundai Getz": {
+    "startYear": 2002,
+    "endYear": 2011
+  },
+  "Proton Satria": {
+    "startYear": 1994,
+    "endYear": 2005
+  },
+  "GMC Acadia": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Geely BL": {
+    "startYear": 2003,
+    "endYear": 2006
+  },
+  "Honda 1300": {
+    "startYear": 1969,
+    "endYear": 1972
+  },
+  "Pontiac 2+2": {
+    "startYear": 1964,
+    "endYear": 1972
+  },
+  "SsangYong Actyon": {
+    "startYear": 2005,
+    "endYear": 2011
+  },
+  "Tata Nano": {
+    "startYear": 2008,
+    "endYear": 2018
+  },
+  "Chery A1": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Jeep Cherokee": {
+    "startYear": 1974,
+    "endYear": 1982
+  },
+  "Holden Commodore": {
+    "startYear": 1978,
+    "endYear": 2020
+  },
+  "Plymouth Barracuda": {
+    "startYear": 1964,
+    "endYear": 1974
+  },
+  "Isuzu Ascender": {
+    "startYear": 2003,
+    "endYear": 2011
+  },
+  "SsangYong Chairman": {
+    "startYear": 1997,
+    "endYear": 2017
+  },
+  "Mini (MkI)": {
+    "startYear": 1959,
+    "endYear": 1967
+  },
+  "Chery A11": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "BYD F0": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "Chrysler 200": {
+    "startYear": 2011,
+    "endYear": 2017
+  },
+  "Haval H5": {
+    "startYear": 2010,
+    "endYear": 2020
+  },
+  "Great Wall Cowry": {
+    "startYear": 2001,
+    "endYear": 2007
+  },
+  "Jeep Cherokee (KL)": {
+    "startYear": 2014,
+    "endYear": 2022
+  },
+  "Geely Borui": {
+    "startYear": 2015,
+    "endYear": 2022
+  },
+  "Haval H1": {
+    "startYear": 2013,
+    "endYear": 2021
+  },
+  "Nissan 240SX": {
+    "startYear": 1988,
+    "endYear": 1996
+  },
+  "Subaru 360": {
+    "startYear": 1958,
+    "endYear": 1971
+  },
+  "Pontiac Astre": {
+    "startYear": 1973,
+    "endYear": 1974
+  },
+  "Buick Skyhawk": {
+    "startYear": 1975,
+    "endYear": 1989
+  },
+  "Mercury Capri": {
+    "startYear": 1991,
+    "endYear": 1994
+  },
+  "Holden Apollo": {
+    "startYear": 1989,
+    "endYear": 1997
+  },
+  "Isuzu Aska": {
+    "startYear": 1990,
+    "endYear": 1993
+  },
+  "Ford EcoSport": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Geely CD": {
+    "startYear": 2009,
+    "endYear": 2011
+  },
+  "Jeep Cherokee (XJ)": {
+    "startYear": 1986,
+    "endYear": 1992
+  },
+  "Mini Clubman": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "BYD F3": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Chery A13": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Haval H6": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Ford Scorpio": {
+    "startYear": 1985,
+    "endYear": 1998
+  },
+  "Subaru Baja": {
+    "startYear": 2002,
+    "endYear": 2006
+  },
+  "Chrysler 300": {
+    "startYear": 2005,
+    "endYear": 2010
+  },
+  "Chrysler 300M": {
+    "startYear": 1999,
+    "endYear": 2004
+  },
+  "Nissan 300ZX": {
+    "startYear": 1983,
+    "endYear": 2000
+  },
+  "Jeep CJ": {
+    "startYear": 1945,
+    "endYear": 1986
+  },
+  "Subaru Alcyone SVX": {
+    "startYear": 1991,
+    "endYear": 1996
+  },
+  "Pontiac Aztek": {
+    "startYear": 2001,
+    "endYear": 2005
+  },
+  "Buick Centurion": {
+    "startYear": 1971,
+    "endYear": 1973
+  },
+  "Isuzu Axiom": {
+    "startYear": 2001,
+    "endYear": 2009
+  },
+  "Chery A15": {
+    "startYear": 2003,
+    "endYear": 2010
+  },
+  "SsangYong Korando": {
+    "startYear": 1983,
+    "endYear": 2006
+  },
+  "Geely CK": {
+    "startYear": 2007,
+    "endYear": 2008
+  },
+  "Toyota 86": {
+    "startYear": 2012,
+    "endYear": 2026
+  },
+  "Saab 9-3": {
+    "startYear": 1998,
+    "endYear": 2003
+  },
+  "Subaru BRAT": {
+    "startYear": 1978,
+    "endYear": 1994
+  },
+  "Buick Electra": {
+    "startYear": 1959,
+    "endYear": 1990
+  },
+  "Pontiac Bonneville": {
+    "startYear": 1957,
+    "endYear": 2005
+  },
+  "GMC Envoy": {
+    "startYear": 1998,
+    "endYear": 2009
+  },
+  "Nissan 350Z": {
+    "startYear": 2002,
+    "endYear": 2009
+  },
+  "Jeep Comanche": {
+    "startYear": 1986,
+    "endYear": 1992
+  },
+  "Oldsmobile Achieva": {
+    "startYear": 1992,
+    "endYear": 2000
+  },
+  "Honda Acty": {
+    "startYear": 1977,
+    "endYear": 2021
+  },
+  "Chery A5": {
+    "startYear": 2006,
+    "endYear": 2010
+  },
+  "MG 3": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Great Wall Haval H3": {
+    "startYear": 2005,
+    "endYear": 2012
+  },
+  "Mini Countryman": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "Chery A3": {
+    "startYear": 2008,
+    "endYear": 2015
+  },
+  "Rover 200": {
+    "startYear": 1984,
+    "endYear": 2005
+  },
+  "Holden Brougham": {
+    "startYear": 1968,
+    "endYear": 1971
+  },
+  "Jeep Commander": {
+    "startYear": 2005,
+    "endYear": 2010
+  },
+  "Honda Airwave": {
+    "startYear": 2005,
+    "endYear": 2010
+  },
+  "Mercury Commuter": {
+    "startYear": 1957,
+    "endYear": 1968
+  },
+  "Nissan 370Z": {
+    "startYear": 2008,
+    "endYear": 2020
+  },
+  "MG 350": {
+    "startYear": 2010,
+    "endYear": 2015
+  },
+  "Mini Coupé and Roadster": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Chery E5": {
+    "startYear": 2011,
+    "endYear": 2016
+  },
+  "Pontiac Catalina": {
+    "startYear": 1950,
+    "endYear": 1981
+  },
+  "Mercury Cougar": {
+    "startYear": 1967,
+    "endYear": 2002
+  },
+  "Oldsmobile Alero": {
+    "startYear": 1998,
+    "endYear": 2006
+  },
+  "Nissan Violet": {
+    "startYear": 1981,
+    "endYear": 1989
+  },
+  "Buick Estate": {
+    "startYear": 1949,
+    "endYear": 1953
+  },
+  "Jeep Compass": {
+    "startYear": 2006,
+    "endYear": 2014
+  },
+  "SsangYong Musso": {
+    "startYear": 1993,
+    "endYear": 2005
+  },
+  "Oldsmobile Vista Cruiser": {
+    "startYear": 1964,
+    "endYear": 1977
+  },
+  "Rover 200 Coupé": {
+    "startYear": 1992,
+    "endYear": 2000
+  },
+  "Isuzu D-Max": {
+    "startYear": 2003,
+    "endYear": 2008
+  },
+  "BYD Flyer": {
+    "startYear": 2005,
+    "endYear": 2008
+  },
+  "Subaru Exiga": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Mini E": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "MG 5": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Mini Hatch": {
+    "startYear": 2006,
+    "endYear": 2014
+  },
+  "Great Wall Sailor": {
+    "startYear": 2001,
+    "endYear": 2010
+  },
+  "Oldsmobile Aurora": {
+    "startYear": 1994,
+    "endYear": 2003
+  },
+  "Ford Aerostar": {
+    "startYear": 1995,
+    "endYear": 2003
+  },
+  "Honda Ascot": {
+    "startYear": 1989,
+    "endYear": 1997
+  },
+  "Rover 400 / 45": {
+    "startYear": 1990,
+    "endYear": 2005
+  },
+  "Holden Caprice": {
+    "startYear": 1990,
+    "endYear": 1998
+  },
+  "SsangYong Rexton": {
+    "startYear": 2017,
+    "endYear": 2025
+  },
+  "Saab 9-4X": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "Chery V5": {
+    "startYear": 2006,
+    "endYear": 2015
+  },
+  "Toyota AE85": {
+    "startYear": 1983,
+    "endYear": 1987
+  },
+  "Isuzu Fargo": {
+    "startYear": 1995,
+    "endYear": 2003
+  },
+  "MG 7": {
+    "startYear": 2022,
+    "endYear": 2026
+  },
+  "Buick Excelle": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "BYD G3": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "Toyota AE86": {
+    "startYear": 1983,
+    "endYear": 1987
+  },
+  "Plymouth Caravelle": {
+    "startYear": 1983,
+    "endYear": 1991
+  },
+  "Oldsmobile Bravada": {
+    "startYear": 1991,
+    "endYear": 2004
+  },
+  "Vauxhall Belmont": {
+    "startYear": 1985,
+    "endYear": 1993
+  },
+  "GMC Sprint": {
+    "startYear": 1971,
+    "endYear": 1977
+  },
+  "Buick GL8": {
+    "startYear": 1999,
+    "endYear": 2007
+  },
+  "Holden Captiva": {
+    "startYear": 2006,
+    "endYear": 2018
+  },
+  "Dodge 440": {
+    "startYear": 1962,
+    "endYear": 1964
+  },
+  "Great Wall Voleex C30": {
+    "startYear": 2010,
+    "endYear": 2016
+  },
+  "Dodge 600": {
+    "startYear": 1983,
+    "endYear": 1988
+  },
+  "GMC Syclone": {
+    "startYear": 1992,
+    "endYear": 1993
+  },
+  "Volvo 480": {
+    "startYear": 1986,
+    "endYear": 1995
+  },
+  "Mercury Cyclone": {
+    "startYear": 1964,
+    "endYear": 1971
+  },
+  "Ford Landau Australia": {
+    "startYear": 1973,
+    "endYear": 1976
+  },
+  "Geely LC": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "Great Wall Voleex C50": {
+    "startYear": 2012,
+    "endYear": 2016
+  },
+  "Volvo 66": {
+    "startYear": 1975,
+    "endYear": 1983
+  },
+  "Nissan Maxima": {
+    "startYear": 1982,
+    "endYear": 1990
+  },
+  "Rover 600 Series": {
+    "startYear": 1993,
+    "endYear": 1999
+  },
+  "GMC Typhoon": {
+    "startYear": 1992,
+    "endYear": 1993
+  },
+  "Oldsmobile Custom Cruiser": {
+    "startYear": 1971,
+    "endYear": 1992
+  },
+  "Chery QQ6": {
+    "startYear": 2010,
+    "endYear": 2013
+  },
+  "Holden Commodore (VC)": {
+    "startYear": 1980,
+    "endYear": 1981
+  },
+  "Ford AU Falcon": {
+    "startYear": 1998,
+    "endYear": 2002
+  },
+  "BYD M6 (2010)": {
+    "startYear": 2013,
+    "endYear": 2021
+  },
+  "Mini Paceman": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "BYD Qin": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Geely Yuanjing X6": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Vauxhall Chevette": {
+    "startYear": 1975,
+    "endYear": 1984
+  },
+  "Lexus GS": {
+    "startYear": 1991,
+    "endYear": 1999
+  },
+  "Lincoln Aviator": {
+    "startYear": 2006,
+    "endYear": 2020
+  },
+  "Rover 75 R40": {
+    "startYear": 1998,
+    "endYear": 2005
+  },
+  "Dodge Aspen": {
+    "startYear": 1976,
+    "endYear": 1980
+  },
+  "Lexus ES": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Honda Capa": {
+    "startYear": 1997,
+    "endYear": 2005
+  },
+  "Acura ARX-01": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Cadillac ATS": {
+    "startYear": 2013,
+    "endYear": 2019
+  },
+  "Lexus CT": {
+    "startYear": 2010,
+    "endYear": 2018
+  },
+  "BMW 1 Series": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Tesla Model 3": {
+    "startYear": 2017,
+    "endYear": 2025
+  },
+  "Jaguar E-Type": {
+    "startYear": 1961,
+    "endYear": 1974
+  },
+  "Acura EL": {
+    "startYear": 1997,
+    "endYear": 2003
+  },
+  "Lincoln Continental": {
+    "startYear": 1939,
+    "endYear": 1947
+  },
+  "Mercedes-Benz 300 SL": {
+    "startYear": 1954,
+    "endYear": 1957
+  },
+  "Acura CL": {
+    "startYear": 1997,
+    "endYear": 2003
+  },
+  "Alfa Romeo 147": {
+    "startYear": 2000,
+    "endYear": 2010
+  },
+  "Land Rover Freelander": {
+    "startYear": 1997,
+    "endYear": 2015
+  },
+  "Jaguar C-Type": {
+    "startYear": 1951,
+    "endYear": 1953
+  },
+  "Cadillac Brougham": {
+    "startYear": 1987,
+    "endYear": 1992
+  },
+  "Lexus GX": {
+    "startYear": 2002,
+    "endYear": 2010
+  },
+  "Infiniti G": {
+    "startYear": 1991,
+    "endYear": 1996
+  },
+  "Acura CSX": {
+    "startYear": 2006,
+    "endYear": 2011
+  },
+  "Maserati 200S": {
+    "startYear": 1955,
+    "endYear": 1963
+  },
+  "Tesla Model X": {
+    "startYear": 2015,
+    "endYear": 2026
+  },
+  "Land Rover Range Rover (P38A)": {
+    "startYear": 1994,
+    "endYear": 2002
+  },
+  "Lincoln Continental Mark IV": {
+    "startYear": 1972,
+    "endYear": 1976
+  },
+  "Mercedes-Benz 300SEL 6.3": {
+    "startYear": 1967,
+    "endYear": 1972
+  },
+  "Acura MDX": {
+    "startYear": 2000,
+    "endYear": 2008
+  },
+  "Audi 80": {
+    "startYear": 1966,
+    "endYear": 1996
+  },
+  "Lexus IS": {
+    "startYear": 1998,
+    "endYear": 2005
+  },
+  "Alfa Romeo 156": {
+    "startYear": 1997,
+    "endYear": 2005
+  },
+  "Cadillac Catera": {
+    "startYear": 1997,
+    "endYear": 2001
+  },
+  "Audi 50": {
+    "startYear": 1974,
+    "endYear": 1978
+  },
+  "Infiniti Q45": {
+    "startYear": 1990,
+    "endYear": 2006
+  },
+  "Mercedes-Benz Vito": {
+    "startYear": 2004,
+    "endYear": 2012
+  },
+  "Lexus HS": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "Lexus IS (XE20)": {
+    "startYear": 2005,
+    "endYear": 2013
+  },
+  "Acura ILX": {
+    "startYear": 2013,
+    "endYear": 2022
+  },
+  "BMW 3 Series": {
+    "startYear": 1986,
+    "endYear": 1994
+  },
+  "Acura RL": {
+    "startYear": 1996,
+    "endYear": 2012
+  },
+  "Cadillac CTS": {
+    "startYear": 2002,
+    "endYear": 2019
+  },
+  "BMW 3 Series (E46)": {
+    "startYear": 1997,
+    "endYear": 2006
+  },
+  "Lexus LFA": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "Alfa Romeo 159": {
+    "startYear": 2005,
+    "endYear": 2013
+  },
+  "Maserati 3200 GT": {
+    "startYear": 1998,
+    "endYear": 2002
+  },
+  "Mercedes-Benz 380": {
+    "startYear": 1933,
+    "endYear": 1941
+  },
+  "Infiniti Q50": {
+    "startYear": 2013,
+    "endYear": 2021
+  },
+  "Infiniti Q60": {
+    "startYear": 2016,
+    "endYear": 2024
+  },
+  "Acura TSX": {
+    "startYear": 2004,
+    "endYear": 2014
+  },
+  "Jaguar X-Type": {
+    "startYear": 2001,
+    "endYear": 2009
+  },
+  "Acura TL": {
+    "startYear": 1995,
+    "endYear": 2003
+  },
+  "Jaguar S-Type": {
+    "startYear": 1999,
+    "endYear": 2007
+  },
+  "Lexus LX": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Mercedes-Benz 500E": {
+    "startYear": 1991,
+    "endYear": 1995
+  },
+  "Alfa Romeo 1750": {
+    "startYear": 1968,
+    "endYear": 1977
+  },
+  "Alfa Romeo 1900": {
+    "startYear": 1950,
+    "endYear": 1959
+  },
+  "Maserati 5000 GT": {
+    "startYear": 1959,
+    "endYear": 1966
+  },
+  "Infiniti QX50": {
+    "startYear": 2013,
+    "endYear": 2021
+  },
+  "Lexus LS600h": {
+    "startYear": 2001,
+    "endYear": 2009
+  },
+  "Acura ZDX (2009)": {
+    "startYear": 2009,
+    "endYear": 2017
+  },
+  "BMW 3 Series (F30)": {
+    "startYear": 2011,
+    "endYear": 2018
+  },
+  "Jaguar XE": {
+    "startYear": 2014,
+    "endYear": 2022
+  },
+  "Cadillac Escalade": {
+    "startYear": 1999,
+    "endYear": 2007
+  },
+  "Maserati MC12": {
+    "startYear": 2004,
+    "endYear": 2005
+  },
+  "Pagani Zonda": {
+    "startYear": 1999,
+    "endYear": 2007
+  },
+  "Lamborghini 350 GT": {
+    "startYear": 1964,
+    "endYear": 1972
+  },
+  "Alfa Romeo 2600": {
+    "startYear": 1962,
+    "endYear": 1968
+  },
+  "Mercedes-Benz C11": {
+    "startYear": 1990,
+    "endYear": 1998
+  },
+  "Pagani Huayra": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Alfa Romeo 2300": {
+    "startYear": 1974,
+    "endYear": 1978
+  },
+  "Jaguar XJ (X308)": {
+    "startYear": 1997,
+    "endYear": 2002
+  },
+  "McLaren 570S": {
+    "startYear": 2015,
+    "endYear": 2021
+  },
+  "Jaguar XF (X260)": {
+    "startYear": 2015,
+    "endYear": 2024
+  },
+  "Lamborghini Murciélago": {
+    "startYear": 2001,
+    "endYear": 2009
+  },
+  "Lamborghini Countach": {
+    "startYear": 1974,
+    "endYear": 1990
+  },
+  "Porsche 904": {
+    "startYear": 1963,
+    "endYear": 1965
+  },
+  "Bentley Arnage": {
+    "startYear": 1998,
+    "endYear": 2009
+  },
+  "Lamborghini Gallardo": {
+    "startYear": 2003,
+    "endYear": 2013
+  },
+  "Bugatti EB110": {
+    "startYear": 1992,
+    "endYear": 1995
+  },
+  "Aston Martin DB Mark III": {
+    "startYear": 1957,
+    "endYear": 1959
+  },
+  "Aston Martin DB4": {
+    "startYear": 1958,
+    "endYear": 1963
+  },
+  "Lamborghini Aventador": {
+    "startYear": 2011,
+    "endYear": 2022
+  },
+  "Bentley Bentayga": {
+    "startYear": 2015,
+    "endYear": 2023
+  },
+  "Alpine A210": {
+    "startYear": 1966,
+    "endYear": 1969
+  },
+  "Pagani Zonda R": {
+    "startYear": 2007,
+    "endYear": 2015
+  },
+  "Rolls-Royce Ghost": {
+    "startYear": 2011,
+    "endYear": 2019
+  },
+  "Rolls-Royce Phantom Coupé": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "SEAT 124": {
+    "startYear": 1968,
+    "endYear": 1980
+  },
+  "SEAT 1200 Sport": {
+    "startYear": 1976,
+    "endYear": 1979
+  },
+  "Tata TL": {
+    "startYear": 1988,
+    "endYear": 2026
+  },
+  "Škoda 1000 MB": {
+    "startYear": 1964,
+    "endYear": 1969
+  },
+  "Dacia 1300": {
+    "startYear": 1969,
+    "endYear": 1984
+  },
+  "Dacia Sandero/Renault Sandero": {
+    "startYear": 2008,
+    "endYear": 2026
+  },
+  "Opel 1.2 litre": {
+    "startYear": 1931,
+    "endYear": 1937
+  },
+  "Citroën ZX": {
+    "startYear": 1991,
+    "endYear": 2013
+  },
+  "Hyundai Avante (Elantra)": {
+    "startYear": 1990,
+    "endYear": 2026
+  },
+  "Daihatsu Ayla": {
+    "startYear": 2013,
+    "endYear": 2026
+  },
+  "Chevrolet Spin": {
+    "startYear": 2012,
+    "endYear": 2026
+  },
+  "Škoda 1100 OHC": {
+    "startYear": 1957,
+    "endYear": 1960
+  },
+  "Kia Carens": {
+    "startYear": 1999,
+    "endYear": 2026
+  },
+  "Renault 14": {
+    "startYear": 1976,
+    "endYear": 1983
+  },
+  "Mitsubishi ASX": {
+    "startYear": 2010,
+    "endYear": 2026
+  },
+  "Peugeot 2008": {
+    "startYear": 2013,
+    "endYear": 2026
+  },
+  "Suzuki Celerio": {
+    "startYear": 2008,
+    "endYear": 2026
+  },
+  "Dacia Logan": {
+    "startYear": 2004,
+    "endYear": 2026
+  },
+  "Dacia Lăstun": {
+    "startYear": 1988,
+    "endYear": 1991
+  },
+  "Kia Cerato": {
+    "startYear": 2003,
+    "endYear": 2026
+  },
+  "Kia Concord": {
+    "startYear": 1987,
+    "endYear": 1996
+  },
+  "Suzuki Equator": {
+    "startYear": 2008,
+    "endYear": 2012
+  },
+  "Škoda 120": {
+    "startYear": 1976,
+    "endYear": 1990
+  },
+  "Citroën Berlingo": {
+    "startYear": 1996,
+    "endYear": 2026
+  },
+  "Nissan 180SX": {
+    "startYear": 1989,
+    "endYear": 1998
+  },
+  "Isuzu 117 Coupé": {
+    "startYear": 1968,
+    "endYear": 1981
+  },
+  "Citroën Berlingo électrique": {
+    "startYear": 1998,
+    "endYear": 2005
+  },
+  "Hyundai Genesis Coupe": {
+    "startYear": 2008,
+    "endYear": 2016
+  },
+  "BYD e6": {
+    "startYear": 2009,
+    "endYear": 2026
+  },
+  "Suzuki Every": {
+    "startYear": 1982,
+    "endYear": 2026
+  },
+  "Chevrolet Agile": {
+    "startYear": 2009,
+    "endYear": 2016
+  },
+  "Great Wall Coolbear": {
+    "startYear": 2009,
+    "endYear": 2015
+  },
+  "Honda Accord": {
+    "startYear": 1976,
+    "endYear": 2026
+  },
+  "Volvo 164": {
+    "startYear": 1968,
+    "endYear": 1975
+  },
+  "Toyota 2000GT": {
+    "startYear": 1967,
+    "endYear": 1970
+  },
+  "Toyota 4Runner": {
+    "startYear": 1983,
+    "endYear": 2026
+  },
+  "Buick Bengal": {
+    "startYear": 2001,
+    "endYear": 2001
+  },
+  "Volkswagen Amarok": {
+    "startYear": 2010,
+    "endYear": 2026
+  },
+  "Holden Astra": {
+    "startYear": 1984,
+    "endYear": 2020
+  },
+  "Holden Barina": {
+    "startYear": 1985,
+    "endYear": 2018
+  },
+  "Toyota Alphard": {
+    "startYear": 2002,
+    "endYear": 2026
+  },
+  "Plymouth Belmont": {
+    "startYear": 1953,
+    "endYear": 1953
+  },
+  "BYD F3DM": {
+    "startYear": 2008,
+    "endYear": 2013
+  },
+  "Great Wall Florid": {
+    "startYear": 2008,
+    "endYear": 2013
+  },
+  "Volkswagen Bora": {
+    "startYear": 1999,
+    "endYear": 2015
+  },
+  "Dodge 330": {
+    "startYear": 1962,
+    "endYear": 1965
+  },
+  "Oldsmobile Aerotech": {
+    "startYear": 1987,
+    "endYear": 1992
+  },
+  "Great Wall Peri": {
+    "startYear": 2007,
+    "endYear": 2010
+  },
+  "BYD F6": {
+    "startYear": 2008,
+    "endYear": 2012
+  },
+  "Volvo 262C": {
+    "startYear": 1977,
+    "endYear": 1981
+  },
+  "Volkswagen Bora (China)": {
+    "startYear": 2001,
+    "endYear": 2026
+  },
+  "Holden Camira": {
+    "startYear": 1982,
+    "endYear": 1989
+  },
+  "Nissan AD": {
+    "startYear": 1982,
+    "endYear": 2026
+  },
+  "SsangYong Kyron": {
+    "startYear": 2005,
+    "endYear": 2015
+  },
+  "Pontiac Can Am": {
+    "startYear": 1977,
+    "endYear": 1977
+  },
+  "MG 6": {
+    "startYear": 2009,
+    "endYear": 2026
+  },
+  "Honda Amaze": {
+    "startYear": 2013,
+    "endYear": 2026
+  },
+  "Buick Envision": {
+    "startYear": 2014,
+    "endYear": 2026
+  },
+  "Subaru Forester": {
+    "startYear": 1997,
+    "endYear": 2026
+  },
+  "Ford Anglia": {
+    "startYear": 1939,
+    "endYear": 1967
+  },
+  "Dodge 400": {
+    "startYear": 1981,
+    "endYear": 1983
+  },
+  "Nissan Almera": {
+    "startYear": 1995,
+    "endYear": 2026
+  },
+  "Honda Avancier": {
+    "startYear": 1999,
+    "endYear": 2003
+  },
+  "Jeep DJ": {
+    "startYear": 1955,
+    "endYear": 1984
+  },
+  "Great Wall Voleex C10": {
+    "startYear": 2010,
+    "endYear": 2014
+  },
+  "Mazda 929": {
+    "startYear": 1973,
+    "endYear": 1997
+  },
+  "SsangYong Rodius": {
+    "startYear": 2004,
+    "endYear": 2019
+  },
+  "Volvo 440/460": {
+    "startYear": 1988,
+    "endYear": 1996
+  },
+  "Nissan Almera Tino": {
+    "startYear": 1998,
+    "endYear": 2006
+  },
+  "Isuzu Faster": {
+    "startYear": 1972,
+    "endYear": 2002
+  },
+  "BYD G6": {
+    "startYear": 2011,
+    "endYear": 2018
+  },
+  "Geely KingKong": {
+    "startYear": 2006,
+    "endYear": 2020
+  },
+  "Subaru Impreza": {
+    "startYear": 1992,
+    "endYear": 2026
+  },
+  "Nissan Altima": {
+    "startYear": 1992,
+    "endYear": 2026
+  },
+  "Saab 9-7X": {
+    "startYear": 2004,
+    "endYear": 2008
+  },
+  "Honda Beat": {
+    "startYear": 1991,
+    "endYear": 1996
+  },
+  "SsangYong WZ": {
+    "startYear": 2007,
+    "endYear": 2007
+  },
+  "SsangYong Tivoli": {
+    "startYear": 2015,
+    "endYear": 2026
+  },
+  "BYD L3": {
+    "startYear": 2010,
+    "endYear": 2015
+  },
+  "Ford Laser": {
+    "startYear": 1981,
+    "endYear": 2005
+  },
+  "Oldsmobile Cutlass": {
+    "startYear": 1961,
+    "endYear": 1999
+  },
+  "MG D-type": {
+    "startYear": 1931,
+    "endYear": 1932
+  },
+  "Great Wall Wingle": {
+    "startYear": 2006,
+    "endYear": 2026
+  },
+  "Honda Brio": {
+    "startYear": 2011,
+    "endYear": 2026
+  },
+  "Mercury Cyclone Spoiler II": {
+    "startYear": 1969,
+    "endYear": 1969
+  },
+  "Jeep Grand Cherokee (WJ)": {
+    "startYear": 1998,
+    "endYear": 2005
+  },
+  "Infiniti J30": {
+    "startYear": 1992,
+    "endYear": 1997
+  },
+  "Lincoln Blackwood": {
+    "startYear": 2000,
+    "endYear": 2002
+  },
+  "Cadillac BLS": {
+    "startYear": 2005,
+    "endYear": 2010
+  },
+  "Mercedes-Benz 190 SL": {
+    "startYear": 1955,
+    "endYear": 1963
+  },
+  "GMC Terrain": {
+    "startYear": 2009,
+    "endYear": 2026
+  },
+  "Jeep Grand Cherokee (WK)": {
+    "startYear": 2004,
+    "endYear": 2010
+  },
+  "Jaguar F-Pace": {
+    "startYear": 2016,
+    "endYear": 2025
+  },
+  "Acura RDX": {
+    "startYear": 2006,
+    "endYear": 2026
+  },
+  "Cadillac Cien": {
+    "startYear": 2002,
+    "endYear": 2002
+  },
+  "Maserati 3500 GT": {
+    "startYear": 1957,
+    "endYear": 1964
+  },
+  "Maserati 300S": {
+    "startYear": 1955,
+    "endYear": 1958
+  },
+  "Cadillac Ciel": {
+    "startYear": 2011,
+    "endYear": 2011
+  },
+  "Infiniti Q30": {
+    "startYear": 2015,
+    "endYear": 2019
+  },
+  "Infiniti Q70": {
+    "startYear": 2013,
+    "endYear": 2019
+  },
+  "Alfa Romeo 166": {
+    "startYear": 1996,
+    "endYear": 2007
+  },
+  "Infiniti QX60": {
+    "startYear": 2012,
+    "endYear": 2026
+  },
+  "Acura RLX": {
+    "startYear": 2012,
+    "endYear": 2020
+  },
+  "Infiniti QX30": {
+    "startYear": 2016,
+    "endYear": 2019
+  },
+  "Audi A2": {
+    "startYear": 1999,
+    "endYear": 2005
+  },
+  "Lincoln LS": {
+    "startYear": 1999,
+    "endYear": 2006
+  },
+  "Rolls-Royce 100EX": {
+    "startYear": 2004,
+    "endYear": 2006
+  },
+  "Alfa Romeo 2000": {
+    "startYear": 1958,
+    "endYear": 1962
+  },
+  "Lamborghini 400 GT": {
+    "startYear": 1966,
+    "endYear": 1968
+  },
+  "Bugatti 18/3 Chiron": {
+    "startYear": 1999,
+    "endYear": 1999
+  },
+  "Infiniti QX80": {
+    "startYear": 2004,
+    "endYear": 2026
+  },
+  "Lexus RX": {
+    "startYear": 1997,
+    "endYear": 2026
+  },
+  "Lexus RC": {
+    "startYear": 2014,
+    "endYear": 2025
+  },
+  "Mercedes-Benz AMG Vision Gran Turismo": {
+    "startYear": 2013,
+    "endYear": 2013
+  },
+  "McLaren F1": {
+    "startYear": 1992,
+    "endYear": 1998
+  },
+  "Maybach 57 and 62": {
+    "startYear": 2002,
+    "endYear": 2013
+  },
+  "Ferrari 212 Inter": {
+    "startYear": 1951,
+    "endYear": 1952
+  },
+  "Maybach Exelero": {
+    "startYear": 2004,
+    "endYear": 2004
+  },
+  "Lotus 2-Eleven": {
+    "startYear": 2007,
+    "endYear": 2011
+  },
+  "Bentley Continental Flying Spur": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Aston Martin DB6": {
+    "startYear": 1965,
+    "endYear": 1971
+  },
+  "Porsche 907": {
+    "startYear": 1967,
+    "endYear": 1968
+  },
+  "Bentley Continental": {
+    "startYear": 1952,
+    "endYear": 2026
+  },
+  "Lamborghini Egoista": {
+    "startYear": 2013,
+    "endYear": 2013
+  },
+  "Bentley Brooklands Coupé": {
+    "startYear": 2008,
+    "endYear": 2011
+  }
+}
