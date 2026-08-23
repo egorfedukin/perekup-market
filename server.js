@@ -1258,12 +1258,37 @@ function seedMarket() {
     }
   }
 }
+
+function refreshLegacyNpcCatalog() {
+  const npcCars = market.filter((car) => !car.sellerId);
+  const hasLegacyModels = npcCars.some((car) => !catalogByModel.has(car.model));
+  const uniqueModels = new Set(npcCars.map((car) => car.model)).size;
+  if (!hasLegacyModels && uniqueModels >= Math.min(85, npcCars.length)) return;
+
+  // Keep lots with real player participation; only replace free NPC inventory.
+  for (let index = market.length - 1; index >= 0; index -= 1) {
+    const car = market[index];
+    const protectedAuction = car.saleType === "auction" && ((car.participantIds || []).length || car.highestBidderType === "player");
+    if (!car.sellerId && !protectedAuction) market.splice(index, 1);
+  }
+  const occupiedModels = new Set(market.filter((car) => !car.sellerId).map((car) => car.model));
+  for (let cursor = 0; market.filter((car) => !car.sellerId).length < 100 && cursor < catalog.length; cursor += 1) {
+    const itemIndex = (cursor * 137) % catalog.length;
+    const item = catalog[itemIndex];
+    if (occupiedModels.has(item.model)) continue;
+    market.push(makeCar(itemIndex));
+    occupiedModels.add(item.model);
+  }
+  marketStatsCache = null;
+  persistState();
+}
 if (!loadState()) {
   seedMarket();
   persistState();
 }
 restockAssetMarket();
 initializeMarketIndices();
+refreshLegacyNpcCatalog();
 restock();
 rebalanceNpcMarket();
 function publishPartLot(itemOrType, condition = "new", price = null, seller = "Магазин", sellerId = null) {
