@@ -21,6 +21,88 @@
   --shadow-deep: 0 24px 70px rgba(10,8,5,.4);
 }
 
+/* Community, private messages and vehicle registration. */
+.cash-compact { display: none !important; }
+#garage-view .workspace-switcher { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.car-plate { position: absolute; z-index: 5; left: 50%; bottom: 9px; transform: translateX(-50%); padding: 3px 7px; border: 1px solid #222; border-radius: 3px; background: #fff; color: #111; font-family: var(--font-mono); font-size: 8px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+.plate-dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 1px; margin-bottom: 14px; border: 1px solid var(--line); background: var(--line); }
+.plate-dashboard > div { padding: 14px; background: var(--surface); }
+.plate-dashboard span, .plate-dashboard strong { display: block; }
+.plate-dashboard span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.plate-dashboard strong { margin-top: 4px; font-size: 22px; }
+.plate-dashboard > button { min-height: 100%; border-radius: 0; }
+.registration-panel, .plate-section { margin-bottom: 16px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+.registration-list { display: grid; gap: 8px; margin-top: 14px; }
+.registration-car { display: grid; grid-template-columns: 170px minmax(180px, 1fr) minmax(260px, auto); align-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-s); }
+.registration-car .car-art { width: 100%; min-width: 0; height: 108px; aspect-ratio: auto; }
+.registration-car > div:not(.car-art) { min-width: 0; display: grid; gap: 5px; padding: 12px; overflow-wrap: anywhere; }
+.registration-car small { color: var(--muted); font-size: 9px; }
+.registration-status { width: max-content; padding: 3px 6px; border-radius: 3px; background: #f3e7e1; color: var(--danger); font-size: 9px; font-weight: 800; }
+.registration-status.registered { background: #e6efe5; color: var(--green); }
+.registration-actions { grid-template-columns: minmax(150px, 1fr) auto; }
+.registration-actions select { min-width: 0; height: 40px; border: 1px solid var(--line); background: white; }
+.plate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.plate-card { display: grid; gap: 10px; align-content: start; padding: 13px; border: 1px solid var(--line); border-left: 4px solid #8b9198; border-radius: var(--radius-s); background: #fff; }
+.plate-card.rarity-rare { border-left-color: #397a82; }
+.plate-card.rarity-premium { border-left-color: #b47b18; }
+.plate-card.rarity-legendary { border-left-color: #9d4038; background: #fffaf0; }
+.license-plate { width: min(250px, 100%); display: grid; grid-template-columns: 1fr 54px; align-items: center; overflow: hidden; border: 3px solid #191919; border-radius: 7px; background: #fff; color: #111; box-shadow: inset 0 0 0 1px #aaa; }
+.license-plate strong { padding: 8px 7px; font-family: var(--font-mono); font-size: 21px; text-align: center; letter-spacing: 0; white-space: nowrap; }
+.license-plate span { align-self: stretch; display: grid; place-items: center; border-left: 2px solid #222; font-family: var(--font-mono); font-size: 9px; font-weight: 800; line-height: 1.1; text-align: center; }
+.plate-meta strong, .plate-meta small, .plate-offer strong, .plate-offer small { display: block; }
+.plate-meta small, .plate-offer small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.plate-list-action, .plate-offer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-top: auto; }
+.plate-list-action input { min-width: 0; height: 40px; border: 1px solid var(--line); padding: 0 8px; }
+.plate-offer strong, .plate-offer small { grid-column: 1 / -1; }
+.plate-offer button { grid-column: 1 / -1; }
+.plate-filters { display: grid; grid-template-columns: 1fr 220px; gap: 8px; margin-top: 14px; }
+.plate-filters input, .plate-filters select { min-width: 0; height: 42px; border: 1px solid var(--line); padding: 0 10px; background: #fff; }
+.plate-empty { grid-column: 1 / -1; padding: 28px 14px; border: 1px dashed var(--line); color: var(--muted); font-size: 11px; text-align: center; }
+.chat-switcher { max-width: 680px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.direct-shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: min(68vh, 720px); min-height: 520px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+.direct-sidebar { min-width: 0; overflow: hidden; border-right: 1px solid var(--line); }
+.direct-sidebar label { display: grid; gap: 5px; padding: 12px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.direct-sidebar input { min-width: 0; height: 42px; border: 1px solid var(--line); padding: 0 10px; }
+.direct-users { height: calc(100% - 77px); overflow-y: auto; border-top: 1px solid var(--line); }
+.direct-user { width: 100%; min-height: 62px; display: grid; gap: 4px; border: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.direct-user:hover, .direct-user.active { background: #f2ead4; }
+.direct-user span { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 800; }
+.direct-user b { min-width: 18px; height: 18px; display: grid; place-items: center; border-radius: 9px; background: var(--danger); color: #fff; font-size: 9px; }
+.direct-user small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.direct-conversation { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; }
+#direct-head { min-height: 62px; display: grid; align-content: center; gap: 3px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+#direct-head strong, #direct-head span { display: block; }
+#direct-head span { color: var(--muted); font-size: 9px; }
+.direct-messages { height: auto; min-height: 0; }
+
+@media (max-width: 760px) {
+  .wallet #cash { display: none; }
+  .wallet .cash-compact { display: block !important; max-width: 116px; overflow: visible; font-size: 11px; text-overflow: clip; }
+  .wallet span { display: block !important; color: var(--muted); font-size: 8px; }
+  #garage-view .workspace-switcher button { padding-right: 5px; padding-left: 5px; font-size: 10px; }
+  #garage-view .workspace-switcher button span { font-size: 7px; }
+  .plate-dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .plate-dashboard > button { grid-column: 1 / -1; min-height: 48px; }
+  .registration-panel, .plate-section { padding: 12px; }
+  .registration-car { grid-template-columns: 105px minmax(0, 1fr); }
+  .registration-car .car-art { height: 92px; }
+  .registration-actions { grid-column: 1 / -1; grid-template-columns: 1fr; border-top: 1px solid var(--line); }
+  .registration-actions button, .registration-actions select { width: 100%; min-height: 44px; }
+  .plate-grid { grid-template-columns: 1fr; }
+  .plate-filters { grid-template-columns: 1fr; }
+  .direct-shell { grid-template-columns: 122px minmax(0, 1fr); height: calc(100dvh - 380px); min-height: 430px; }
+  .direct-sidebar label { padding: 8px; }
+  .direct-sidebar label { font-size: 0; }
+  .direct-sidebar input { font-size: 14px; }
+  .direct-users { height: calc(100% - 59px); }
+  .direct-user { min-height: 58px; padding: 8px; }
+  .direct-user span { font-size: 10px; }
+  .direct-user small { font-size: 8px; }
+  #direct-head { min-height: 58px; padding: 8px 10px; }
+  .direct-messages { padding: 10px; }
+  .direct-conversation .chat-form { padding: 8px; }
+}
+
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--paper); }
 body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
@@ -1009,7 +1091,7 @@ h1, h2, h3, h4,
   border-radius: var(--radius-m);
   background: #eee7d8;
 }
-#garage-view .workspace-switcher { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#garage-view .workspace-switcher { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .workspace-switcher button {
   min-width: 0;
   min-height: 54px;

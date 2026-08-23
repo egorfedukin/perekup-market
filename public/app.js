@@ -1,5 +1,12 @@
 const $ = (selector) => document.querySelector(selector);
 const money = (value) => `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
+const compactMoney = (value) => {
+  const amount = Number(value) || 0;
+  if (Math.abs(amount) < 1000000) return money(amount);
+  const unit = Math.abs(amount) >= 1000000000 ? 1000000000 : 1000000;
+  const suffix = unit === 1000000000 ? "млрд" : "млн";
+  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(amount / unit)} ${suffix} ₽`;
+};
 const number = (value) => new Intl.NumberFormat("ru-RU").format(value);
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 
@@ -31,6 +38,10 @@ let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending
 let auctionMode = "cars";
 let garageMode = "cars";
 let profileMode = "overview";
+let chatMode = "public";
+let activeDirectUserId = null;
+let directSearch = "";
+let plateFilters = { query: "", rarity: "all" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
 let assetMode = "all";
@@ -167,7 +178,7 @@ function carArt(car, extraClass = "") {
     <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(cached.url)}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
     <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
-    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>
+    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${car.registration?.plate ? `<span class="car-plate">${escapeHtml(car.registration.plate.number)}</span>` : ""}
   </div>`;
 }
 
@@ -475,6 +486,7 @@ function renderGarage() {
   const garage = state.player.garage;
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-workspace-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
+  $("#garage-plate-count").textContent = `${number((state.player.plateInventory || []).length)} номеров`;
   $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
   $("#part-stock-count").textContent = `${number((state.player.partInventory || []).length)} деталей`;
   $("#training-count").textContent = `${state.player.training?.completed || 0} заданий`;
@@ -499,6 +511,29 @@ function renderGarage() {
     </article>`;
   }).join("");
   renderProgression();
+}
+
+function plateCard(plate, actions = "") {
+  return `<article class="plate-card rarity-${escapeHtml(plate.rarity)}"><div class="license-plate"><strong>${escapeHtml(plate.number.split(" ")[0])}</strong><span>RUS<br>${escapeHtml(plate.region)}</span></div><div class="plate-meta"><strong>${escapeHtml(plate.rarityName)}</strong><small>Оценка ${money(plate.estimatedValue)}</small></div>${actions}</article>`;
+}
+
+function renderPlates() {
+  const inventory = state.player.plateInventory || [];
+  const garage = state.player.garage || [];
+  const installed = garage.filter((car) => car.registration?.plate).length;
+  const market = state.plateMarket || [];
+  $("#plate-inventory-count").textContent = number(inventory.length);
+  $("#plate-installed-count").textContent = number(installed);
+  $("#plate-market-count").textContent = number(market.length);
+  $("#registration-cars").innerHTML = garage.length ? garage.map((car) => {
+    const registration = car.registration || { registered: false, plate: null };
+    const plateSelect = registration.registered && !registration.plate && inventory.length ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${inventory.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="attach" data-car-id="${car.id}">Установить номер</button>` : "";
+    return `<article class="registration-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><span class="registration-status ${registration.registered ? "registered" : ""}">${registration.registered ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : registration.registered ? "Номер не установлен" : "Для установки номера нужна регистрация"}</small></div><div class="registration-actions">${registration.registered ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>` : `<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт · 8 500 ₽</button>`}${registration.plate ? `<button class="secondary-button" data-registration="detach" data-car-id="${car.id}">Снять номер</button>` : plateSelect}</div></article>`;
+  }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
+  $("#plate-inventory").innerHTML = inventory.length ? inventory.map((plate) => plateCard(plate, `<div class="plate-list-action"><input id="plate-price-${plate.id}" type="number" min="1" max="100000000" value="${plate.estimatedValue}" aria-label="Цена номера ${escapeHtml(plate.number)}"><button class="secondary-button" data-list-plate="${plate.id}">Продать</button></div>`)).join("") : '<div class="plate-empty">Свободных номеров нет. Получите номер в МРЭО или купите на бирже.</div>';
+  const query = plateFilters.query.toLocaleLowerCase("ru-RU").replace(/\s+/g, "");
+  const filtered = market.filter((lot) => (plateFilters.rarity === "all" || lot.plate.rarity === plateFilters.rarity) && (!query || `${lot.plate.number}${lot.seller}`.toLocaleLowerCase("ru-RU").replace(/\s+/g, "").includes(query)));
+  $("#plate-market").innerHTML = filtered.length ? filtered.map((lot) => plateCard(lot.plate, `<div class="plate-offer"><strong>${money(lot.price)}</strong><small>${escapeHtml(lot.seller)}</small>${lot.sellerId === state.player.id ? `<button class="secondary-button" data-unlist-plate="${lot.id}">Снять с биржи</button>` : `<button class="primary-button" data-buy-plate="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</div>`)).join("") : '<div class="plate-empty">По этим фильтрам номеров нет.</div>';
 }
 
 function partQualityName(part) {
@@ -733,7 +768,7 @@ function renderAdmin() {
   if (!state.player.isAdmin || !adminState) return;
   const economy = adminState.economy;
   $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Сделок", economy.deals], ["Предложений", economy.activeOffers], ["Жалоб", economy.openReports], ["Оплат", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
-  $("#admin-reports").innerHTML = adminState.reports.length ? adminState.reports.map((report) => `<article class="admin-report"><div><strong>${escapeHtml(report.accusedName)}</strong><small>Жалоба от ${escapeHtml(report.reporterName)} · ${new Date(report.createdAt).toLocaleString("ru-RU")}</small><p>«${escapeHtml(report.messageText)}»</p><span>${escapeHtml(report.reason)}</span></div><div><button class="danger-button" data-admin-report-ban="${report.id}" data-player-id="${report.accusedId}">Заблокировать</button><button class="secondary-button" data-admin-report="resolve" data-report-id="${report.id}">Закрыть</button><button class="secondary-button" data-admin-report="dismiss" data-report-id="${report.id}">Отклонить</button></div></article>`).join("") : '<div class="no-offers">Новых жалоб нет.</div>';
+  $("#admin-reports").innerHTML = adminState.reports.length ? adminState.reports.map((report) => `<article class="admin-report"><div><strong>${escapeHtml(report.accusedName)} · ${report.source === "direct" ? "личные сообщения" : "общий чат"}</strong><small>Жалоба от ${escapeHtml(report.reporterName)} · ${new Date(report.createdAt).toLocaleString("ru-RU")}</small><p>«${escapeHtml(report.messageText)}»</p><span>${escapeHtml(report.reason)}</span></div><div><button class="secondary-button" data-admin-report-mute="${report.id}" data-player-id="${report.accusedId}">Чат-бан на 1 час</button><button class="danger-button" data-admin-report-ban="${report.id}" data-player-id="${report.accusedId}">Заблокировать аккаунт</button><button class="secondary-button" data-admin-report="resolve" data-report-id="${report.id}">Закрыть</button><button class="secondary-button" data-admin-report="dismiss" data-report-id="${report.id}">Отклонить</button></div></article>`).join("") : '<div class="no-offers">Новых жалоб нет.</div>';
   $("#admin-players").innerHTML = adminState.players.map((player) => {
     const banned = player.bannedUntil === -1 || player.bannedUntil > Date.now();
     return `<article class="admin-player ${banned ? "banned" : ""}"><header><div class="admin-player-avatar">${escapeHtml(player.name[0].toUpperCase())}</div><div><strong>${escapeHtml(player.name)}</strong><small>Уровень ${player.level} · ${player.deals} сделок · гараж ${player.garage} · репутация ${player.reputation}</small>${banned ? `<b>Заблокирован: ${escapeHtml(player.banReason || "причина не указана")}</b>` : ""}</div></header><div class="admin-current-values"><span>Баланс<strong>${money(player.cash)}</strong></span><span>Очки навыков<strong>${number(player.skillPoints)}</strong></span></div><div class="admin-player-tools"><div class="admin-value-row"><label><span>Операция с балансом</span><select id="admin-cash-mode-${player.id}"><option value="set">Установить точно</option><option value="adjust">Прибавить или вычесть</option></select></label><label><span>Сумма</span><input id="admin-cash-${player.id}" type="number" step="1" inputmode="numeric" placeholder="Например, 40000000"></label><button class="primary-button" data-admin-value="cash" data-player-id="${player.id}">Сохранить баланс</button></div><div class="admin-value-row"><label><span>Операция с очками</span><select id="admin-skills-mode-${player.id}"><option value="set">Установить точно</option><option value="adjust">Прибавить или вычесть</option></select></label><label><span>Очки навыков</span><input id="admin-skills-${player.id}" type="number" step="1" inputmode="numeric" placeholder="Например, 25"></label><button class="secondary-button" data-admin-value="skills" data-player-id="${player.id}">Сохранить очки</button></div><label class="admin-reason"><span>Комментарий к изменению</span><input id="admin-reason-${player.id}" maxlength="100" placeholder="Необязательно"></label><div class="admin-ban-actions"><select id="admin-ban-duration-${player.id}"><option value="60">1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="-1">Навсегда</option></select><input id="admin-ban-reason-${player.id}" maxlength="160" placeholder="Причина блокировки"><button class="${banned ? "secondary-button" : "danger-button"}" data-admin-${banned ? "unban" : "ban"}="${player.id}">${banned ? "Снять блокировку" : "Заблокировать"}</button></div></div></article>`;
@@ -750,12 +785,31 @@ function renderChat() {
   const container = $("#chat-messages");
   const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 90;
   const messages = state.chatMessages || [];
-  $("#chat-count").textContent = messages.length;
+  const directMessages = state.directMessages || [];
+  const unread = state.directUnread || 0;
+  $("#chat-count").textContent = unread;
+  $("#direct-unread-label").textContent = unread ? `Новых: ${unread}` : "Нет новых";
   container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
-    <div><strong>${escapeHtml(message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
+    <div><strong>${escapeHtml(message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-open-direct="${message.playerId}" title="Написать лично">В ЛС</button><button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
     <p>${escapeHtml(message.text)}</p>
   </div>`).join("") : '<div class="chat-empty">Сообщений пока нет.</div>';
   if (nearBottom) container.scrollTop = container.scrollHeight;
+  const directory = (state.playerDirectory || []).filter((user) => !directSearch || user.name.toLocaleLowerCase("ru-RU").includes(directSearch.toLocaleLowerCase("ru-RU"))).map((user) => {
+    const conversation = directMessages.filter((message) => message.senderId === user.id || message.recipientId === user.id);
+    const unreadFromUser = conversation.filter((message) => message.senderId === user.id && message.recipientId === state.player.id && !message.readAt).length;
+    const last = conversation.at(-1);
+    return { ...user, last, unread: unreadFromUser };
+  }).sort((a, b) => b.unread - a.unread || (b.last?.createdAt || 0) - (a.last?.createdAt || 0) || a.name.localeCompare(b.name, "ru-RU"));
+  if (activeDirectUserId && !directory.some((user) => user.id === activeDirectUserId)) activeDirectUserId = null;
+  $("#direct-users").innerHTML = directory.length ? directory.map((user) => `<button class="direct-user ${user.id === activeDirectUserId ? "active" : ""}" data-direct-user="${user.id}"><span>${escapeHtml(user.name)}${user.unread ? `<b>${user.unread}</b>` : ""}</span><small>${user.last ? escapeHtml(user.last.text) : `Уровень ${user.level} · репутация ${user.reputation}`}</small></button>`).join("") : '<div class="plate-empty">Игроки не найдены.</div>';
+  const activeUser = directory.find((user) => user.id === activeDirectUserId);
+  const conversation = activeUser ? directMessages.filter((message) => (message.senderId === activeUser.id && message.recipientId === state.player.id) || (message.senderId === state.player.id && message.recipientId === activeUser.id)) : [];
+  $("#direct-head").innerHTML = activeUser ? `<strong>${escapeHtml(activeUser.name)}</strong><span>Уровень ${activeUser.level} · репутация ${activeUser.reputation}/100</span>` : "<strong>Выберите игрока</strong><span>Диалог откроется здесь</span>";
+  $("#direct-messages").innerHTML = activeUser ? (conversation.length ? conversation.map((message) => `<div class="chat-message ${message.senderId === state.player.id ? "own" : ""}"><div><strong>${escapeHtml(message.senderName)}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.senderId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}">Пожаловаться</button>` : ""}</span></div><p>${escapeHtml(message.text)}</p></div>`).join("") : '<div class="chat-empty">Начните личный диалог.</div>') : '<div class="chat-empty">Выберите собеседника слева.</div>';
+  $("#direct-form").hidden = !activeUser;
+  document.querySelectorAll("[data-chat-mode]").forEach((button) => button.classList.toggle("active", button.dataset.chatMode === chatMode));
+  $("#public-chat-panel").hidden = chatMode !== "public";
+  $("#direct-chat-panel").hidden = chatMode !== "direct";
 }
 
 function renderAssets() {
@@ -817,10 +871,11 @@ function render() {
   if (!state.player) return;
   const draft = captureActiveDraft();
   $("#cash").textContent = money(state.player.availableCash);
+  $("#cash-compact").textContent = compactMoney(state.player.availableCash);
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
-  renderMarketStats(); renderMarket(); renderActivities(); renderGarage(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderAssets(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
+  renderMarketStats(); renderMarket(); renderActivities(); renderGarage(); renderPlates(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderAssets(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
   renderWorkspaceModes();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
@@ -832,10 +887,14 @@ function renderWorkspaceModes() {
   document.querySelectorAll("[data-garage-mode]").forEach((button) => button.classList.toggle("active", button.dataset.garageMode === garageMode));
   $("#garage-cars-panel").hidden = garageMode !== "cars";
   $("#garage-development-panel").hidden = garageMode !== "development";
+  $("#garage-plates-panel").hidden = garageMode !== "plates";
   document.querySelectorAll("[data-profile-mode]").forEach((button) => button.classList.toggle("active", button.dataset.profileMode === profileMode));
   $("#profile-overview-panel").hidden = profileMode !== "overview";
   $("#profile-progress-panel").hidden = profileMode !== "progress";
   $("#profile-history-panel").hidden = profileMode !== "history";
+  document.querySelectorAll("[data-chat-mode]").forEach((button) => button.classList.toggle("active", button.dataset.chatMode === chatMode));
+  $("#public-chat-panel").hidden = chatMode !== "public";
+  $("#direct-chat-panel").hidden = chatMode !== "direct";
 }
 
 function scheduleRender() {
@@ -1061,6 +1120,12 @@ document.addEventListener("click", async (event) => {
   if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const profileModeButton = event.target.closest("[data-profile-mode]");
   if (profileModeButton) { profileMode = profileModeButton.dataset.profileMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  const chatModeButton = event.target.closest("[data-chat-mode]");
+  if (chatModeButton) { chatMode = chatModeButton.dataset.chatMode; renderChat(); return; }
+  const directUser = event.target.closest("[data-direct-user]");
+  if (directUser) { activeDirectUserId = directUser.dataset.directUser; chatMode = "direct"; renderChat(); if ((state.directMessages || []).some((message) => message.senderId === activeDirectUserId && message.recipientId === state.player.id && !message.readAt)) await perform("/api/direct/read", { playerId: activeDirectUserId }); return; }
+  const openDirect = event.target.closest("[data-open-direct]");
+  if (openDirect) { activeDirectUserId = openDirect.dataset.openDirect; chatMode = "direct"; renderChat(); return; }
   const assetModeButton = event.target.closest("[data-asset-mode]");
   if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; assetVisibleCount = 12; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
   if (event.target.closest("#asset-load-more")) { assetVisibleCount += 12; renderAssets(); return; }
@@ -1206,6 +1271,12 @@ document.addEventListener("click", async (event) => {
     if (reason) await perform("/api/chat/report", { messageId: reportChat.dataset.reportChat, reason }, "Жалоба отправлена модераторам");
     return;
   }
+  if (event.target.closest("[data-issue-plate]")) return perform("/api/plates/issue", {}, "Новый номер выдан и добавлен в коллекцию");
+  const buyPlate = event.target.closest("[data-buy-plate]"); if (buyPlate) return perform("/api/plates/buy", { lotId: buyPlate.dataset.buyPlate }, "Номер куплен");
+  const listPlate = event.target.closest("[data-list-plate]"); if (listPlate) return perform("/api/plates/list", { plateId: listPlate.dataset.listPlate, price: $(`#plate-price-${listPlate.dataset.listPlate}`)?.value }, "Номер выставлен на биржу");
+  const unlistPlate = event.target.closest("[data-unlist-plate]"); if (unlistPlate) return perform("/api/plates/unlist", { lotId: unlistPlate.dataset.unlistPlate }, "Номер снят с биржи");
+  const registration = event.target.closest("[data-registration]");
+  if (registration) return perform("/api/car/registration", { carId: registration.dataset.carId, action: registration.dataset.registration, plateId: $(`#car-plate-${registration.dataset.carId}`)?.value }, registration.dataset.registration === "register" ? "Автомобиль поставлен на учёт" : registration.dataset.registration === "deregister" ? "Автомобиль снят с учёта" : registration.dataset.registration === "attach" ? "Номер установлен" : "Номер снят");
   const buyAsset = event.target.closest("[data-buy-asset]");
   if (buyAsset) return perform("/api/assets/buy", { assetId: buyAsset.dataset.buyAsset }, "Актив добавлен в ваш портфель");
   const sellAsset = event.target.closest("[data-sell-asset]");
@@ -1219,6 +1290,8 @@ document.addEventListener("click", async (event) => {
     if (reason && await perform("/api/admin/moderation", { action: "ban", playerId: reportBan.dataset.playerId, durationMinutes: 1440, reason }, "Игрок заблокирован")) { await perform("/api/admin/moderation", { action: "resolve", reportId: reportBan.dataset.adminReportBan }, "Жалоба закрыта"); await loadAdmin(); }
     return;
   }
+  const reportMute = event.target.closest("[data-admin-report-mute]");
+  if (reportMute) { if (await perform("/api/admin/moderation", { action: "mute", playerId: reportMute.dataset.playerId }, "Чат игрока заблокирован на 1 час")) { await perform("/api/admin/moderation", { action: "resolve", reportId: reportMute.dataset.adminReportMute }, "Жалоба закрыта"); await loadAdmin(); } return; }
   const adminBan = event.target.closest("[data-admin-ban]");
   if (adminBan) { const playerId = adminBan.dataset.adminBan; if (await perform("/api/admin/moderation", { action: "ban", playerId, durationMinutes: Number($(`#admin-ban-duration-${playerId}`)?.value), reason: $(`#admin-ban-reason-${playerId}`)?.value }, "Игрок заблокирован")) await loadAdmin(); return; }
   const adminUnban = event.target.closest("[data-admin-unban]");
@@ -1236,6 +1309,7 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("submit", async (event) => {
+  if (event.target.id === "plate-filters") { event.preventDefault(); return; }
   const carBidForm = event.target.closest("[data-car-bid]");
   if (carBidForm) {
     event.preventDefault(); const data = new FormData(carBidForm);
@@ -1272,6 +1346,12 @@ document.addEventListener("submit", async (event) => {
     if (await perform("/api/chat", { message: input.value }, "Сообщение отправлено")) input.value = "";
     return;
   }
+  if (event.target.id === "direct-form") {
+    event.preventDefault();
+    const input = $("#direct-input");
+    if (activeDirectUserId && await perform("/api/direct/send", { recipientId: activeDirectUserId, message: input.value }, "Личное сообщение отправлено")) input.value = "";
+    return;
+  }
   if (event.target.id === "list-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
     if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds") }, data.get("saleType") === "auction" ? "Аукцион запущен. Вы остались в гараже" : "Объявление опубликовано. Вы остались в гараже")) closeModal();
@@ -1289,12 +1369,15 @@ document.addEventListener("submit", async (event) => {
 document.addEventListener("input", (event) => {
   if (event.target.matches("#list-form input[name='price']")) updateListingSummary();
   if (event.target.id === "parts-filter-query") { partsFilters.query = event.target.value; renderParts(); }
+  if (event.target.id === "direct-search") { directSearch = event.target.value; renderChat(); }
+  if (event.target.id === "plate-query") { plateFilters.query = event.target.value; renderPlates(); }
 });
 
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-group-role]")) perform("/api/group/role", { playerId: event.target.dataset.groupRole, role: event.target.value }, "Роль участника изменена");
   if (event.target.id === "parts-filter-component") { partsFilters.component = event.target.value; renderParts(); }
   if (event.target.id === "parts-filter-quality") { partsFilters.quality = event.target.value; renderParts(); }
+  if (event.target.id === "plate-rarity") { plateFilters.rarity = event.target.value; renderPlates(); }
 });
 
 $("#market-filters").addEventListener("reset", () => {

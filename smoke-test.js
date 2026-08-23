@@ -23,6 +23,7 @@ async function run() {
   check(shellResponse.ok && ["cars", "containers", "mine"].every((mode) => shell.includes(`data-auction-mode="${mode}"`)), "Auction workspace modes are missing from the client shell");
   check(shell.includes('id="auction-cars-panel"') && shell.includes('id="auction-containers-panel"'), "Auction workspace panels are missing from the client shell");
   check(["cars", "development"].every((mode) => shell.includes(`data-garage-mode="${mode}"`)), "Garage workspace modes are missing from the client shell");
+  check(shell.includes('data-garage-mode="plates"') && ["public", "direct"].every((mode) => shell.includes(`data-chat-mode="${mode}"`)), "Plate or direct-message workspaces are missing from the client shell");
   check(["overview", "progress", "history"].every((mode) => shell.includes(`data-profile-mode="${mode}"`)), "Profile workspace modes are missing from the client shell");
   check(clientScript.includes('max="2000000000"'), "Vehicle listing form does not match the server price ceiling");
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
@@ -63,6 +64,14 @@ async function run() {
   await request("/api/list", seller.token, { carId: car.id, price: listPrice, description: "Есть результаты осмотра, торг уместен" });
 
   const buyer = await request("/api/join", null, { name: `Buyer${suffix}` });
+  let directState = await request("/api/direct/send", seller.token, { recipientId: buyer.player.id, message: "Привет, обсудим автомобиль?" });
+  check(directState.directMessages.some((message) => message.recipientId === buyer.player.id), "Direct message was not stored for the sender");
+  directState = await request("/api/state", buyer.token);
+  const directMessage = directState.directMessages.find((message) => message.senderId === seller.player.id);
+  check(directMessage && directState.directUnread === 1, "Recipient did not receive an unread direct message");
+  await request("/api/chat/report", buyer.token, { messageId: directMessage.id, reason: "Проверка модерации личных сообщений" });
+  directState = await request("/api/direct/read", buyer.token, { playerId: seller.player.id });
+  check(directState.directUnread === 0 && directState.directMessages.find((message) => message.id === directMessage.id)?.readAt, "Direct conversation was not marked as read");
   const offerAmount = Math.round((listPrice - 40000) / 1000) * 1000;
   const offered = await request("/api/offer", buyer.token, { carId: car.id, amount: offerAmount });
   const outgoing = offered.player.outgoingOffers.find((offer) => offer.carId === car.id);
@@ -91,9 +100,21 @@ async function run() {
   check(diagnosed.serviceDiagnosed && diagnosed.checkedCategories.length === serviceState.inspectionCategories.length && diagnosed.inspection.confidence === 100, "Service did not complete all inspections");
   check(!("hiddenDefectCount" in diagnosed), "Service response exposes hidden defect metadata");
   check(serviceState.player.cash === beforeService - serviceCar.serviceDiagnosticCost, "Service diagnostic cost mismatch");
+  serviceState = await request("/api/plates/issue", servicePlayer.token, {});
+  const issuedPlate = serviceState.player.plateInventory[0];
+  check(issuedPlate?.number && serviceState.plateMarket.length >= 30, "Plate issue or marketplace seed failed");
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register" });
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "attach", plateId: issuedPlate.id });
+  check(serviceState.player.garage[0].registration.registered && serviceState.player.garage[0].registration.plate?.id === issuedPlate.id, "Plate was not attached to a registered car");
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 200000000, description: "Коллекционный автомобиль" });
-  check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 200000000), "Listing above the obsolete 150M ceiling was rejected");
+  check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 200000000 && !item.registration.registered && !item.registration.plate) && serviceState.player.plateInventory.some((plate) => plate.id === issuedPlate.id), "High-value listing or automatic plate removal failed");
   serviceState = await request("/api/unlist", servicePlayer.token, { carId: serviceCar.id });
+  serviceState = await request("/api/plates/list", servicePlayer.token, { plateId: issuedPlate.id, price: 5000 });
+  const plateLot = serviceState.plateMarket.find((lot) => lot.sellerId === servicePlayer.player.id);
+  check(plateLot, "Player plate listing failed");
+  const plateBuyer = await request("/api/join", null, { name: `PlateBuyer${suffix}` });
+  const plateBuyerState = await request("/api/plates/buy", plateBuyer.token, { lotId: plateLot.id });
+  check(plateBuyerState.player.plateInventory.some((plate) => plate.id === issuedPlate.id), "Player-to-player plate purchase failed");
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 1, description: "Срочная продажа" });
   check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 1), "One-ruble listing was rejected");
 

@@ -401,11 +401,13 @@ const salesHistory = [];
 const marketIndices = {};
 const offers = new Map();
 const chatMessages = [];
+const directMessages = [];
 const moderationReports = [];
 const assetMarket = [];
 const groups = new Map();
 const partsMarket = [];
 const partsSalesHistory = [];
+const plateMarket = [];
 const partIndices = {};
 const paymentOrders = new Map();
 const containerAuctions = [];
@@ -425,8 +427,8 @@ let loadedVehiclePricingVersion = 0;
 function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
-    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, moderationReports, assetMarket,
-    groups: [...groups.entries()], partsMarket, partsSalesHistory, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions,
+    offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, directMessages, moderationReports, assetMarket,
+    groups: [...groups.entries()], partsMarket, partsSalesHistory, plateMarket, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions,
     vehiclePricingVersion: VEHICLE_PRICING_VERSION
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
@@ -455,11 +457,13 @@ function loadState() {
     for (const sale of saved.salesHistory || []) salesHistory.push(sale);
     Object.assign(marketIndices, saved.marketIndices || {});
     chatMessages.push(...(saved.chatMessages || []).slice(-100));
+    directMessages.push(...(saved.directMessages || []).slice(-1000));
     moderationReports.push(...(saved.moderationReports || []).slice(-500));
     assetMarket.push(...(saved.assetMarket || []));
     for (const [key, value] of saved.groups || []) { ensureGroupDefaults(value); groups.set(key, value); }
     partsMarket.push(...(saved.partsMarket || []).map(ensurePartLot));
     partsSalesHistory.push(...(saved.partsSalesHistory || []).slice(-500));
+    plateMarket.push(...(saved.plateMarket || []).map(ensurePlateLot));
     Object.assign(partIndices, saved.partIndices || {});
     for (const [key, value] of saved.paymentOrders || []) paymentOrders.set(key, value);
     containerAuctions.push(...(saved.containerAuctions || []));
@@ -494,6 +498,8 @@ function ensurePlayerDefaults(player) {
   player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0, partsSold: 0, partsBought: 0, upgrades: 0 };
   for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades", "assetsBought", "assetsSold"]) player.stats[key] ??= 0;
   player.chatState ||= { sentAt: [], lastNormalized: "", lastDuplicateAt: 0, violations: 0, mutedUntil: 0 };
+  player.plateInventory ||= [];
+  player.plateInventory = player.plateInventory.map(ensurePlate);
   player.bannedUntil ??= 0;
   player.banReason ||= "";
   player.ownedAssets ||= [];
@@ -584,6 +590,11 @@ function ensureCarDefaults(car) {
   car.lastNpcBidAt ??= null;
   car.publicDiscovered ||= [];
   car.publicInspectionRecords ||= {};
+  car.registration ||= { registered: false, registeredAt: null, plate: null };
+  car.registration.registered ??= false;
+  car.registration.registeredAt ??= null;
+  car.registration.plate ??= null;
+  if (car.registration.plate) car.registration.plate = ensurePlate(car.registration.plate);
 }
 
 function notifyOutbid(playerId, lotType, lotName, amount, lotId) {
@@ -714,6 +725,89 @@ function ensurePartLot(lot) {
   lot.sellerId ??= null;
   lot.createdAt ||= Date.now();
   return lot;
+}
+
+const plateLetters = "АВЕКМНОРСТУХ";
+const plateRegions = ["01", "05", "16", "23", "50", "52", "63", "64", "66", "77", "78", "82", "92", "95", "96", "97", "98", "99", "102", "116", "123", "124", "134", "138", "142", "150", "152", "154", "156", "159", "161", "163", "164", "174", "177", "178", "186", "190", "193", "196", "197", "198", "199", "702", "716", "750", "761", "763", "774", "777", "790", "797", "799"];
+
+function plateRarity(number) {
+  const match = String(number || "").match(/^([АВЕКМНОРСТУХ])(\d{3})([АВЕКМНОРСТУХ]{2})/u);
+  if (!match) return { key: "common", name: "Обычный" };
+  const [, first, digits, tail] = match;
+  if (digits.split("").every((digit) => digit === digits[0]) && first === tail[0] && first === tail[1]) return { key: "legendary", name: "Коллекционный" };
+  if (digits.split("").every((digit) => digit === digits[0])) return { key: "premium", name: "Три одинаковые цифры" };
+  if (digits[0] === digits[2] || new Set([first, ...tail]).size === 1) return { key: "rare", name: "Зеркальный" };
+  return { key: "common", name: "Обычный" };
+}
+
+function makePlate(forceRarity = null) {
+  const letter = () => plateLetters[randomInt(0, plateLetters.length - 1)];
+  const rarityRoll = forceRarity || (Math.random() < 0.04 ? "legendary" : Math.random() < 0.14 ? "premium" : Math.random() < 0.3 ? "rare" : "common");
+  const first = letter();
+  let digits = String(randomInt(1, 999)).padStart(3, "0");
+  let tail = `${letter()}${letter()}`;
+  if (rarityRoll === "rare") { const edge = randomInt(1, 9); digits = `${edge}${randomInt(0, 9)}${edge}`; }
+  if (["premium", "legendary"].includes(rarityRoll)) digits = String(randomInt(1, 9)).repeat(3);
+  if (rarityRoll === "legendary") tail = `${first}${first}`;
+  const region = plateRegions[randomInt(0, plateRegions.length - 1)];
+  const number = `${first}${digits}${tail} ${region}`;
+  const rarity = plateRarity(number);
+  const ranges = { common: [8000, 45000], rare: [60000, 240000], premium: [300000, 1800000], legendary: [2500000, 12000000] };
+  const [low, high] = ranges[rarity.key];
+  return { id: id("plate_"), number, region, rarity: rarity.key, rarityName: rarity.name, estimatedValue: Math.round(randomInt(low, high) / 1000) * 1000, acquiredAt: Date.now() };
+}
+
+function ensurePlate(plate) {
+  if (!plate || typeof plate !== "object") return makePlate();
+  plate.id ||= id("plate_");
+  const rarity = plateRarity(plate.number);
+  plate.rarity = rarity.key; plate.rarityName = rarity.name;
+  plate.region ||= String(plate.number || "").split(" ").at(-1) || "77";
+  plate.estimatedValue = Math.max(1000, Math.round(Number(plate.estimatedValue) || 10000));
+  plate.acquiredAt ||= Date.now();
+  return plate;
+}
+
+function ensurePlateLot(lot) {
+  lot.plate = ensurePlate(lot.plate || lot);
+  lot.id ||= id("plate_lot_");
+  lot.price = Math.max(1, Math.round(Number(lot.price) || lot.plate.estimatedValue));
+  lot.seller ||= "Регистрационная биржа";
+  lot.sellerId ??= null;
+  lot.createdAt ||= Date.now();
+  return lot;
+}
+
+function restockPlateMarket() {
+  while (plateMarket.filter((lot) => !lot.sellerId).length < 36) {
+    const plate = makePlate();
+    plateMarket.push(ensurePlateLot({ plate, price: Math.max(1000, Math.round(plate.estimatedValue * (0.82 + Math.random() * 0.42) / 1000) * 1000) }));
+  }
+}
+
+function processNpcPlateBuyer() {
+  const candidates = plateMarket.filter((lot) => lot.sellerId && lot.price <= lot.plate.estimatedValue * 1.12);
+  if (!candidates.length || Math.random() > 0.38) return;
+  const lot = candidates.sort((a, b) => (a.price / a.plate.estimatedValue) - (b.price / b.plate.estimatedValue))[0];
+  const seller = players.get(lot.sellerId);
+  if (!seller) return;
+  const payout = Math.round(lot.price * 0.95);
+  seller.cash += payout;
+  addLedger(seller, "plate-sale", `Продажа номера ${lot.plate.number}`, payout, { counterparty: "Коллекционер номеров", category: "Госномера" });
+  seller.notifications.push({ id: id("notification_"), type: "sale", title: "Номер продан", text: `${lot.plate.number} куплен за ${lot.price.toLocaleString("ru-RU")} ₽`, createdAt: Date.now(), read: false });
+  seller.notifications = seller.notifications.slice(-50);
+  plateMarket.splice(plateMarket.indexOf(lot), 1);
+  restockPlateMarket();
+  broadcast();
+}
+
+function detachPlate(player, car, reason = "Номер снят") {
+  const plate = car.registration?.plate;
+  if (!plate) return null;
+  player.plateInventory.push(ensurePlate(plate));
+  car.registration.plate = null;
+  car.history.push({ type: "registration", text: `${reason}: ${plate.number}`, at: Date.now() });
+  return plate;
 }
 
 function generateContracts() {
@@ -1034,6 +1128,7 @@ function publicCar(car, ownerView = false, viewer = null) {
     id: car.id, make: car.make, photoQuery: car.photoQuery, photoUrl: car.photoUrl, photoSource: car.photoSource, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
     condition: car.condition, description: car.description, repairs: car.repairs,
+    registration: { registered: Boolean(car.registration.registered), plate: car.registration.plate ? { ...car.registration.plate } : null },
     marketTag: car.sellerId ? null : car.marketTag, listedAt: car.listedAt,
     offerCount: [...offers.values()].filter((offer) => offer.carId === car.id && ["active", "counter"].includes(offer.status)).length,
     saleType: car.saleType || "fixed", auctionEnd: car.auctionEnd || null,
@@ -1191,7 +1286,7 @@ function playerView(player) {
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
-    garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory,
+    garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory, plateInventory: player.plateInventory,
     ownedAssets: player.ownedAssets.map((asset) => ({ ...asset, resaleValue: assetResaleValue(asset, player), incomeState: propertyIncomeState(asset, player) })),
     assetIncomeAvailable: assetIncomeAvailable(player),
     incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
@@ -1218,6 +1313,7 @@ function leaderboardView(viewer) {
 
 function snapshot(player) {
   const leaderboard = leaderboardView(player);
+  const playerDirectMessages = player ? directMessages.filter((message) => message.senderId === player.id || message.recipientId === player.id).slice(-300) : [];
   return {
     revision,
     player: player ? playerView(player) : null,
@@ -1229,7 +1325,11 @@ function snapshot(player) {
     marketStats: marketStatistics(),
     partsMarketStats: partsMarketStatistics(),
     chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none" })),
+    directMessages: playerDirectMessages,
+    directUnread: playerDirectMessages.filter((message) => message.recipientId === player?.id && !message.readAt).length,
+    playerDirectory: player ? [...players.values()].filter((candidate) => candidate.id !== player.id && !banMessage(candidate)).sort((a, b) => a.name.localeCompare(b.name, "ru-RU")).slice(0, 200).map((candidate) => ({ id: candidate.id, name: candidate.name, level: levelForXp(candidate.xp), reputation: candidate.reputation?.score || 50 })) : [],
     partsMarket: partsMarket.slice(-100),
+    plateMarket: plateMarket.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
     partNeeds: player ? playerPartNeeds(player) : [],
     partQualities: partQualityCatalog,
     partComponents,
@@ -1338,6 +1438,7 @@ initializeMarketIndices();
 refreshLegacyNpcCatalog();
 restock();
 rebalanceNpcMarket();
+restockPlateMarket();
 function publishPartLot(itemOrType, condition = "new", price = null, seller = "Магазин", sellerId = null) {
   const legacyType = typeof itemOrType === "string" ? itemOrType : null;
   const item = legacyType
@@ -1790,6 +1891,7 @@ function runAuctionBots() {
 setInterval(runAuctionBots, 2200).unref();
 setInterval(rotateNpcMarket, NPC_ROTATION_MS).unref();
 setInterval(updateCryptoMarket, 30000).unref();
+setInterval(processNpcPlateBuyer, 15000).unref();
 
 function normalizeChatText(value) {
   return String(value || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -1809,6 +1911,12 @@ function moderateChat(player, rawText) {
   if (chat.mutedUntil > now) throw new Error(`Чат временно недоступен ещё ${Math.ceil((chat.mutedUntil - now) / 1000)} сек.`);
   if (text.length < 2) throw new Error("Сообщение слишком короткое");
   if ((text.match(/https?:\/\/|www\.|\.ru\b|\.com\b/gi) || []).length > 1) throw new Error("В сообщении слишком много ссылок");
+  if (/\b(?:телеграм|telegram|whatsapp|ватсап)\b.*(?:@|\+?\d[\d\s()-]{8,})/iu.test(text)) throw new Error("Не публикуйте личные контакты в игровом чате");
+  if (/\b(?:убью|зарежу|найду тебя|сдохни|суицид)\b/iu.test(text)) {
+    chat.violations += 2;
+    chat.mutedUntil = now + 10 * 60000;
+    throw new Error("Сообщение нарушает правила. Чат заблокирован на 10 минут");
+  }
   if (/(.)\1{7,}/iu.test(text)) throw new Error("Не повторяйте один символ много раз");
   const normalized = text.toLocaleLowerCase("ru-RU").replace(/[^а-яёa-z0-9]+/gi, "");
   chat.sentAt = chat.sentAt.filter((time) => now - time < 30000);
@@ -1963,24 +2071,45 @@ async function api(req, res, pathname) {
     target.adminNotes.push(note);
     broadcast(); return json(res, 200, snapshot(player));
   }
+  if (req.method === "POST" && pathname === "/api/direct/send") {
+    const recipient = players.get(String(body.recipientId || ""));
+    if (!recipient || recipient.id === player.id || banMessage(recipient)) return json(res, 404, { error: "Пользователь недоступен" });
+    try {
+      const text = moderateChat(player, body.message);
+      directMessages.push({ id: id("dm_"), senderId: player.id, senderName: player.name, recipientId: recipient.id, recipientName: recipient.name, text, createdAt: Date.now(), readAt: null });
+      if (directMessages.length > 1000) directMessages.splice(0, directMessages.length - 1000);
+      broadcast(); return json(res, 200, snapshot(player));
+    } catch (error) { persistState(); return json(res, 429, { error: error.message }); }
+  }
+  if (req.method === "POST" && pathname === "/api/direct/read") {
+    const otherId = String(body.playerId || "");
+    for (const message of directMessages) if (message.senderId === otherId && message.recipientId === player.id && !message.readAt) message.readAt = Date.now();
+    broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/chat/report") {
-    const message = chatMessages.find((item) => item.id === String(body.messageId || ""));
+    const messageId = String(body.messageId || "");
+    const publicMessage = chatMessages.find((item) => item.id === messageId);
+    const privateMessage = directMessages.find((item) => item.id === messageId && (item.senderId === player.id || item.recipientId === player.id));
+    const message = publicMessage || privateMessage;
     if (!message) return json(res, 404, { error: "Сообщение уже недоступно" });
-    if (message.playerId === player.id) return json(res, 400, { error: "Нельзя пожаловаться на своё сообщение" });
+    const accusedId = publicMessage ? message.playerId : message.senderId;
+    const accusedName = publicMessage ? message.playerName : message.senderName;
+    if (accusedId === player.id) return json(res, 400, { error: "Нельзя пожаловаться на своё сообщение" });
     const reason = normalizeChatText(body.reason).slice(0, 160);
     if (reason.length < 5) return json(res, 400, { error: "Кратко укажите причину жалобы" });
     if (moderationReports.some((report) => report.messageId === message.id && report.reporterId === player.id && report.status === "open")) return json(res, 409, { error: "Вы уже отправили жалобу на это сообщение" });
-    moderationReports.push({ id: id("report_"), messageId: message.id, messageText: message.text, accusedId: message.playerId, accusedName: message.playerName, reporterId: player.id, reporterName: player.name, reason, status: "open", createdAt: Date.now() });
+    moderationReports.push({ id: id("report_"), messageId: message.id, messageText: message.text, source: publicMessage ? "public" : "direct", accusedId, accusedName, reporterId: player.id, reporterName: player.name, reason, status: "open", createdAt: Date.now() });
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/admin/moderation") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     const target = players.get(String(body.playerId || ""));
     const action = String(body.action || "");
-    if (["ban", "unban"].includes(action)) {
+    if (["ban", "unban", "mute"].includes(action)) {
       if (!target) return json(res, 404, { error: "Игрок не найден" });
       if (isAdmin(target)) return json(res, 400, { error: "Нельзя заблокировать администратора" });
-      if (action === "unban") { target.bannedUntil = 0; target.banReason = ""; }
+      if (action === "mute") { target.chatState.mutedUntil = Date.now() + 60 * 60000; }
+      else if (action === "unban") { target.bannedUntil = 0; target.banReason = ""; }
       else {
         const duration = Number(body.durationMinutes);
         if (![-1, 60, 1440, 10080, 43200].includes(duration)) return json(res, 400, { error: "Недопустимый срок блокировки" });
@@ -2009,6 +2138,75 @@ async function api(req, res, pathname) {
       persistState();
       return json(res, 429, { error: error.message });
     }
+  }
+  if (req.method === "POST" && pathname === "/api/plates/buy") {
+    const lotIndex = plateMarket.findIndex((lot) => lot.id === String(body.lotId || ""));
+    if (lotIndex < 0) return json(res, 404, { error: "Номер уже продан" });
+    const lot = plateMarket[lotIndex];
+    if (lot.sellerId === player.id) return json(res, 400, { error: "Это ваш номер" });
+    if (player.cash - reservedCash(player) < lot.price) return json(res, 400, { error: "Недостаточно свободных денег" });
+    player.cash -= lot.price;
+    player.plateInventory.push(ensurePlate(lot.plate));
+    const seller = lot.sellerId && players.get(lot.sellerId);
+    if (seller) { const payout = Math.round(lot.price * 0.95); seller.cash += payout; addLedger(seller, "plate-sale", `Продажа номера ${lot.plate.number}`, payout, { category: "Госномера" }); }
+    addLedger(player, "plate-buy", `Покупка номера ${lot.plate.number}`, -lot.price, { category: "Госномера" });
+    plateMarket.splice(lotIndex, 1); restockPlateMarket();
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/plates/issue") {
+    const cost = 12000;
+    if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для выдачи номера нужно ${cost.toLocaleString("ru-RU")} ₽` });
+    player.cash -= cost;
+    const plate = makePlate(); player.plateInventory.push(plate);
+    addLedger(player, "plate-issue", `Выдан госномер ${plate.number}`, -cost, { category: "Госномера" });
+    broadcast(); return json(res, 200, { ...snapshot(player), issuedPlate: plate });
+  }
+  if (req.method === "POST" && pathname === "/api/plates/list") {
+    const plateIndex = player.plateInventory.findIndex((plate) => plate.id === String(body.plateId || ""));
+    if (plateIndex < 0) return json(res, 404, { error: "Номера нет в вашей коллекции" });
+    const price = Math.round(Number(body.price));
+    if (!Number.isFinite(price) || price < 1 || price > 100000000) return json(res, 400, { error: "Цена номера должна быть от 1 ₽ до 100 000 000 ₽" });
+    const plate = player.plateInventory.splice(plateIndex, 1)[0];
+    plateMarket.unshift(ensurePlateLot({ id: id("plate_lot_"), plate, price, seller: player.name, sellerId: player.id, createdAt: Date.now() }));
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/plates/unlist") {
+    const lotIndex = plateMarket.findIndex((lot) => lot.id === String(body.lotId || "") && lot.sellerId === player.id);
+    if (lotIndex < 0) return json(res, 404, { error: "Объявление номера не найдено" });
+    player.plateInventory.push(plateMarket.splice(lotIndex, 1)[0].plate);
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/car/registration") {
+    const car = player.garage.find((item) => item.id === String(body.carId || ""));
+    if (!car) return json(res, 404, { error: "Автомобиль не найден в личном гараже" });
+    ensureCarDefaults(car);
+    const action = String(body.action || "");
+    if (action === "register") {
+      if (car.registration.registered) return json(res, 409, { error: "Автомобиль уже стоит на учёте" });
+      const cost = 8500;
+      if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для постановки на учёт нужно ${cost.toLocaleString("ru-RU")} ₽` });
+      player.cash -= cost; car.registration.registered = true; car.registration.registeredAt = Date.now();
+      car.history.push({ type: "registration", text: "Автомобиль поставлен на регистрационный учёт", at: Date.now() });
+      addLedger(player, "registration", `Постановка на учёт: ${car.model}`, -cost, { carId: car.id, category: "Гараж" });
+    } else if (action === "deregister") {
+      if (!car.registration.registered) return json(res, 409, { error: "Автомобиль уже снят с учёта" });
+      const cost = 2500;
+      if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для снятия с учёта нужно ${cost.toLocaleString("ru-RU")} ₽` });
+      player.cash -= cost; detachPlate(player, car, "При снятии с учёта возвращён номер"); car.registration.registered = false; car.registration.registeredAt = null;
+      car.history.push({ type: "registration", text: "Автомобиль снят с регистрационного учёта", at: Date.now() });
+      addLedger(player, "registration", `Снятие с учёта: ${car.model}`, -cost, { carId: car.id, category: "Гараж" });
+    } else if (action === "attach") {
+      if (!car.registration.registered) return json(res, 400, { error: "Сначала поставьте автомобиль на учёт" });
+      if (car.registration.plate) return json(res, 409, { error: "На автомобиле уже установлен номер" });
+      const plateIndex = player.plateInventory.findIndex((plate) => plate.id === String(body.plateId || ""));
+      if (plateIndex < 0) return json(res, 404, { error: "Номер не найден в вашей коллекции" });
+      const plate = player.plateInventory.splice(plateIndex, 1)[0]; car.registration.plate = plate;
+      car.history.push({ type: "registration", text: `Установлен госномер ${plate.number}`, at: Date.now() });
+    } else if (action === "detach") {
+      if (!car.registration.plate) return json(res, 409, { error: "На автомобиле нет номера" });
+      detachPlate(player, car);
+    } else return json(res, 400, { error: "Неизвестное регистрационное действие" });
+    broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/assets/buy") {
     const listing = assetMarket.find((item) => item.id === String(body.assetId || "") && item.stock > 0);
@@ -2092,7 +2290,8 @@ async function api(req, res, pathname) {
     if (!group) return json(res, 400, { error: "Вы не состоите в группе" });
     if (index < 0) return json(res, 404, { error: "Машина не найдена в личном гараже" });
     if (group.garage.length >= group.garageCapacity) return json(res, 400, { error: "Общий гараж заполнен" });
-    const car = player.garage.splice(index, 1)[0]; car.groupContributorId = player.id; car.groupContributorName = player.name;
+    const car = player.garage[index]; ensureCarDefaults(car); detachPlate(player, car, "Перед передачей команде снят номер"); car.registration.registered = false; car.registration.registeredAt = null;
+    player.garage.splice(index, 1); car.groupContributorId = player.id; car.groupContributorName = player.name;
     car.history.push({ type: "group", text: `Передана в общий гараж группы «${group.name}»`, at: Date.now() });
     group.garage.push(car); group.log.push({ at: Date.now(), text: `${player.name} передал ${car.model} в общий гараж` });
     broadcast(); return json(res, 200, snapshot(player));
@@ -2209,7 +2408,7 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/car/dismantle") {
     const index = player.garage.findIndex((car) => car.id === body.carId);
     if (index < 0) return json(res, 404, { error: "Машина не найдена в гараже" });
-    const car = player.garage[index]; const payout = partsValue(car);
+    const car = player.garage[index]; const payout = partsValue(car); detachPlate(player, car, "Перед разбором снят номер");
     const donorDefects = [...car.defects.filter((defect) => partSpecForDefect(defect)), ...defectCatalog.filter((defect) => partSpecForDefect(defect))]
       .filter((defect, position, list) => list.findIndex((item) => partSpecForDefect(item).sku === partSpecForDefect(defect).sku) === position)
       .sort(() => Math.random() - 0.5).slice(0, Math.max(3, Math.min(6, car.defects.length + 2)));
@@ -2503,6 +2702,9 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
+    detachPlate(player, car, "Перед продажей снят личный номер");
+    if (car.registration.registered) car.history.push({ type: "registration", text: "Перед продажей автомобиль снят с регистрационного учёта", at: Date.now() });
+    car.registration.registered = false; car.registration.registeredAt = null;
     car.price = price;
     car.seller = player.name;
     car.sellerId = player.id;

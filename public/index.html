@@ -24,7 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=workspace-5">
+  <link rel="stylesheet" href="styles.css?v=community-1">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -69,6 +69,7 @@
       <div class="wallet">
         <span>Баланс</span>
         <strong id="cash">0 ₽</strong>
+        <strong id="cash-compact" class="cash-compact">0 ₽</strong>
       </div>
       <button id="profile-button" class="profile-button" title="Открыть профиль"><span id="avatar">В</span><span><b id="profile-name">Игрок</b><small id="profile-level">1 уровень</small></span></button>
       <button id="notification-button" class="notification-button" data-view="auctions" title="Уведомления о ставках" aria-label="Уведомления о ставках">!<span id="notification-count" hidden>0</span></button>
@@ -151,6 +152,7 @@
         <nav class="workspace-switcher" aria-label="Разделы гаража">
           <button class="active" type="button" data-garage-mode="cars">Автомобили <span id="garage-workspace-count">0/4</span></button>
           <button type="button" data-garage-mode="development">Развитие <span>Навыки и инструменты</span></button>
+          <button type="button" data-garage-mode="plates">Номера и учёт <span id="garage-plate-count">0 номеров</span></button>
         </nav>
         <section id="garage-cars-panel" class="workspace-panel">
           <div class="garage-cars-heading"><div><p class="eyebrow">Ваши автомобили</p><h3>Машины в работе</h3></div><span>Осмотр, ремонт и продажа доступны в карточке</span></div>
@@ -183,6 +185,12 @@
           </section>
         </div>
         </details>
+        </section>
+        <section id="garage-plates-panel" class="workspace-panel" hidden>
+          <div class="plate-dashboard"><div><span>В коллекции</span><strong id="plate-inventory-count">0</strong></div><div><span>Установлено</span><strong id="plate-installed-count">0</strong></div><div><span>На бирже</span><strong id="plate-market-count">0</strong></div><button class="primary-button" data-issue-plate>Получить случайный номер · 12 000 ₽</button></div>
+          <section class="registration-panel"><div class="parts-panel-heading"><div><p class="eyebrow">Регистрационные действия</p><h3>Учёт автомобилей</h3></div><span>Номер можно установить только после постановки автомобиля на учёт</span></div><div id="registration-cars" class="registration-list"></div></section>
+          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Ваши свободные номера</p><h3>Моя коллекция</h3></div><span>Установите номер на автомобиль или выставьте его на биржу</span></div><div id="plate-inventory" class="plate-grid"></div></section>
+          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Уникальные комбинации игроков и площадки</p><h3>Биржа номеров</h3></div><span>Комиссия с продажи игрока — 5%</span></div><form id="plate-filters" class="plate-filters"><input id="plate-query" type="search" placeholder="Поиск номера или региона" aria-label="Поиск номера"><select id="plate-rarity" aria-label="Редкость номера"><option value="all">Любая редкость</option><option value="common">Обычные</option><option value="rare">Зеркальные</option><option value="premium">Три одинаковые</option><option value="legendary">Коллекционные</option></select></form><div id="plate-market" class="plate-grid"></div></section>
         </section>
       </section>
 
@@ -223,13 +231,18 @@
           <div><p class="eyebrow">Общий канал игроков</p><h2>Сообщество</h2></div>
           <div class="market-pulse"><i></i><span>Модерация включена</span></div>
         </div>
-        <div class="chat-shell">
+        <nav class="workspace-switcher chat-switcher" aria-label="Режимы общения"><button class="active" type="button" data-chat-mode="public">Общий чат <span>Видят все игроки</span></button><button type="button" data-chat-mode="direct">Личные сообщения <span id="direct-unread-label">Нет новых</span></button></nav>
+        <section id="public-chat-panel" class="workspace-panel chat-shell">
           <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
           <form id="chat-form" class="chat-form">
             <input id="chat-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Сообщение игрокам" required>
             <button class="primary-button" type="submit">Отправить</button>
           </form>
-        </div>
+        </section>
+        <section id="direct-chat-panel" class="workspace-panel direct-shell" hidden>
+          <aside class="direct-sidebar"><label>Найти игрока<input id="direct-search" type="search" placeholder="Поиск"></label><div id="direct-users" class="direct-users"></div></aside>
+          <div class="direct-conversation"><header id="direct-head"><strong>Выберите игрока</strong><span>Диалог откроется здесь</span></header><div id="direct-messages" class="chat-messages direct-messages" aria-live="polite"></div><form id="direct-form" class="chat-form" hidden><input id="direct-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Личное сообщение" required><button class="primary-button" type="submit">Отправить</button></form></div>
+        </section>
       </section>
 
       <section id="rating-view" class="view">
@@ -353,6 +366,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=workspace-5"></script>
+  <script src="app.js?v=community-1"></script>
 </body>
 </html>
