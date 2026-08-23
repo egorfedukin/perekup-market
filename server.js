@@ -101,6 +101,7 @@ const catalog = Array.from({ length: 10000 }, (_, index) => {
 
 const catalogByModel = new Map(catalog.map((item) => [item.model, item]));
 const modelReferenceValues = new Map();
+const modelCurrentValues = new Map(realVehicleSeeds.map(([make, name, , , , currentBase]) => [`${make} ${name}`, currentBase]));
 for (const item of catalog) {
   const values = modelReferenceValues.get(item.model) || [];
   values.push(item.base);
@@ -109,6 +110,12 @@ for (const item of catalog) {
 for (const [model, values] of modelReferenceValues) {
   values.sort((a, b) => a - b);
   modelReferenceValues.set(model, values[Math.floor(values.length / 2)]);
+}
+
+function minimumNpcPrice(model) {
+  const current = modelCurrentValues.get(model) || modelReferenceValues.get(model) || 100000;
+  const factor = current <= 500000 ? 0.22 : current <= 2000000 ? 0.28 : current <= 5000000 ? 0.24 : current <= 15000000 ? 0.2 : 0.16;
+  return Math.max(40000, Math.round(current * factor / 1000) * 1000);
 }
 let marketStatsCache = null;
 let marketStatsCacheAt = 0;
@@ -846,7 +853,7 @@ function makeCar(index, seller = "Авторынок") {
   const fair = currentValue(provisional);
   const indexed = marketIndices[item.model]?.price;
   const pricingBase = clamp(indexed || fair, fair * 0.78, fair * 1.28);
-  const asking = Math.max(1, Math.round((pricingBase * (pricing.min + Math.random() * (pricing.max - pricing.min))) / 1000) * 1000);
+  const asking = Math.max(minimumNpcPrice(item.model), Math.round((pricingBase * (pricing.min + Math.random() * (pricing.max - pricing.min))) / 1000) * 1000);
   const listedAt = Date.now();
   return {
     id: id("car_"), make: item.make, photoQuery: item.photoQuery, model: item.model, year: item.year, mileage, price: asking,
@@ -1232,7 +1239,7 @@ function configureNpcAuction(car) {
   const startFactor = 0.62 + Math.random() * 0.16;
   car.saleType = "auction";
   car.seller = ["Муниципальные торги", "Дилерский аукцион", "Страховой склад", "Лизинговый парк"][randomInt(0, 3)];
-  car.startingPrice = Math.max(1, Math.round(estimate.expectedNpcPrice * startFactor / 1000) * 1000);
+  car.startingPrice = Math.max(Math.round(minimumNpcPrice(car.model) * 0.7 / 1000) * 1000, Math.round(estimate.expectedNpcPrice * startFactor / 1000) * 1000);
   car.price = car.startingPrice;
   car.auctionEnd = Date.now() + randomInt(180, 420) * 1000;
   car.highestBid = 0; car.highestBidderId = null; car.highestBidderName = null; car.highestBidderType = null;
@@ -1255,11 +1262,17 @@ function restockContainers() {
   for (const tier of Object.keys(containerTiers)) while (containerAuctions.filter((item) => item.tier === tier).length < 3) containerAuctions.push(createContainerAuction(tier));
 }
 
-function containerRewardCar(tierKey, invested) {
+function containerRewardCar(tierKey, invested, winner = null) {
   const tier = containerTiers[tierKey];
   let pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
   if (tierKey === "performance") pool = pool.filter((item) => ["coupe", "roadster", "premium"].includes(item.className));
-  const item = pool[randomInt(0, pool.length - 1)] || catalog[0];
+  const recentModels = new Set((winner?.garage || []).filter((car) => car.history?.some((entry) => entry.type === "container")).slice(-5).map((car) => car.model));
+  const models = [...new Set(pool.map((item) => item.model))];
+  const availableModels = models.filter((model) => !recentModels.has(model));
+  const selectedModels = availableModels.length ? availableModels : models;
+  const selectedModel = selectedModels[randomInt(0, Math.max(0, selectedModels.length - 1))];
+  const modelVariants = pool.filter((item) => item.model === selectedModel);
+  const item = modelVariants[randomInt(0, Math.max(0, modelVariants.length - 1))] || pool[randomInt(0, Math.max(0, pool.length - 1))] || catalog[0];
   const car = makeCar(catalog.indexOf(item), "Контейнерный аукцион");
   if (tierKey === "salvage" && car.defects.length < 3) {
     const existing = new Set(car.defects.map((defect) => defect.code));
@@ -1284,7 +1297,7 @@ function finalizeContainers() {
     if (auction.highestBidderType === "player") {
       const winner = players.get(auction.highestBidderId);
       if (winner && winner.cash >= auction.highestBid && winner.garage.length < winner.garageCapacity) {
-        const rewardCar = containerRewardCar(auction.tier, auction.highestBid);
+        const rewardCar = containerRewardCar(auction.tier, auction.highestBid, winner);
         winner.cash -= auction.highestBid; winner.garage.push(rewardCar); winner.stats.auctionsWon += 1; addXp(winner, 90);
         addLedger(winner, "container", `Автомобиль из контейнера: ${rewardCar.model}`, -auction.highestBid, { carId: rewardCar.id, category: "Автомобили" });
         const item = catalog.find((entry) => entry.model === rewardCar.model);
@@ -1326,7 +1339,7 @@ function rebalanceNpcMarket() {
     const fair = currentValue(car);
     const reference = clamp(marketIndices[car.model]?.price || fair, fair * 0.78, fair * 1.28);
     const multiplier = pricing.min + Math.random() * (pricing.max - pricing.min);
-    car.price = Math.max(1, Math.round(reference * multiplier / 1000) * 1000);
+    car.price = Math.max(minimumNpcPrice(car.model), Math.round(reference * multiplier / 1000) * 1000);
     car.purchasePrice = car.price;
     car.invested = car.price;
     car.marketTag = pricing.tag;
@@ -1334,7 +1347,7 @@ function rebalanceNpcMarket() {
   });
   for (const car of market.filter((item) => !item.sellerId && item.saleType === "auction" && !item.bidCount)) {
     const fair = saleEstimate(car).expectedNpcPrice;
-    car.startingPrice = Math.max(1000, Math.round(clamp(car.startingPrice || car.price, fair * 0.58, fair * 0.82) / 1000) * 1000);
+    car.startingPrice = Math.max(Math.round(minimumNpcPrice(car.model) * 0.7 / 1000) * 1000, Math.round(clamp(car.startingPrice || car.price, fair * 0.58, fair * 0.82) / 1000) * 1000);
     car.price = car.startingPrice;
   }
   ensureNpcAuctions();
