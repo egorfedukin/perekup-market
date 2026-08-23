@@ -19,8 +19,12 @@ async function run() {
   const suffix = Date.now().toString().slice(-6);
   const shellResponse = await fetch(base);
   const shell = await shellResponse.text();
+  const clientScript = await (await fetch(`${base}/app.js`)).text();
   check(shellResponse.ok && ["cars", "containers", "mine"].every((mode) => shell.includes(`data-auction-mode="${mode}"`)), "Auction workspace modes are missing from the client shell");
   check(shell.includes('id="auction-cars-panel"') && shell.includes('id="auction-containers-panel"'), "Auction workspace panels are missing from the client shell");
+  check(["cars", "development"].every((mode) => shell.includes(`data-garage-mode="${mode}"`)), "Garage workspace modes are missing from the client shell");
+  check(["overview", "progress", "history"].every((mode) => shell.includes(`data-profile-mode="${mode}"`)), "Profile workspace modes are missing from the client shell");
+  check(clientScript.includes('max="2000000000"'), "Vehicle listing form does not match the server price ceiling");
   const seller = await request("/api/join", null, { name: `Seller${suffix}` });
   check(seller.leaderboardCurrent?.id === seller.player.id && seller.leaderboardCurrent.rank >= 1, "Current player is missing from the activity-based leaderboard");
   check(Object.keys(seller.marketStats).length > 0, "Market statistics are missing");
@@ -87,6 +91,9 @@ async function run() {
   check(diagnosed.serviceDiagnosed && diagnosed.checkedCategories.length === serviceState.inspectionCategories.length && diagnosed.inspection.confidence === 100, "Service did not complete all inspections");
   check(!("hiddenDefectCount" in diagnosed), "Service response exposes hidden defect metadata");
   check(serviceState.player.cash === beforeService - serviceCar.serviceDiagnosticCost, "Service diagnostic cost mismatch");
+  serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 200000000, description: "Коллекционный автомобиль" });
+  check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 200000000), "Listing above the obsolete 150M ceiling was rejected");
+  serviceState = await request("/api/unlist", servicePlayer.token, { carId: serviceCar.id });
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 1, description: "Срочная продажа" });
   check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 1), "One-ruble listing was rejected");
 

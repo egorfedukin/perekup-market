@@ -24,7 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market-production.up.railway.app/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями, вещами и недвижимостью.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=workspace-4">
+  <link rel="stylesheet" href="styles.css?v=workspace-5">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -148,20 +148,27 @@
           </div>
           <div class="garage-value"><span>Вложено в авто</span><strong id="garage-value">0 ₽</strong></div>
         </div>
+        <nav class="workspace-switcher" aria-label="Разделы гаража">
+          <button class="active" type="button" data-garage-mode="cars">Автомобили <span id="garage-workspace-count">0/4</span></button>
+          <button type="button" data-garage-mode="development">Развитие <span>Навыки и инструменты</span></button>
+        </nav>
+        <section id="garage-cars-panel" class="workspace-panel">
+          <div class="garage-cars-heading"><div><p class="eyebrow">Ваши автомобили</p><h3>Машины в работе</h3></div><span>Осмотр, ремонт и продажа доступны в карточке</span></div>
+          <div id="garage-grid" class="garage-list"></div>
+          <div id="empty-garage" class="empty-state" hidden><div class="empty-icon">P</div><h3>В гараже пока пусто</h3><p>Выбери первую машину на общем рынке. Начинать лучше с недорогих вариантов.</p><button data-go-market>Открыть рынок</button></div>
+          <div class="garage-management">
+            <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
+            <div><span>Центр запчастей</span><strong id="part-stock-count">0 деталей</strong><button class="secondary-button" data-view="parts">Открыть</button></div>
+            <div><span>Карьерный прогресс</span><strong id="training-count">0 заданий</strong><button class="secondary-button" data-garage-mode="development">Перейти</button></div>
+          </div>
+        </section>
+        <section id="garage-development-panel" class="workspace-panel" hidden>
         <div class="progress-strip">
           <div class="level-block"><span>Уровень <b id="level-number">1</b></span><strong id="xp-label">0 / 150 XP</strong></div>
           <div class="xp-track"><i id="xp-progress"></i></div>
           <div class="skill-points">Очки навыков: <strong id="skill-points">0</strong></div>
         </div>
-        <div class="garage-cars-heading"><div><p class="eyebrow">Ваши автомобили</p><h3>Машины в работе</h3></div><span>Осмотр, ремонт и продажа доступны в карточке</span></div>
-        <div id="garage-grid" class="garage-list"></div>
-        <div id="empty-garage" class="empty-state" hidden><div class="empty-icon">P</div><h3>В гараже пока пусто</h3><p>Выбери первую машину на общем рынке. Начинать лучше с недорогих вариантов.</p><button data-go-market>Открыть рынок</button></div>
-        <div class="garage-management">
-          <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Расширить гараж</button></div>
-          <div><span>Центр запчастей</span><strong id="part-stock-count">0 деталей</strong><button class="secondary-button" data-view="parts">Открыть</button></div>
-          <div><span>Карьерный прогресс</span><strong id="training-count">0 заданий</strong><button class="secondary-button" data-training>Получить XP</button></div>
-        </div>
-        <details class="garage-workshop">
+        <details class="garage-workshop" open>
           <summary><div><p class="eyebrow">Развитие, инструменты и детали</p><h3>Мастерская и склад</h3></div><span>Открыть рабочую зону</span></summary>
           <div class="training-strip"><div><strong>Практика оценщика</strong><span>Повторяемое задание: +75 XP, +7 000 ₽, каждое четвёртое даёт очко навыка</span></div><button class="primary-button" data-training>Выполнить задание</button></div>
           <aside id="ad-garage" class="ad-slot ad-slot-garage" aria-label="Реклама" hidden></aside>
@@ -176,6 +183,7 @@
           </section>
         </div>
         </details>
+        </section>
       </section>
 
       <section id="parts-view" class="view">
@@ -299,6 +307,12 @@
           <div><p class="eyebrow">Аккаунт и прогресс</p><h2>Личный кабинет</h2></div>
           <button class="secondary-button" data-logout>Выйти из аккаунта</button>
         </div>
+        <nav class="workspace-switcher" aria-label="Разделы личного кабинета">
+          <button class="active" type="button" data-profile-mode="overview">Обзор <span>Аккаунт и быстрые действия</span></button>
+          <button type="button" data-profile-mode="progress">Прогресс <span>Навыки и оборудование</span></button>
+          <button type="button" data-profile-mode="history">История <span>Доходы и расходы</span></button>
+        </nav>
+        <section id="profile-overview-panel" class="workspace-panel">
         <div class="profile-hero">
           <div class="profile-monogram" id="profile-monogram">P</div>
           <div class="profile-identity"><p class="eyebrow">Профиль игрока</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p><div class="profile-level-track"><i id="profile-xp-bar"></i></div><small id="profile-xp-label">0 XP до следующего уровня</small></div>
@@ -312,12 +326,17 @@
           <button data-view="team"><strong>Команда</strong><span>Общий бизнес и сотрудники</span></button>
         </nav>
         <div id="profile-stats" class="profile-stats"></div>
+        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Независимая браузерная игра</h3><p>«Рынок» — симулятор торговли автомобилями, вещами и недвижимостью. Экономика общая для всех игроков, прогресс хранится на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Проект на GitHub</a></section>
+        </section>
+        <section id="profile-progress-panel" class="workspace-panel" hidden>
         <div class="profile-columns">
           <section><p class="eyebrow">Что вы умеете</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
           <section><p class="eyebrow">Что есть в мастерской</p><h3>Оборудование</h3><div id="profile-equipment" class="profile-list"></div></section>
         </div>
+        </section>
+        <section id="profile-history-panel" class="workspace-panel" hidden>
         <section class="deal-history-panel"><div class="workshop-heading"><div><p class="eyebrow">Покупки, продажи и расходы</p><h3>История операций</h3></div><span id="ledger-summary">Последние события</span></div><div id="deal-history" class="deal-history"></div></section>
-        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Независимая браузерная игра</h3><p>«Рынок» — симулятор торговли автомобилями, вещами и недвижимостью. Экономика общая для всех игроков, прогресс хранится на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Проект на GitHub</a></section>
+        </section>
       </section>
     </main>
 
@@ -334,6 +353,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=workspace-4"></script>
+  <script src="app.js?v=workspace-5"></script>
 </body>
 </html>

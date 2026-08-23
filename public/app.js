@@ -29,6 +29,8 @@ let partsFilters = { component: "all", quality: "all", query: "" };
 let partsCarFilter = "all";
 let auctionFilters = { condition: "all", max: null, seller: "all", sort: "ending" };
 let auctionMode = "cars";
+let garageMode = "cars";
+let profileMode = "overview";
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
 let assetMode = "all";
@@ -472,6 +474,7 @@ function renderProgression() {
 function renderGarage() {
   const garage = state.player.garage;
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
+  $("#garage-workspace-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
   $("#part-stock-count").textContent = `${number((state.player.partInventory || []).length)} деталей`;
   $("#training-count").textContent = `${state.player.training?.completed || 0} заданий`;
@@ -818,10 +821,21 @@ function render() {
   $("#profile-name").textContent = state.player.name;
   $("#avatar").textContent = state.player.name[0].toUpperCase();
   renderMarketStats(); renderMarket(); renderActivities(); renderGarage(); renderParts(); renderOffers(); renderLeaderboard(); renderProfile(); renderChat(); renderAssets(); renderStore(); renderAdmin(); renderContainers(); renderAuctions();
+  renderWorkspaceModes();
   if (modalCarId && !$("#car-modal").hidden) refreshOpenModal();
   maybeOpenContainerReward();
   restoreActiveDraft(draft);
   hydrateCarPhotos();
+}
+
+function renderWorkspaceModes() {
+  document.querySelectorAll("[data-garage-mode]").forEach((button) => button.classList.toggle("active", button.dataset.garageMode === garageMode));
+  $("#garage-cars-panel").hidden = garageMode !== "cars";
+  $("#garage-development-panel").hidden = garageMode !== "development";
+  document.querySelectorAll("[data-profile-mode]").forEach((button) => button.classList.toggle("active", button.dataset.profileMode === profileMode));
+  $("#profile-overview-panel").hidden = profileMode !== "overview";
+  $("#profile-progress-panel").hidden = profileMode !== "progress";
+  $("#profile-history-panel").hidden = profileMode !== "history";
 }
 
 function scheduleRender() {
@@ -830,6 +844,9 @@ function scheduleRender() {
 }
 
 function setView(view) {
+  const currentView = document.querySelector(".view.active-view")?.id?.replace(/-view$/, "");
+  if (view !== currentView && view === "garage") garageMode = "cars";
+  if (view !== currentView && view === "profile") profileMode = "overview";
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   document.querySelectorAll(".utility-nav [data-view]").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
@@ -839,6 +856,7 @@ function setView(view) {
   document.querySelector("[data-mobile-menu]")?.setAttribute("aria-expanded", "false");
   if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
   if (view === "auctions" && state.player.unreadNotifications) markNotificationsRead();
+  renderWorkspaceModes();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -947,7 +965,7 @@ function listModal(car) {
         <label><input type="radio" name="saleType" value="fixed" checked><strong>Обычная продажа</strong><small>Покупка сразу или торг</small></label>
         <label><input type="radio" name="saleType" value="auction"><strong>Аукцион</strong><small>Победит максимальная ставка</small></label>
       </div>
-      <label>Цена продажи или стартовая ставка<input name="price" type="number" min="1" max="150000000" step="1" value="${suggested}" required></label>
+      <label>Цена продажи или стартовая ставка<input name="price" type="number" min="1" max="2000000000" step="1" value="${suggested}" inputmode="numeric" required><small class="field-hint">Допустимо от 1 ₽ до 2 млрд ₽, включая редкие коллекционные автомобили.</small></label>
       <label class="auction-duration">Длительность аукциона<select name="durationSeconds"><option value="60">1 минута</option><option value="180">3 минуты</option><option value="300" selected>5 минут</option><option value="900">15 минут</option></select></label>
       <label>Текст объявления<input name="description" maxlength="120" value="${car.repairs.length ? "Обслужена, список работ в истории." : "На ходу, разумный торг у капота."}" required></label>
       <button class="danger-button" type="submit">Опубликовать объявление</button>
@@ -1039,6 +1057,10 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-close-section-menu]")) { toggleSectionMenu(false); return; }
   const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
   if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
+  const garageModeButton = event.target.closest("[data-garage-mode]");
+  if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  const profileModeButton = event.target.closest("[data-profile-mode]");
+  if (profileModeButton) { profileMode = profileModeButton.dataset.profileMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const assetModeButton = event.target.closest("[data-asset-mode]");
   if (assetModeButton) { assetMode = assetModeButton.dataset.assetMode; assetVisibleCount = 12; document.querySelectorAll("[data-asset-mode]").forEach((button) => button.classList.toggle("active", button === assetModeButton)); assetFilters.category = "all"; $("#asset-filters select[name='category']").value = "all"; renderAssets(); return; }
   if (event.target.closest("#asset-load-more")) { assetVisibleCount += 12; renderAssets(); return; }
@@ -1048,7 +1070,7 @@ document.addEventListener("click", async (event) => {
   const partsModeLink = event.target.closest("[data-parts-mode-link]"); if (partsModeLink) { partsMode = partsModeLink.dataset.partsModeLink; renderParts(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const partsCarButton = event.target.closest("[data-parts-car]"); if (partsCarButton) { partsCarFilter = partsCarButton.dataset.partsCar; renderParts(); return; }
   const garageCarButton = event.target.closest("[data-open-garage-car]"); if (garageCarButton) { const car = state.player.garage.find((item) => item.id === garageCarButton.dataset.openGarageCar); if (car) { setView("garage"); openModal(garageModal(car), car.id, "garage"); } return; }
-  if (event.target.closest("[data-open-development]")) { closeModal(); setView("garage"); const workshop = document.querySelector(".garage-workshop"); if (workshop) { workshop.open = true; setTimeout(() => workshop.scrollIntoView({ behavior: "smooth", block: "start" }), 50); } return; }
+  if (event.target.closest("[data-open-development]")) { closeModal(); setView("garage"); garageMode = "development"; renderWorkspaceModes(); return; }
   if (event.target.closest("[data-go-market]")) return setView("market");
   if (event.target.closest("[data-close-modal]")) return closeModal();
   if (event.target.closest("[data-open-parts-center]")) { closeModal(); partsMode = "needs"; setView("parts"); renderParts(); return; }

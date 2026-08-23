@@ -998,6 +998,56 @@ h1, h2, h3, h4,
   .exchange-part > button { grid-column: 1 / -1; width: 100%; }
 }
 
+/* Compact workspaces keep long management pages focused without hiding mechanics. */
+.workspace-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0 0 18px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: #eee7d8;
+}
+#garage-view .workspace-switcher { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.workspace-switcher button {
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.workspace-switcher button:hover { color: var(--ink); background: rgba(255,255,255,.55); }
+.workspace-switcher button.active { border-color: #d6cbb4; background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(32,27,21,.08); }
+.workspace-switcher button span { overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-panel[hidden] { display: none !important; }
+#garage-cars-panel .garage-cars-heading { margin-top: 6px; }
+#garage-development-panel .progress-strip { margin-top: 0; }
+#garage-development-panel .garage-workshop { margin-top: 14px; }
+#profile-overview-panel .developer-note { margin-top: 14px; }
+#profile-progress-panel .profile-columns,
+#profile-history-panel .deal-history-panel { margin-top: 0; }
+.field-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 9px; font-weight: 500; line-height: 1.4; }
+
+@media (max-width: 760px) {
+  .workspace-switcher { position: sticky; z-index: 12; top: 8px; gap: 4px; margin-bottom: 12px; padding: 4px; box-shadow: 0 5px 18px rgba(32,27,21,.1); }
+  .workspace-switcher button { min-height: 48px; padding: 7px 9px; font-size: 11px; text-align: center; }
+  .workspace-switcher button span { font-size: 8px; }
+  #profile-view .workspace-switcher button span { display: none; }
+  #garage-cars-panel .garage-cars-heading { margin-top: 10px; }
+  #profile-overview-panel .profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #profile-overview-panel .developer-note { padding: 16px; }
+}
+
 @media (max-width: 430px) {
   .join-stats { grid-template-columns: 1fr 1fr; }
   .join-stats div:last-child { display: none; }
