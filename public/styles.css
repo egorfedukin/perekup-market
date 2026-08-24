@@ -24,8 +24,12 @@
 /* Community, private messages and vehicle registration. */
 .cash-compact { display: none !important; }
 #garage-view .workspace-switcher { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.car-plate { position: absolute; z-index: 5; left: 50%; bottom: 9px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 3px 7px; border: 1px solid #222; border-radius: 3px; background: #fff; color: #111; font-family: var(--font-mono); font-size: 8px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
-.car-plate .russian-flag { width: 13px; height: 7px; display: grid; overflow: hidden; border: 1px solid #aaa; }
+.car-plate { position: absolute; z-index: 5; left: 50%; bottom: 9px; transform: translateX(-50%); min-width: 92px; height: 24px; display: grid; grid-template-columns: minmax(0, 1fr) 27px; overflow: hidden; border: 2px solid #111; border-radius: 3px; background: #fff; color: #111; font-family: var(--font-mono); font-weight: 900; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.car-plate > strong { display: grid; place-items: center; padding: 0 4px; font-size: 9px; }
+.car-plate > span { display: grid; grid-template-rows: 1fr auto; place-items: center; border-left: 2px solid #111; line-height: 1; }
+.car-plate em { font-size: 6px; font-style: normal; }
+.car-plate small { display: flex; align-items: center; gap: 1px; font-size: 4px; line-height: 1; }
+.car-plate .russian-flag { width: 10px; height: 4px; display: grid; overflow: hidden; border: 0; }
 .plate-dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 1px; margin-bottom: 14px; border: 1px solid var(--line); background: var(--line); }
 .plate-dashboard > div { padding: 14px; background: var(--surface); }
 .plate-dashboard span, .plate-dashboard strong { display: block; }
@@ -2260,10 +2264,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @media (max-width: 760px) {
-  .topbar { grid-template-columns: 1fr auto auto auto auto; }
-  .notification-button { grid-column: 3; }
-  .chat-shortcut { grid-column: 4; grid-row: 1; }
-  .section-menu-button { grid-column: 5; }
+  .topbar { grid-template-columns: 1fr auto auto auto; }
+  .chat-shortcut { grid-column: 3; grid-row: 1; }
+  .section-menu-button { grid-column: 4; }
   html { scroll-behavior: auto; }
   .car-card,
   .garage-car,

@@ -104,8 +104,7 @@ async function run() {
   serviceState = await request("/api/plates/issue", servicePlayer.token, {});
   const issuedPlate = serviceState.player.plateInventory[0];
   check(issuedPlate?.number && serviceState.plateMarket.length >= 30, "Plate issue or marketplace seed failed");
-  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register" });
-  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "attach", plateId: issuedPlate.id });
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register", plateId: issuedPlate.id });
   check(serviceState.player.garage[0].registration.registered && serviceState.player.garage[0].registration.plate?.id === issuedPlate.id, "Plate was not attached to a registered car");
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 200000000, description: "Коллекционный автомобиль" });
   check(serviceState.market.some((item) => item.id === serviceCar.id && item.price === 200000000 && !item.registration.registered && !item.registration.plate) && serviceState.player.plateInventory.some((plate) => plate.id === issuedPlate.id), "High-value listing or automatic plate removal failed");
@@ -118,8 +117,7 @@ async function run() {
   check(plateBuyerState.player.plateInventory.some((plate) => plate.id === issuedPlate.id), "Player-to-player plate purchase failed");
   serviceState = await request("/api/plates/issue", servicePlayer.token, {});
   const includedPlate = serviceState.player.plateInventory[0];
-  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register" });
-  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "attach", plateId: includedPlate.id });
+  serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register", plateId: includedPlate.id });
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 1, description: "Срочная продажа с номером", includePlate: true });
   const includedLot = serviceState.market.find((item) => item.id === serviceCar.id);
   check(includedLot?.price === 1 && includedLot.plateIncluded && includedLot.registration.plate?.id === includedPlate.id, "One-ruble listing with an included plate was rejected");

@@ -2222,10 +2222,13 @@ async function api(req, res, pathname) {
     const action = String(body.action || "");
     if (action === "register") {
       if (car.registration.registered) return json(res, 409, { error: "Автомобиль уже стоит на учёте" });
+      const plateIndex = player.plateInventory.findIndex((plate) => plate.id === String(body.plateId || ""));
+      if (plateIndex < 0) return json(res, 400, { error: "Для постановки на учёт выберите номер" });
       const cost = 8500;
       if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для постановки на учёт нужно ${cost.toLocaleString("ru-RU")} ₽` });
-      player.cash -= cost; car.registration.registered = true; car.registration.registeredAt = Date.now();
-      car.history.push({ type: "registration", text: "Автомобиль поставлен на регистрационный учёт", at: Date.now() });
+      const plate = player.plateInventory.splice(plateIndex, 1)[0];
+      player.cash -= cost; car.registration.registered = true; car.registration.registeredAt = Date.now(); car.registration.plate = plate;
+      car.history.push({ type: "registration", text: `Автомобиль поставлен на учёт с номером ${plate.number}`, at: Date.now() });
       addLedger(player, "registration", `Постановка на учёт: ${car.model}`, -cost, { carId: car.id, category: "Гараж" });
     } else if (action === "deregister") {
       if (!car.registration.registered) return json(res, 409, { error: "Автомобиль уже снят с учёта" });
@@ -2243,7 +2246,7 @@ async function api(req, res, pathname) {
       car.history.push({ type: "registration", text: `Установлен госномер ${plate.number}`, at: Date.now() });
     } else if (action === "detach") {
       if (!car.registration.plate) return json(res, 409, { error: "На автомобиле нет номера" });
-      detachPlate(player, car);
+      detachPlate(player, car); car.registration.registered = false; car.registration.registeredAt = null;
     } else return json(res, 400, { error: "Неизвестное регистрационное действие" });
     broadcast(); return json(res, 200, snapshot(player));
   }

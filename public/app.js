@@ -200,11 +200,14 @@ function carArt(car, extraClass = "") {
   const cached = car.photoUrl ? { url: car.photoUrl, source: car.photoSource || car.photoUrl, license: "Источник фото" } : storedCarPhotos[query];
   const ready = cached && cached.url;
   const unavailable = cached === null;
+  const plate = car.registration?.plate;
+  const plateMain = plate ? String(plate.number || "").split(" ")[0] : "";
+  const plateRegion = plate ? plate.region || String(plate.number || "").split(" ").at(-1) : "";
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass} ${ready ? "photo-loaded" : unavailable ? "photo-failed" : ""}" style="--car-color:${escapeHtml(car.color)}">
     <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(optimizedPhotoUrl(cached.url))}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
     <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
-    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${car.registration?.plate ? `<span class="car-plate">${escapeHtml(car.registration.plate.number)}<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></span>` : ""}
+    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${plate ? `<span class="car-plate"><strong>${escapeHtml(plateMain)}</strong><span><em>${escapeHtml(plateRegion)}</em><small>RUS<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></small></span></span>` : ""}
   </div>`;
 }
 
@@ -578,8 +581,11 @@ function renderPlates() {
   $("#plate-market-count").textContent = number(market.length);
   const registrationMarkup = garage.length ? garage.map((car) => {
     const registration = car.registration || { registered: false, plate: null };
-    const plateSelect = registration.registered && !registration.plate && inventory.length ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${inventory.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="attach" data-car-id="${car.id}">Установить номер</button>` : "";
-    return `<article class="registration-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><span class="registration-status ${registration.registered ? "registered" : ""}">${registration.registered ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : registration.registered ? "Номер не установлен" : "Для установки номера нужна регистрация"}</small></div><div class="registration-actions">${registration.registered ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>` : `<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт · 8 500 ₽</button>`}${registration.plate ? `<button class="secondary-button" data-registration="detach" data-car-id="${car.id}">Снять номер</button>` : plateSelect}</div></article>`;
+    const plateSelect = !registration.plate && inventory.length ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${inventory.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select>` : "";
+    const registrationAction = registration.registered
+      ? registration.plate ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта и вернуть номер · 2 500 ₽</button>` : `${plateSelect}<button class="primary-button" data-registration="attach" data-car-id="${car.id}">Завершить регистрацию</button>`
+      : inventory.length ? `${plateSelect}<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт с номером · 8 500 ₽</button>` : '<button class="primary-button" disabled>Сначала получите номер</button>';
+    return `<article class="registration-car">${carArt(car)}<div><strong>${escapeHtml(car.model)}</strong><span class="registration-status ${registration.registered && registration.plate ? "registered" : ""}">${registration.registered && registration.plate ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : "Для постановки на учёт выберите номер"}</small></div><div class="registration-actions">${registrationAction}</div></article>`;
   }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
   const registrationSignature = JSON.stringify({ garage: garage.map((car) => ({ id: car.id, model: car.model, year: car.year, photoUrl: car.photoUrl, registration: car.registration })), plates: inventory.map((plate) => ({ id: plate.id, number: plate.number, rarityName: plate.rarityName })) });
   if (renderSignatures.plateRegistration !== registrationSignature) {
@@ -723,28 +729,38 @@ function renderAuctions() {
     const current = car.highestBid || car.startingPrice;
     const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
     const defects = car.defects || [];
-    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}" data-auction-card="${car.id}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${playerNameButton(car.sellerId, car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · номер ${escapeHtml(car.registration.plate.number)} входит в лот` : ""}</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
+    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}" data-auction-card="${car.id}"><span class="player-bid-status" ${status ? "" : "hidden"}>${status}</span><button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${playerNameButton(car.sellerId, car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · номер ${escapeHtml(car.registration.plate.number)} входит в лот` : ""}</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
   }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на автомобили." : "По выбранным фильтрам активных лотов нет."}</div>`;
-  const auctionSignature = `${auctionMode}/` + auctions.map((car) => `${car.id}:${car.highestBid}:${car.bidCount}:${car.viewerLeading}:${car.condition}`).join("|");
+  const auctionSignature = `${auctionMode}/` + auctions.map((car) => `${car.id}:${car.sellerId}:${car.condition}:${car.defects?.map((defect) => defect.code).join(",")}`).sort().join("|");
   if (renderSignatures.auctions !== auctionSignature) {
-    const grid = $("#auction-car-grid");
-    const preservedArt = new Map([...grid.querySelectorAll("[data-auction-card]")].map((card) => [card.dataset.auctionCard, card.querySelector(".car-art")]));
-    const template = document.createElement("template");
-    template.innerHTML = auctionMarkup;
-    template.content.querySelectorAll("[data-auction-card]").forEach((card) => {
-      const currentArt = preservedArt.get(card.dataset.auctionCard);
-      const replacement = card.querySelector(".car-art");
-      if (currentArt && replacement) replacement.replaceWith(currentArt);
-    });
-    grid.replaceChildren(template.content);
+    $("#auction-car-grid").innerHTML = auctionMarkup;
     renderSignatures.auctions = auctionSignature;
   }
+  const grid = $("#auction-car-grid");
+  auctions.forEach((car) => {
+    const card = grid.querySelector(`[data-auction-card="${CSS.escape(car.id)}"]`);
+    if (!card) return;
+    const status = car.viewerLeading ? "Вы лидируете" : car.viewerParticipated ? "Вашу ставку перебили" : car.sellerId === state.player.id ? "Ваш аукцион" : "";
+    card.classList.toggle("player-lot", Boolean(car.viewerParticipated));
+    card.classList.toggle("outbid-lot", Boolean(car.viewerParticipated && !car.viewerLeading));
+    const statusNode = card.querySelector(".player-bid-status");
+    statusNode.hidden = !status; statusNode.textContent = status;
+    const current = car.highestBid || car.startingPrice;
+    const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
+    card.querySelector(".container-bid-state > strong").textContent = money(current);
+    card.querySelector(".container-bid-state > small").textContent = `${car.highestBidderName ? `Лидирует ${car.highestBidderName}` : "Стартовая ставка"} · ставок ${car.bidCount}`;
+    const timer = card.querySelector("[data-auction-end]"); timer.dataset.auctionEnd = car.auctionEnd; timer.textContent = auctionTime(car.auctionEnd);
+    const input = card.querySelector("form[data-car-bid] input");
+    if (input) { input.min = minimum; if (document.activeElement !== input) input.value = minimum; }
+    const button = card.querySelector("form[data-car-bid] button"); if (button) button.textContent = car.viewerLeading ? "Повысить" : "Сделать ставку";
+    grid.append(card);
+  });
   const notifications = state.player.notifications || [];
   $("#auction-notifications").innerHTML = notifications.slice(0, 5).map((item) => `<article class="auction-alert ${item.read ? "read" : ""}"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></div><time>${new Date(item.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></article>`).join("");
   $("#auction-notification-panel").hidden = !notifications.length;
   $("#auction-notification-summary").textContent = `${notifications.length} ${notifications.length === 1 ? "уведомление" : notifications.length < 5 ? "уведомления" : "уведомлений"}`;
   const unread = state.player.unreadNotifications || 0;
-  $("#notification-count").hidden = !unread; $("#notification-count").textContent = unread;
+  if ($("#notification-count")) { $("#notification-count").hidden = !unread; $("#notification-count").textContent = unread; }
   const newest = notifications.find((item) => !item.read);
   if (newest && shownNotificationId !== newest.id) { shownNotificationId = newest.id; showToast(newest.text, true); }
 }
@@ -969,8 +985,7 @@ function updateShell() {
   $("#chat-count").textContent = state.directUnread || 0;
   $("#chat-count").hidden = !(state.directUnread || 0);
   const unreadNotifications = state.player.unreadNotifications || 0;
-  $("#notification-count").hidden = !unreadNotifications;
-  $("#notification-count").textContent = unreadNotifications;
+  if ($("#notification-count")) { $("#notification-count").hidden = !unreadNotifications; $("#notification-count").textContent = unreadNotifications; }
   $("#admin-tab").hidden = !state.player.isAdmin;
 }
 
