@@ -537,7 +537,7 @@ function renderGarage() {
   $("#garage-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-workspace-count").textContent = `${garage.length}/${state.player.garageCapacity}`;
   $("#garage-plate-count").textContent = `${number((state.player.plateInventory || []).length)} номеров`;
-  $("#garage-capacity").textContent = `${state.player.garageCapacity} мест`;
+  $("#garage-capacity").textContent = `${state.player.garageCapacity} мест · без лимита`;
   $("#part-stock-count").textContent = `${number((state.player.partInventory || []).length)} деталей`;
   $("#training-count").textContent = `${state.player.training?.completed || 0} заданий`;
   $("#garage-value").textContent = money(garage.reduce((sum, car) => sum + car.invested, 0));

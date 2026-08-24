@@ -9,7 +9,6 @@ const MAX_ADMIN_VALUE = Number.MAX_SAFE_INTEGER;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const STARTING_CASH = 650000;
 const MAX_GARAGE = 4;
-const GARAGE_CAPACITY_MAX = 10;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
 const AUCTION_EXTENSION_MS = Math.max(1000, Number(process.env.PEREKUP_ANTI_SNIPE_MS) || 30000);
 const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
@@ -507,7 +506,7 @@ function ensurePlayerDefaults(player) {
   player.assetIncomeLastAt ??= Date.now();
   for (const asset of player.ownedAssets) if (asset.type === "property") asset.incomeLastAt ??= asset.acquiredAt || player.assetIncomeLastAt;
   player.reputation ||= { score: 50, completed: 0, failed: 0 };
-  player.garageCapacity = Math.max(MAX_GARAGE, Math.min(GARAGE_CAPACITY_MAX, Number(player.garageCapacity) || MAX_GARAGE));
+  player.garageCapacity = Math.max(MAX_GARAGE, Number(player.garageCapacity) || MAX_GARAGE);
   player.parts ||= { common: 0, premium: 0 };
   player.garage ||= [];
   for (const car of player.garage) ensureCarDefaults(car);
@@ -2706,7 +2705,6 @@ async function api(req, res, pathname) {
   }
 
   if (req.method === "POST" && pathname === "/api/garage/expand") {
-    if (player.garageCapacity >= GARAGE_CAPACITY_MAX) return json(res, 400, { error: "Гараж уже максимального размера" });
     const price = 140000 + (player.garageCapacity - MAX_GARAGE) * 65000;
     if (player.cash < price) return json(res, 400, { error: "Не хватает денег на расширение гаража" });
     player.cash -= price;
