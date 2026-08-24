@@ -104,6 +104,7 @@ async function run() {
   serviceState = await request("/api/plates/issue", servicePlayer.token, {});
   const issuedPlate = serviceState.player.plateInventory[0];
   check(issuedPlate?.number && serviceState.plateMarket.length >= 30, "Plate issue or marketplace seed failed");
+  check(issuedPlate.valuationVersion === 2 && serviceState.plateMarket.filter((lot) => !lot.sellerId && lot.plate.rarity === "common").every((lot) => lot.price <= 11000), "Plate economy still guarantees profit on common numbers");
   serviceState = await request("/api/car/registration", servicePlayer.token, { carId: serviceCar.id, action: "register", plateId: issuedPlate.id });
   check(serviceState.player.garage[0].registration.registered && serviceState.player.garage[0].registration.plate?.id === issuedPlate.id, "Plate was not attached to a registered car");
   serviceState = await request("/api/list", servicePlayer.token, { carId: serviceCar.id, price: 200000000, description: "Коллекционный автомобиль" });

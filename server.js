@@ -742,21 +742,36 @@ function plateRarity(number) {
   return { key: "common", name: "Обычный" };
 }
 
+const plateValueRanges = { common: [3000, 9000], rare: [15000, 45000], premium: [80000, 320000], legendary: [1000000, 5000000] };
+
+function plateEstimatedValue(number, rarityKey) {
+  const [low, high] = plateValueRanges[rarityKey] || plateValueRanges.common;
+  const steps = Math.floor((high - low) / 1000);
+  return low + (stablePartIndex(number) % (steps + 1)) * 1000;
+}
+
 function makePlate(forceRarity = null) {
   const letter = () => plateLetters[randomInt(0, plateLetters.length - 1)];
-  const rarityRoll = forceRarity || (Math.random() < 0.04 ? "legendary" : Math.random() < 0.14 ? "premium" : Math.random() < 0.3 ? "rare" : "common");
+  const roll = Math.random();
+  const rarityRoll = forceRarity || (roll < 0.0005 ? "legendary" : roll < 0.005 ? "premium" : roll < 0.08 ? "rare" : "common");
   const first = letter();
   let digits = String(randomInt(1, 999)).padStart(3, "0");
   let tail = `${letter()}${letter()}`;
-  if (rarityRoll === "rare") { const edge = randomInt(1, 9); digits = `${edge}${randomInt(0, 9)}${edge}`; }
-  if (["premium", "legendary"].includes(rarityRoll)) digits = String(randomInt(1, 9)).repeat(3);
+  if (rarityRoll === "common") {
+    while (digits[0] === digits[2] || new Set([first, ...tail]).size === 1) {
+      digits = String(randomInt(1, 999)).padStart(3, "0"); tail = `${letter()}${letter()}`;
+    }
+  }
+  if (rarityRoll === "rare") { const edge = randomInt(1, 9); let middle = randomInt(0, 9); while (middle === edge) middle = randomInt(0, 9); digits = `${edge}${middle}${edge}`; }
+  if (["premium", "legendary"].includes(rarityRoll)) {
+    digits = String(randomInt(1, 9)).repeat(3);
+    if (rarityRoll === "premium") while (tail === `${first}${first}`) tail = `${letter()}${letter()}`;
+  }
   if (rarityRoll === "legendary") tail = `${first}${first}`;
   const region = plateRegions[randomInt(0, plateRegions.length - 1)];
   const number = `${first}${digits}${tail} ${region}`;
   const rarity = plateRarity(number);
-  const ranges = { common: [8000, 45000], rare: [60000, 240000], premium: [300000, 1800000], legendary: [2500000, 12000000] };
-  const [low, high] = ranges[rarity.key];
-  return { id: id("plate_"), number, region, rarity: rarity.key, rarityName: rarity.name, estimatedValue: Math.round(randomInt(low, high) / 1000) * 1000, acquiredAt: Date.now() };
+  return { id: id("plate_"), number, region, rarity: rarity.key, rarityName: rarity.name, estimatedValue: plateEstimatedValue(number, rarity.key), valuationVersion: 2, acquiredAt: Date.now() };
 }
 
 function ensurePlate(plate) {
@@ -765,15 +780,21 @@ function ensurePlate(plate) {
   const rarity = plateRarity(plate.number);
   plate.rarity = rarity.key; plate.rarityName = rarity.name;
   plate.region ||= String(plate.number || "").split(" ").at(-1) || "77";
-  plate.estimatedValue = Math.max(1000, Math.round(Number(plate.estimatedValue) || 10000));
+  if (Number(plate.valuationVersion || 0) < 2) plate.estimatedValue = plateEstimatedValue(plate.number, rarity.key);
+  plate.estimatedValue = Math.max(1000, Math.round(Number(plate.estimatedValue) || plateEstimatedValue(plate.number, rarity.key)));
+  plate.valuationVersion = 2;
   plate.acquiredAt ||= Date.now();
   return plate;
 }
 
 function ensurePlateLot(lot) {
+  const previousValuationVersion = Number(lot.plate?.valuationVersion || lot.valuationVersion || 0);
   lot.plate = ensurePlate(lot.plate || lot);
   lot.id ||= id("plate_lot_");
-  lot.price = Math.max(1, Math.round(Number(lot.price) || lot.plate.estimatedValue));
+  if (!lot.sellerId && previousValuationVersion < 2) {
+    const multiplier = 0.85 + (stablePartIndex(lot.id) % 31) / 100;
+    lot.price = Math.max(1000, Math.round(lot.plate.estimatedValue * multiplier / 1000) * 1000);
+  } else lot.price = Math.max(1, Math.round(Number(lot.price) || lot.plate.estimatedValue));
   lot.seller ||= "Регистрационная биржа";
   lot.sellerId ??= null;
   lot.createdAt ||= Date.now();
