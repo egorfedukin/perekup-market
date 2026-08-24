@@ -11,6 +11,7 @@ const STARTING_CASH = 650000;
 const MAX_GARAGE = 4;
 const GARAGE_CAPACITY_MAX = 10;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
+const AUCTION_EXTENSION_MS = Math.max(1000, Number(process.env.PEREKUP_ANTI_SNIPE_MS) || 30000);
 const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
 const NPC_ROTATION_COUNT = 10;
 const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
@@ -1595,6 +1596,11 @@ function minimumContainerBid(auction) {
   return Math.ceil(rawMinimum / 1000) * 1000;
 }
 
+function extendClosingAuction(item, endField) {
+  const now = Date.now();
+  if (item[endField] - now < AUCTION_EXTENSION_MS) item[endField] = now + AUCTION_EXTENSION_MS;
+}
+
 function finalizeContainers() {
   let changed = false;
   for (const auction of containerAuctions.filter((item) => item.endAt <= Date.now())) {
@@ -1626,6 +1632,7 @@ function runContainerBots() {
     const previousPlayerId = auction.highestBidderType === "player" ? auction.highestBidderId : null;
     auction.highestBid = Math.max(minimum, Math.round(Math.min(Math.round((minimum + Math.random() * Math.max(1000, minimum * 0.06)) / 1000) * 1000, ceiling)));
     auction.highestBidderId = bot.id; auction.highestBidderName = bot.name; auction.highestBidderType = "bot"; auction.bidCount += 1; changed = true;
+    extendClosingAuction(auction, "endAt");
     if (previousPlayerId) notifyOutbid(previousPlayerId, "container", auction.name, auction.highestBid, auction.id);
   }
   if (changed) broadcast();
@@ -1905,6 +1912,7 @@ function runAuctionBots() {
       car.price = car.highestBid;
       car.bidCount += 1;
       car.lastNpcBidAt = now;
+      extendClosingAuction(car, "auctionEnd");
       if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, car.highestBid, car.id);
       changed = true;
       break;
@@ -2815,6 +2823,7 @@ async function api(req, res, pathname) {
     car.bidCount += 1;
     if (!car.participantIds.includes(player.id)) car.participantIds.push(player.id);
     car.lastPlayerBidAt = Date.now();
+    extendClosingAuction(car, "auctionEnd");
     if (previousPlayerId) notifyOutbid(previousPlayerId, "car", car.model, amount, car.id);
     player.stats.bids += 1;
     broadcast();
@@ -2833,6 +2842,7 @@ async function api(req, res, pathname) {
     const previousPlayerId = auction.highestBidderType === "player" && auction.highestBidderId !== player.id ? auction.highestBidderId : null;
     auction.participantIds ||= [];
     auction.highestBid = amount; auction.highestBidderId = player.id; auction.highestBidderName = player.name; auction.highestBidderType = "player"; auction.bidCount += 1; player.stats.bids += 1;
+    extendClosingAuction(auction, "endAt");
     if (!auction.participantIds.includes(player.id)) auction.participantIds.push(player.id);
     if (previousPlayerId) notifyOutbid(previousPlayerId, "container", auction.name, amount, auction.id);
     broadcast(); return json(res, 200, snapshot(player));

@@ -12,7 +12,7 @@ let server;
 function startServer() {
   return new Promise((resolve, reject) => {
     server = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_FAST_JOBS: "1", PEREKUP_ADMIN_NAMES: "TestAdmin" },
+      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_ANTI_SNIPE_MS: "3000", PEREKUP_FAST_JOBS: "1", PEREKUP_ADMIN_NAMES: "TestAdmin" },
       stdio: ["ignore", "pipe", "pipe"]
     });
     const timeout = setTimeout(() => reject(new Error("Server start timed out")), 5000);
@@ -147,10 +147,13 @@ async function run() {
   const startPrice = Math.max(1, Math.round(car.invested * 0.7));
   const indexBeforeSale = inspected.marketStats[car.model].marketPrice;
   await request("/api/list", seller.token, { carId: car.id, price: startPrice, description: "Тестовый аукцион", saleType: "auction", durationSeconds: 2 });
-  const bidAmount = startPrice + 1234;
+  const bidAmount = 640000;
   const bid = await request("/api/bid", buyer.token, { carId: car.id, amount: bidAmount });
   check(bid.player.reservedCash === bidAmount, "Winning bid was not reserved");
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+  const extendedLot = bid.market.find((item) => item.id === car.id);
+  const antiSnipeRemaining = extendedLot.auctionEnd - Date.now();
+  check(antiSnipeRemaining >= 2800 && antiSnipeRemaining <= 3200, "Late bid did not extend the auction by the configured anti-sniping window");
+  await new Promise((resolve) => setTimeout(resolve, antiSnipeRemaining + 1500));
   const won = await request("/api/state", buyer.token);
   check(won.player.garage.some((item) => item.id === car.id), "Auction winner did not receive the car");
   check(won.player.cash === 650000 - bidAmount, "Auction payment was not charged");
@@ -256,8 +259,12 @@ async function run() {
   const activeLot = duringAuction.market.find((item) => item.id === botLot.id);
   check(activeLot?.highestBidderType === "bot" && activeLot.bidCount >= 2, `NPCs did not compete for an idle attractive auction: ${JSON.stringify(activeLot)}`);
   check(activeLot.highestBid <= activeLot.saleEstimate.recommendedHigh * 1.2, `NPC auction exceeded a rational valuation: ${JSON.stringify(activeLot)}`);
-  await new Promise((resolve) => setTimeout(resolve, 6500));
-  const afterNpcSale = await request("/api/state", sellerAgain.token);
+  let afterNpcSale = duringAuction;
+  const npcSaleDeadline = Date.now() + 70000;
+  while (Date.now() < npcSaleDeadline && afterNpcSale.market.some((item) => item.id === botLot.id)) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    afterNpcSale = await request("/api/state", sellerAgain.token);
+  }
   check(afterNpcSale.player.deals === 2, "NPC auction purchase did not complete");
 
   const chatNormal = await request("/api/chat", sellerAgain.token, { message: "Кто сегодня смотрит недорогие седаны?" });

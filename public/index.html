@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
-  <link rel="stylesheet" href="styles.css?v=mobile-1">
+  <link rel="stylesheet" href="styles.css?v=auction-mobile-1">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -75,6 +75,7 @@
       </div>
       <button id="profile-button" class="profile-button" title="Открыть профиль"><span id="avatar">В</span><span><b id="profile-name">Игрок</b><small id="profile-level">1 уровень</small></span></button>
       <button id="notification-button" class="notification-button" data-view="auctions" title="Уведомления о ставках" aria-label="Уведомления о ставках">!<span id="notification-count" hidden>0</span></button>
+      <button id="chat-shortcut" class="chat-shortcut" data-view="chat" title="Личные сообщения" aria-label="Личные сообщения"><i aria-hidden="true"></i><span id="chat-count" class="badge" hidden>0</span></button>
       <button id="section-menu-button" class="section-menu-button" type="button" aria-label="Открыть разделы" aria-expanded="false"><i></i><i></i><i></i></button>
     </header>
     <button id="utility-menu-backdrop" class="utility-menu-backdrop" type="button" data-close-section-menu aria-label="Закрыть меню" hidden></button>
@@ -85,7 +86,7 @@
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
       <span class="utility-group-label">Сообщество</span>
-      <button data-view="chat"><span>Чат <b id="chat-count" class="badge">0</b></span><small>Общение с игроками</small></button>
+      <button data-view="chat"><span>Сообщения</span><small>Личные диалоги и общий чат</small></button>
       <button data-view="rating"><span>Рейтинг</span><small>Таблица лидеров</small></button>
       <span class="utility-spacer"></span>
       <button data-view="store"><span>Пополнить</span><small>Игровой баланс</small></button>
@@ -376,6 +377,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=mobile-1"></script>
+  <script src="app.js?v=auction-mobile-1"></script>
 </body>
 </html>

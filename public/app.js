@@ -565,7 +565,7 @@ function renderGarage() {
 }
 
 function plateCard(plate, actions = "") {
-  return `<article class="plate-card rarity-${escapeHtml(plate.rarity)}"><div class="license-plate"><strong>${escapeHtml(plate.number.split(" ")[0])}</strong><span class="plate-region"><i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i><small>RUS</small><em>${escapeHtml(plate.region)}</em></span></div><div class="plate-meta"><strong>${escapeHtml(plate.rarityName)}</strong><small>Оценка ${money(plate.estimatedValue)}</small></div>${actions}</article>`;
+  return `<article class="plate-card rarity-${escapeHtml(plate.rarity)}"><div class="license-plate"><strong>${escapeHtml(plate.number.split(" ")[0])}</strong><span class="plate-region"><em>${escapeHtml(plate.region)}</em><span><small>RUS</small><i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></span></span></div><div class="plate-meta"><strong>${escapeHtml(plate.rarityName)}</strong><small>Оценка ${money(plate.estimatedValue)}</small></div>${actions}</article>`;
 }
 
 function renderPlates() {
@@ -723,10 +723,22 @@ function renderAuctions() {
     const current = car.highestBid || car.startingPrice;
     const minimum = car.highestBid ? current + Math.max(1, Math.ceil(current * .01)) : current;
     const defects = car.defects || [];
-    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${playerNameButton(car.sellerId, car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · номер ${escapeHtml(car.registration.plate.number)} входит в лот` : ""}</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
+    return `<article class="auction-car-lot ${car.viewerParticipated ? "player-lot" : ""} ${car.viewerParticipated && !car.viewerLeading ? "outbid-lot" : ""}" data-auction-card="${car.id}">${status ? `<span class="player-bid-status">${status}</span>` : ""}<button class="auction-car-preview" data-open-market="${car.id}">${carArt(car)}<span class="auction-details-link">Открыть осмотр</span></button><div class="auction-car-content"><div class="auction-car-title"><div><p class="eyebrow">${playerNameButton(car.sellerId, car.seller)}</p><h3>${escapeHtml(car.model)}</h3><small>${car.year} · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · номер ${escapeHtml(car.registration.plate.number)} входит в лот` : ""}</small></div><span class="condition ${conditionClass}">${car.condition}% · ${condition}</span></div><div class="auction-defects"><strong>${defects.length ? `Известные поломки: ${defects.length}` : "Известных поломок нет"}</strong>${defects.length ? `<ul>${defects.map((defect) => `<li>${escapeHtml(defect.name)} · ${severityNames[defect.severity]}</li>`).join("")}</ul>` : `<span>Состояние полностью раскрыто для торгов</span>`}</div><div class="container-bid-state"><strong>${money(current)}</strong><small>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)}` : "Стартовая ставка"} · ставок ${car.bidCount}</small><time data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</time></div>${car.sellerId === state.player.id ? '<span class="auction-own-note">Вы продавец этого лота</span>' : `<form data-car-bid="${car.id}"><input id="auction-bid-${car.id}" name="amount" type="number" min="${minimum}" step="1" value="${minimum}" required><button class="primary-button" type="submit">${car.viewerLeading ? "Повысить" : "Сделать ставку"}</button></form>`}</div></article>`;
   }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на автомобили." : "По выбранным фильтрам активных лотов нет."}</div>`;
   const auctionSignature = `${auctionMode}/` + auctions.map((car) => `${car.id}:${car.highestBid}:${car.bidCount}:${car.viewerLeading}:${car.condition}`).join("|");
-  if (renderSignatures.auctions !== auctionSignature) { $("#auction-car-grid").innerHTML = auctionMarkup; renderSignatures.auctions = auctionSignature; }
+  if (renderSignatures.auctions !== auctionSignature) {
+    const grid = $("#auction-car-grid");
+    const preservedArt = new Map([...grid.querySelectorAll("[data-auction-card]")].map((card) => [card.dataset.auctionCard, card.querySelector(".car-art")]));
+    const template = document.createElement("template");
+    template.innerHTML = auctionMarkup;
+    template.content.querySelectorAll("[data-auction-card]").forEach((card) => {
+      const currentArt = preservedArt.get(card.dataset.auctionCard);
+      const replacement = card.querySelector(".car-art");
+      if (currentArt && replacement) replacement.replaceWith(currentArt);
+    });
+    grid.replaceChildren(template.content);
+    renderSignatures.auctions = auctionSignature;
+  }
   const notifications = state.player.notifications || [];
   $("#auction-notifications").innerHTML = notifications.slice(0, 5).map((item) => `<article class="auction-alert ${item.read ? "read" : ""}"><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></div><time>${new Date(item.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time></article>`).join("");
   $("#auction-notification-panel").hidden = !notifications.length;
@@ -862,6 +874,7 @@ function renderChat() {
   const directMessages = state.directMessages || [];
   const unread = state.directUnread || 0;
   $("#chat-count").textContent = unread;
+  $("#chat-count").hidden = !unread;
   $("#direct-unread-label").textContent = unread ? `Новых: ${unread}` : "Нет новых";
   container.innerHTML = messages.length ? messages.map((message) => `<div class="chat-message ${message.playerId === state.player.id ? "own" : ""}">
     <div><strong>${playerNameButton(message.playerId, message.playerName)}${supporterTierNames[message.supporterTier] ? ` <i class="supporter-badge tier-${escapeHtml(message.supporterTier)}">${escapeHtml(supporterTierNames[message.supporterTier])}</i>` : ""}</strong><span><time>${new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</time>${message.playerId !== state.player.id ? `<button class="chat-report" data-report-chat="${message.id}" title="Пожаловаться на сообщение">Пожаловаться</button>` : ""}</span></div>
@@ -954,6 +967,7 @@ function updateShell() {
   $("#auction-count").textContent = (state.market || []).filter((car) => car.saleType === "auction").length + (state.containerAuctions || []).length;
   $("#offers-count").textContent = (state.player.incomingOffers || []).length + (state.player.outgoingOffers || []).filter((offer) => offer.status === "counter").length;
   $("#chat-count").textContent = state.directUnread || 0;
+  $("#chat-count").hidden = !(state.directUnread || 0);
   const unreadNotifications = state.player.unreadNotifications || 0;
   $("#notification-count").hidden = !unreadNotifications;
   $("#notification-count").textContent = unreadNotifications;

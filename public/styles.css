@@ -47,17 +47,17 @@
 .plate-card.rarity-rare { border-left-color: #397a82; }
 .plate-card.rarity-premium { border-left-color: #b47b18; }
 .plate-card.rarity-legendary { border-left-color: #9d4038; background: #fffaf0; }
-.license-plate { width: min(250px, 100%); display: grid; grid-template-columns: 1fr 54px; align-items: center; overflow: hidden; border: 3px solid #191919; border-radius: 7px; background: #fff; color: #111; box-shadow: inset 0 0 0 1px #aaa; }
-.license-plate strong { padding: 8px 7px; font-family: var(--font-mono); font-size: 21px; text-align: center; letter-spacing: 0; white-space: nowrap; }
-.license-plate > span { align-self: stretch; display: grid; place-items: center; border-left: 2px solid #222; font-family: var(--font-mono); font-size: 9px; font-weight: 800; line-height: 1.1; text-align: center; }
-.plate-region { grid-template-columns: 1fr 1fr; grid-template-rows: 12px 1fr; padding: 3px 2px 2px; }
-.plate-region .russian-flag { grid-column: 1 / -1; width: 25px; height: 9px; display: grid; overflow: hidden; border: 1px solid #aaa; }
+.license-plate { width: min(270px, 100%); min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr) 64px; align-items: stretch; overflow: hidden; border: 3px solid #111; border-radius: 7px; background: #fff; color: #0b0b0b; box-shadow: inset 0 0 0 1px #8d8d8d, 0 2px 5px rgba(0,0,0,.12); }
+.license-plate strong { display: grid; place-items: center; padding: 7px 8px; font-family: var(--font-mono); font-size: 25px; line-height: 1; text-align: center; white-space: nowrap; }
+.license-plate > .plate-region { align-self: stretch; display: grid; grid-template-rows: 1fr auto; place-items: center; gap: 2px; padding: 4px 3px 3px; border-left: 3px solid #111; font-family: var(--font-mono); font-weight: 900; line-height: 1; text-align: center; }
+.plate-region > em { font-size: 15px; font-style: normal; line-height: 1; }
+.plate-region > span { display: flex; align-items: center; justify-content: center; gap: 3px; }
+.plate-region .russian-flag { width: 22px; height: 9px; display: grid; overflow: hidden; border: 1px solid #888; }
 .russian-flag b { display: block; }
 .russian-flag b:nth-child(1) { background: #fff; }
 .russian-flag b:nth-child(2) { background: #0c47a1; }
 .russian-flag b:nth-child(3) { background: #d52b1e; }
-.plate-region small, .plate-region em { font-size: 7px; font-style: normal; line-height: 1; }
-.plate-region em { font-size: 10px; }
+.plate-region small { font-size: 7px; font-style: normal; line-height: 1; }
 .plate-meta strong, .plate-meta small, .plate-offer strong, .plate-offer small { display: block; }
 .plate-meta small, .plate-offer small { margin-top: 3px; color: var(--muted); font-size: 9px; }
 .plate-list-action, .plate-offer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-top: auto; }
@@ -223,6 +223,11 @@ h1, h2, h3, h4,
 .notification-button { position: relative; width: 34px; height: 34px; border: 1px solid #4c453b; border-radius: 50%; background: transparent; color: #c0b9ae; font-size: 14px; font-weight: 900; }
 .notification-button:hover { border-color: var(--accent); color: white; }
 .notification-button span { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 4px; border-radius: 9px; background: var(--accent); color: white; font-size: 9px; }
+.chat-shortcut { position: relative; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #d9d0bd; border-radius: 50%; background: transparent; color: var(--muted); }
+.chat-shortcut:hover { border-color: var(--accent); color: var(--accent-dark); }
+.chat-shortcut > i { position: relative; width: 16px; height: 12px; display: block; border: 2px solid currentColor; border-radius: 2px; }
+.chat-shortcut > i::after { content: ""; position: absolute; left: 2px; top: -1px; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.chat-shortcut .badge { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; margin: 0; padding: 0 4px; border-radius: 9px; background: var(--danger); color: white; font-size: 9px; }
 .utility-nav { position: sticky; z-index: 19; top: 72px; display: flex; justify-content: center; min-height: 48px; border-bottom: 1px solid var(--line); background: rgba(255,254,249,.97); }
 .utility-nav button { min-width: 118px; border: 0; border-bottom: 3px solid transparent; padding: 7px 14px 6px; background: transparent; color: var(--muted); text-align: left; }
 .utility-nav button:hover, .utility-nav button.active { border-bottom-color: var(--accent); color: var(--ink); background: #f4f1e9; }
@@ -2255,6 +2260,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @media (max-width: 760px) {
+  .topbar { grid-template-columns: 1fr auto auto auto auto; }
+  .notification-button { grid-column: 3; }
+  .chat-shortcut { grid-column: 4; grid-row: 1; }
+  .section-menu-button { grid-column: 5; }
   html { scroll-behavior: auto; }
   .car-card,
   .garage-car,
