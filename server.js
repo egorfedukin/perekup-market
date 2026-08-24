@@ -789,12 +789,17 @@ function ensurePlate(plate) {
 
 function ensurePlateLot(lot) {
   const previousValuationVersion = Number(lot.plate?.valuationVersion || lot.valuationVersion || 0);
+  const previousMarketPricingVersion = Number(lot.marketPricingVersion || 0);
   lot.plate = ensurePlate(lot.plate || lot);
   lot.id ||= id("plate_lot_");
-  if (!lot.sellerId && previousValuationVersion < 2) {
+  if (!lot.sellerId && (previousValuationVersion < 2 || previousMarketPricingVersion < 2)) {
     const multiplier = 0.85 + (stablePartIndex(lot.id) % 31) / 100;
     lot.price = Math.max(1000, Math.round(lot.plate.estimatedValue * multiplier / 1000) * 1000);
-  } else lot.price = Math.max(1, Math.round(Number(lot.price) || lot.plate.estimatedValue));
+  } else {
+    lot.price = Math.max(1, Math.round(Number(lot.price) || lot.plate.estimatedValue));
+    if (lot.sellerId && previousMarketPricingVersion < 2) lot.price = Math.min(lot.price, Math.round(lot.plate.estimatedValue * 1.25 / 1000) * 1000);
+  }
+  lot.marketPricingVersion = 2;
   lot.seller ||= "Регистрационная биржа";
   lot.sellerId ??= null;
   lot.createdAt ||= Date.now();
@@ -804,7 +809,7 @@ function ensurePlateLot(lot) {
 function restockPlateMarket() {
   while (plateMarket.filter((lot) => !lot.sellerId).length < 36) {
     const plate = makePlate();
-    plateMarket.push(ensurePlateLot({ plate, price: Math.max(1000, Math.round(plate.estimatedValue * (0.82 + Math.random() * 0.42) / 1000) * 1000) }));
+    plateMarket.push(ensurePlateLot({ plate, price: Math.max(1000, Math.round(plate.estimatedValue * (0.82 + Math.random() * 0.42) / 1000) * 1000), marketPricingVersion: 2 }));
   }
 }
 
@@ -2227,7 +2232,7 @@ async function api(req, res, pathname) {
     const price = Math.round(Number(body.price));
     if (!Number.isFinite(price) || price < 1 || price > 100000000) return json(res, 400, { error: "Цена номера должна быть от 1 ₽ до 100 000 000 ₽" });
     const plate = player.plateInventory.splice(plateIndex, 1)[0];
-    plateMarket.unshift(ensurePlateLot({ id: id("plate_lot_"), plate, price, seller: player.name, sellerId: player.id, createdAt: Date.now() }));
+    plateMarket.unshift(ensurePlateLot({ id: id("plate_lot_"), plate, price, seller: player.name, sellerId: player.id, marketPricingVersion: 2, createdAt: Date.now() }));
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/plates/unlist") {
