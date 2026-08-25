@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
   <link rel="dns-prefetch" href="//images.unsplash.com">
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
-  <link rel="stylesheet" href="styles.css?v=clothing-images-4">
+  <link rel="stylesheet" href="styles.css?v=asset-markets-2">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -66,7 +66,8 @@
         <button class="tab active" data-view="market">Купить <span id="market-count" class="badge">0</span></button>
         <button class="tab" data-view="garage">Мои авто <span id="garage-count" class="badge">0/4</span></button>
         <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
-        <button class="tab" data-view="assets">Активы</button>
+        <button class="tab" data-view="assets">Недвижимость</button>
+        <button class="tab" data-view="business">Бизнес</button>
         <button class="tab desktop-team-tab" data-view="team">Команда</button>
         <button class="tab more-sections-tab" data-mobile-menu aria-expanded="false">Ещё</button>
       </nav>
@@ -83,6 +84,9 @@
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
       <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
       <button class="utility-team-link" data-view="team"><span>Команда</span><small>Бизнес и сотрудники</small></button>
+      <button data-view="business"><span>Мой бизнес</span><small>Предприятия, персонал и прибыль</small></button>
+      <button data-view="exchange"><span>Биржа активов</span><small>Криптовалюта и инвестиционные лоты</small></button>
+      <button data-view="wardrobe"><span>Гардероб</span><small>Одежда, пошив и коллекция</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
@@ -116,6 +120,7 @@
           <button type="button" class="quick-filter" data-market-preset="deals">Выгодные</button>
           <button type="button" class="quick-filter" data-market-preset="auctions">Аукционы</button>
           <button type="button" class="quick-filter" data-market-preset="budget">До 300 000 ₽</button>
+          <button type="button" class="quick-filter" data-market-preset="luxury">Редкие и люкс</button>
           <button type="button" class="quick-filter" data-market-preset="fresh">Свежий завоз</button>
           <button type="button" class="quick-filter" data-market-preset="mine">Мои лоты</button>
         </div>
@@ -272,13 +277,13 @@
       </section>
 
       <section id="assets-view" class="view">
-        <div class="section-heading"><div><p class="eyebrow">Торговля, аренда и волатильные инструменты</p><h2>Инвестиции</h2></div><div class="market-pulse"><i></i><span>Общий рынок меняется в реальном времени</span></div></div>
+        <div class="section-heading"><div><p class="eyebrow">Объекты, арендаторы и обязательные платежи</p><h2>Недвижимость</h2></div><div class="market-pulse"><i></i><span>Арендный рынок онлайн</span></div></div>
         <div id="asset-summary" class="parts-summary asset-summary"></div>
-        <div class="asset-mode-controls" role="tablist" aria-label="Рынки активов"><button class="active" type="button" data-asset-mode="all">Обзор</button><button type="button" data-asset-mode="item">Вещи</button><button type="button" data-asset-mode="property">Недвижимость</button><button type="button" data-asset-mode="crypto">Крипторынок <span>LIVE</span></button></div>
-        <section id="clothing-workshop" class="clothing-workshop"><div><p class="eyebrow">Стартовая мастерская</p><h3>Сшить случайную вещь</h3><span id="clothing-craft-status">Материалы стоят 1 200 ₽ · готовность 30–120 секунд</span></div><div class="clothing-craft-actions"><strong id="clothing-craft-timer"></strong><button class="primary-button" data-clothing-craft>Сшить вещь</button><button class="secondary-button" data-clothing-claim hidden>Забрать вещь</button></div></section>
-        <section id="clothing-inventory-panel" class="clothing-inventory-panel"><div class="asset-section-head"><div><p class="eyebrow">Коллекция игрока</p><h3>Инвентарь одежды</h3></div><span>Редкость влияет на ценность и шанс выпадения</span></div><div id="clothing-inventory-stats" class="clothing-inventory-stats"></div><div id="clothing-inventory" class="clothing-inventory"></div></section>
+        <div class="asset-mode-controls" hidden><button data-asset-mode="property"></button></div>
+        <section id="clothing-workshop" hidden><span id="clothing-craft-status"></span><strong id="clothing-craft-timer"></strong><button data-clothing-craft></button><button data-clothing-claim hidden></button></section>
+        <section id="clothing-inventory-panel" hidden><div id="clothing-inventory-stats"></div><div id="clothing-inventory"></div></section>
         <section id="property-income-panel" class="property-income-panel"><div><p class="eyebrow">Арендный поток</p><h3>Доход недвижимости</h3><span id="property-income-explanation">Начисляется отдельно по каждому объекту</span></div><div><span>К получению</span><strong id="property-income-value">0 ₽</strong><small id="property-income-rate">0 ₽ в минуту</small></div><button class="primary-button" data-asset-income disabled>Получить доход</button></section>
-        <form id="asset-filters" class="market-filters asset-filters">
+        <form id="asset-filters" class="market-filters asset-filters" hidden>
           <input name="type" type="hidden" value="all">
           <label>Категория<select name="category"><option value="all">Все категории</option><option value="electronics">Техника</option><option value="collectibles">Коллекции</option><option value="business">Оборудование</option><option value="clothing">Одежда</option><option value="residential">Жилая недвижимость</option><option value="commercial">Коммерческая недвижимость</option><option value="crypto">Криптовалюта</option></select></label>
           <label>Цена от<input name="min" type="number" min="1" step="10000" placeholder="10 000 ₽"></label>
@@ -286,11 +291,36 @@
           <label>Сортировка<select name="sort"><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option><option value="income">По доходности</option></select></label>
           <button class="primary-button" type="submit">Применить</button><button class="secondary-button" type="reset">Сбросить</button><span id="asset-filter-result" class="filter-result"></span>
         </form>
-        <div class="asset-section-head"><div><p class="eyebrow">Частные объявления и ликвидационные площадки</p><h3>Доступные лоты</h3></div><span>Навык сужает диапазон оценки и улучшает цену перепродажи</span></div>
+        <div class="asset-section-head"><div><p class="eyebrow">Жилая и коммерческая недвижимость</p><h3>Объекты на продажу</h3></div><span>Сравнивайте цену, доходность, состояние и ликвидность</span></div>
         <div id="asset-market-grid" class="asset-grid"></div>
         <div id="asset-load-more-wrap" class="market-load-more" hidden><button id="asset-load-more" class="secondary-button" type="button">Показать ещё</button><span id="asset-load-more-label"></span></div>
-        <div class="asset-section-head"><div><p class="eyebrow">Ваш капитал вне автопарка</p><h3>Мой портфель</h3></div><span>Криптовалюта продаётся по текущему курсу, недвижимость приносит аренду</span></div>
+        <div class="asset-section-head"><div><p class="eyebrow">Ваши объекты</p><h3>Управление недвижимостью</h3></div><span>Арендаторы, налоги и техническое состояние</span></div>
         <div id="owned-assets" class="owned-assets"></div>
+      </section>
+
+      <section id="exchange-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Ликвидные активы и рыночный риск</p><h2>Биржа активов</h2></div><div class="market-pulse"><i></i><span>Котировки обновляются в реальном времени</span></div></div>
+        <div id="exchange-summary" class="parts-summary asset-summary"></div>
+        <section id="crypto-terminal" class="crypto-terminal"><div id="crypto-quote-tabs" class="crypto-quote-tabs"></div><div class="crypto-chart-panel"><div id="crypto-chart-head"></div><div id="crypto-chart" class="market-chart"></div></div><form id="crypto-trade" class="crypto-trade"><input name="key" type="hidden"><label>Сумма операции<input name="rubles" type="number" min="100" step="100" value="10000"></label><button class="primary-button" name="action" value="buy">Купить</button><button class="secondary-button" name="action" value="sell">Продать</button></form></section>
+        <div class="asset-section-head"><div><p class="eyebrow">Криптовалюта, коллекции и оборудование</p><h3>Доступные позиции</h3></div><span>Недвижимость и одежда вынесены в отдельные разделы</span></div>
+        <div id="exchange-market" class="asset-grid"></div>
+        <div class="asset-section-head"><div><p class="eyebrow">Ваши инвестиции</p><h3>Портфель биржи</h3></div><span>Текущая оценка и быстрая продажа</span></div>
+        <div id="exchange-owned" class="owned-assets"></div>
+      </section>
+
+      <section id="wardrobe-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Личная коллекция и мастерская</p><h2>Гардероб</h2></div></div>
+        <section class="clothing-workshop"><div><p class="eyebrow">Стартовая мастерская</p><h3>Сшить случайную вещь</h3><span id="wardrobe-craft-status">Материалы стоят 1 200 ₽ · готовность 30–120 секунд</span></div><div class="clothing-craft-actions"><strong id="wardrobe-craft-timer"></strong><button class="primary-button" data-clothing-craft>Сшить вещь</button><button class="secondary-button" data-clothing-claim hidden>Забрать вещь</button></div></section>
+        <section class="clothing-inventory-panel"><div class="asset-section-head"><div><p class="eyebrow">Коллекция игрока</p><h3>Мои вещи</h3></div><span>Редкость влияет на ценность и шанс выпадения</span></div><div id="wardrobe-stats" class="clothing-inventory-stats"></div><div id="wardrobe-inventory" class="clothing-inventory"></div></section>
+        <section><div class="asset-section-head"><div><p class="eyebrow">Торговля между игроками</p><h3>Рынок вещей</h3></div><span>Комиссия продавца 5%</span></div><div id="clothing-market" class="clothing-market"></div></section>
+        <section><div class="asset-section-head"><div><p class="eyebrow">Закрытые лоты</p><h3>Контейнеры с вещами</h3></div><span>Редкость известна, содержимое откроется победителю</span></div><div id="item-container-grid" class="item-container-grid"></div></section>
+      </section>
+
+      <section id="business-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Личные предприятия и операционная прибыль</p><h2>Бизнес</h2></div><div class="market-pulse"><i></i><span>Расчёт каждые 60 секунд</span></div></div>
+        <div id="business-summary" class="parts-summary asset-summary"></div>
+        <section class="business-owned-section"><div class="asset-section-head"><div><p class="eyebrow">Ваши предприятия</p><h3>Управление</h3></div><span>Нанимайте сотрудников и повышайте уровень</span></div><div id="owned-businesses" class="business-grid"></div></section>
+        <section class="business-market-section"><div class="asset-section-head"><div><p class="eyebrow">Готовые предприятия</p><h3>Купить бизнес</h3></div><span>Доход зависит от штата, уровня и репутации</span></div><div id="business-market" class="business-grid"></div></section>
       </section>
 
       <section id="auctions-view" class="view">
@@ -375,12 +405,13 @@
         <div id="player-profile-content"></div>
       </section>
     </div>
+    <div id="property-modal" class="modal" hidden><button class="modal-backdrop" data-close-property-modal aria-label="Закрыть окно"></button><section class="modal-panel property-detail-panel" role="dialog" aria-modal="true"><button class="icon-button close-button" data-close-property-modal title="Закрыть" aria-label="Закрыть">×</button><div id="property-modal-content"></div></section></div>
 
     <div id="toast" class="toast" role="status"></div>
     <div id="skill-challenge" class="skill-challenge" hidden></div>
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=clothing-images-4"></script>
+  <script src="app.js?v=asset-markets-2"></script>
 </body>
 </html>

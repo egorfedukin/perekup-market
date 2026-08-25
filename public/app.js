@@ -45,6 +45,7 @@ let plateFilters = { query: "", rarity: "all" };
 let assetFilters = { type: "all", category: "all", min: null, max: null, sort: "deal" };
 let assetVisibleCount = 12;
 let assetMode = "all";
+let selectedCryptoKey = "crypton";
 const renderSignatures = { market: "", auctions: "", containers: "", garage: "", plateRegistration: "", plateInventory: "", plateMarket: "" };
 let modalContentSignature = "";
 let activeChallenge = null;
@@ -985,9 +986,10 @@ function renderAssets() {
   const listings = state.assetMarket || [];
   const owned = state.player.ownedAssets || [];
   const categories = state.assetCategories || {};
-  const filtered = listings.filter((asset) => (assetMode === "all" || asset.type === assetMode) && (assetFilters.category === "all" || asset.category === assetFilters.category) && (!assetFilters.min || asset.price >= assetFilters.min) && (!assetFilters.max || asset.price <= assetFilters.max)).sort((a, b) => assetFilters.sort === "priceAsc" ? a.price - b.price : assetFilters.sort === "priceDesc" ? b.price - a.price : assetFilters.sort === "income" ? (b.income || 0) - (a.income || 0) : (((b.estimateLow + b.estimateHigh) / 2) / b.price) - (((a.estimateLow + a.estimateHigh) / 2) / a.price));
-  const portfolioValue = owned.reduce((sum, asset) => sum + asset.resaleValue, 0);
-  const invested = owned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
+  const filtered = listings.filter((asset) => asset.type === "property").sort((a, b) => ((b.income || 0) / b.price) - ((a.income || 0) / a.price));
+  const propertyOwned = owned.filter((asset) => asset.type === "property");
+  const portfolioValue = propertyOwned.reduce((sum, asset) => sum + asset.resaleValue, 0);
+  const invested = propertyOwned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
   const cryptoValue = owned.filter((asset) => asset.type === "crypto").reduce((sum, asset) => sum + asset.resaleValue, 0);
   const properties = owned.filter((asset) => asset.type === "property");
   const clothingCraft = state.player.clothingCraft;
@@ -995,7 +997,7 @@ function renderAssets() {
   const rarityNames = { common: "Обычная", uncommon: "Необычная", rare: "Редкая", epic: "Эпическая", legendary: "Легендарная" };
   const clothingValue = clothing.reduce((sum, asset) => sum + asset.resaleValue, 0);
   const rarityCounts = clothing.reduce((counts, asset) => { counts[asset.rarity] = (counts[asset.rarity] || 0) + 1; return counts; }, {});
-  $("#clothing-inventory-panel").hidden = !["all", "item"].includes(assetMode);
+  $("#clothing-inventory-panel").hidden = true;
   $("#clothing-inventory-stats").innerHTML = `<div><span>Всего вещей</span><strong>${number(clothing.length)}</strong></div><div><span>Стоимость коллекции</span><strong>${money(clothingValue)}</strong></div><div><span>Редких и выше</span><strong>${number((rarityCounts.rare || 0) + (rarityCounts.epic || 0) + (rarityCounts.legendary || 0))}</strong></div><div><span>Легендарных</span><strong>${number(rarityCounts.legendary || 0)}</strong></div>`;
   $("#clothing-inventory").innerHTML = clothing.length ? clothing.slice().reverse().map((asset) => { const photo = optimizedClothingPhotoUrl(asset.photoUrl, 360); const photo2x = optimizedClothingPhotoUrl(asset.photoUrl, 640); return `<article class="clothing-item rarity-${escapeHtml(asset.rarity)}"><div class="clothing-placeholder">${photo ? `<img src="${escapeHtml(photo)}" srcset="${escapeHtml(photo)} 1x, ${escapeHtml(photo2x)} 2x" sizes="110px" alt="${escapeHtml(asset.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove();this.parentElement.classList.add('photo-failed');">` : ""}<span>${escapeHtml(asset.category === "clothing" ? "ОДЕЖДА" : "ВЕЩЬ")}</span><strong>${escapeHtml(asset.name.split(" ")[0])}</strong></div><div><span class="clothing-rarity">${escapeHtml(rarityNames[asset.rarity] || "Обычная")}</span><h4>${escapeHtml(asset.name)}</h4><p>${escapeHtml(asset.description)}</p><small>${escapeHtml(asset.category === "clothing" ? "Сшито в мастерской" : "Получено")}</small></div><div><span>Оценка</span><strong>${money(asset.resaleValue)}</strong><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">Инвентарь пуст. Сшейте первую вещь в мастерской.</div>';
   const craftReady = clothingCraft && clothingCraft.finishAt <= Date.now();
@@ -1012,7 +1014,8 @@ function renderAssets() {
   if (claimButton) claimButton.hidden = !craftReady;
   const incomeRate = properties.reduce((sum, asset) => sum + (asset.incomeState?.perCycle || 0), 0);
   const nextIncomeAt = properties.map((asset) => asset.incomeState?.nextAt).filter(Boolean).sort((a, b) => a - b)[0];
-  $("#asset-summary").innerHTML = `<div><span>Стоимость портфеля</span><strong>${money(portfolioValue)}</strong><small>${portfolioValue - invested >= 0 ? "+" : ""}${money(portfolioValue - invested)} к вложениям</small></div><div><span>Недвижимость</span><strong>${properties.length}</strong><small>${money(incomeRate)} в минуту</small></div><div><span>Криптопозиции</span><strong>${owned.filter((asset) => asset.type === "crypto").length}</strong><small>текущая цена ${money(cryptoValue)}</small></div><div><span>Свободный баланс</span><strong>${money(state.player.availableCash)}</strong><small>доступно для сделок</small></div>`;
+  const taxes = properties.reduce((sum, asset) => sum + (asset.incomeState?.taxDue || 0), 0);
+  $("#asset-summary").innerHTML = `<div><span>Стоимость объектов</span><strong>${money(portfolioValue)}</strong><small>${portfolioValue - invested >= 0 ? "+" : ""}${money(portfolioValue - invested)} к вложениям</small></div><div><span>Объектов</span><strong>${properties.length}</strong><small>${properties.filter((asset) => asset.rentalStatus === "rented").length} сдано</small></div><div><span>Чистая аренда</span><strong>${money(properties.reduce((sum, asset) => sum + (asset.incomeState?.netPerCycle || 0), 0))}/мин</strong><small>после эксплуатации</small></div><div><span>Налоги</span><strong>${money(taxes)}</strong><small>к уплате</small></div>`;
   $("#property-income-value").textContent = money(state.player.assetIncomeAvailable || 0);
   $("#property-income-rate").textContent = `${money(incomeRate)} в минуту`;
   $("#property-income-explanation").textContent = properties.length ? (nextIncomeAt ? `Следующее начисление ${auctionTime(nextIncomeAt)} · максимум 10 минут накопления на объект` : "Доход готов к получению") : "Купите объект недвижимости, чтобы получать аренду";
@@ -1020,11 +1023,60 @@ function renderAssets() {
   incomeButton.disabled = (state.player.assetIncomeAvailable || 0) < 1;
   const visibleListings = filtered.slice(0, assetVisibleCount);
   $("#asset-filter-result").textContent = `Показано ${visibleListings.length} из ${filtered.length}`;
-  $("#asset-market-grid").innerHTML = visibleListings.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); const crypto = asset.type === "crypto"; return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${crypto ? `КРИПТО · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "НЕДВИЖИМОСТЬ" : escapeHtml(categories[asset.category] || "ВЕЩЬ")}</span><strong>${crypto ? escapeHtml(asset.symbol[0]) : asset.type === "property" ? "▦" : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics">${crypto ? `<span>Курс<strong>${money(asset.unitPrice)}</strong></span><span>Пакет<strong>${number(asset.quantity)} ${escapeHtml(asset.symbol)}</strong></span><span>Движение<strong class="crypto-move ${asset.changePct >= 0 ? "up" : "down"}">${asset.changePct >= 0 ? "+" : ""}${asset.changePct}%</strong></span>` : `<span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span>${asset.income ? `<span>Доход / мин<strong>${money(asset.income)}</strong></span>` : `<span>Риск<strong>${asset.risk}/5</strong></span>`}`}</div><div class="asset-estimate"><span>${crypto ? "Диапазон риск-оценки" : "Ваша оценка"}: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}%</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>${state.skillInfo[asset.skill]?.name || "Оценка"} ${asset.skillLevel}/5${crypto ? " · биржевая наценка 1,2%" : ` · остаток ${asset.stock}`}</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>${crypto ? "Купить пакет" : "Купить"}</button></div></div></article>`; }).join("") || '<div class="empty-filter">На этом рынке лотов по выбранным условиям нет.</div>';
+  $("#asset-market-grid").innerHTML = visibleListings.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); return `<article class="asset-card asset-property" data-open-property="${asset.id}"><div class="asset-visual"><span>НЕДВИЖИМОСТЬ</span><strong>▦</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics"><span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span><span>Доход / мин<strong>${money(asset.income)}</strong></span></div><div class="asset-estimate"><span>Ваша оценка: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}%</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>Открыть аналитику</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>Купить</button></div></div></article>`; }).join("") || '<div class="empty-filter">Объектов сейчас нет.</div>';
   $("#asset-load-more-wrap").hidden = visibleListings.length >= filtered.length;
   $("#asset-load-more-label").textContent = `${visibleListings.length} из ${filtered.length}`;
-  const visibleOwned = owned.filter((asset) => asset.category !== "clothing" && (assetMode === "all" || asset.type === assetMode));
-  $("#owned-assets").innerHTML = visibleOwned.length ? visibleOwned.map((asset) => { const delta = asset.resaleValue - asset.purchasePrice; const income = asset.incomeState; return `<article class="owned-asset"><div><span>${asset.type === "crypto" ? `Криптовалюта · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "Недвижимость" : escapeHtml(categories[asset.category] || "Вещь")}</span><strong>${escapeHtml(asset.name)}</strong><small>${asset.type === "crypto" ? `${number(asset.quantity)} ${escapeHtml(asset.symbol)} · куплено за ${money(asset.purchasePrice)}` : `Куплено за ${money(asset.purchasePrice)} · состояние ${asset.condition}%`}</small>${income?.perCycle ? `<small class="asset-income-line">Аренда ${money(income.perCycle)}/мин · накоплено ${money(income.amount)}</small>` : ""}</div><div><span>${asset.type === "crypto" ? "По курсу после комиссии" : "Быстрая продажа"}</span><strong>${money(asset.resaleValue)}</strong><small class="${delta >= 0 ? "profit-positive" : "profit-negative"}">${delta >= 0 ? "+" : ""}${money(delta)}</small><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">В выбранном разделе портфеля пока ничего нет.</div>';
+  const visibleOwned = properties;
+  $("#owned-assets").innerHTML = visibleOwned.length ? visibleOwned.map((asset) => { const delta = asset.resaleValue - asset.purchasePrice; const income = asset.incomeState; const property = asset.type === "property"; return `<article class="owned-asset ${property ? "owned-property" : ""}"><div><span>${asset.type === "crypto" ? `Криптовалюта · ${escapeHtml(asset.symbol)}` : property ? (asset.rentalStatus === "rented" ? "Сдано в аренду" : "Свободный объект") : escapeHtml(categories[asset.category] || "Вещь")}</span><strong>${escapeHtml(asset.name)}</strong><small>${asset.type === "crypto" ? `${number(asset.quantity)} ${escapeHtml(asset.symbol)} · куплено за ${money(asset.purchasePrice)}` : `Куплено за ${money(asset.purchasePrice)} · состояние ${property ? asset.maintenance : asset.condition}%`}</small>${property ? `<div class="property-operations"><span>Арендатор<strong>${escapeHtml(asset.tenant || "нет")}</strong></span><span>Валовая аренда<strong>${money(income.perCycle)}/мин</strong></span><span>Чистый поток<strong>${money(income.netPerCycle)}/мин</strong></span><span>Налог к уплате<strong class="${income.taxDue ? "profit-negative" : ""}">${money(income.taxDue)}</strong></span></div><div class="property-actions">${asset.rentalStatus === "rented" ? `<button class="secondary-button" data-property-action="vacate" data-asset-id="${asset.id}">Выселить</button>` : `<button class="primary-button" data-property-action="rent" data-asset-id="${asset.id}">Найти арендатора</button>`}<button class="secondary-button" data-property-action="tax" data-asset-id="${asset.id}" ${income.taxDue < 1 ? "disabled" : ""}>Оплатить налог</button><button class="secondary-button" data-property-action="maintain" data-asset-id="${asset.id}" ${asset.maintenance >= 100 ? "disabled" : ""}>Обслужить</button></div>` : ""}</div><div><span>${asset.type === "crypto" ? "По курсу после комиссии" : "Быстрая продажа"}</span><strong>${money(asset.resaleValue)}</strong><small class="${delta >= 0 ? "profit-positive" : "profit-negative"}">${delta >= 0 ? "+" : ""}${money(delta)}</small><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">В выбранном разделе портфеля пока ничего нет.</div>';
+  $("#owned-assets").querySelectorAll(".owned-property").forEach((card, index) => { if (visibleOwned[index]) card.dataset.openProperty = visibleOwned[index].id; });
+}
+
+function renderExchange() {
+  const categories = state.assetCategories || {};
+  const listings = (state.assetMarket || []).filter((asset) => asset.type !== "property" && asset.category !== "clothing");
+  const owned = (state.player.ownedAssets || []).filter((asset) => asset.type !== "property" && asset.category !== "clothing");
+  const value = owned.reduce((sum, asset) => sum + asset.resaleValue, 0); const invested = owned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
+  const quotes = state.cryptoQuotes || []; if (!quotes.some((item) => item.key === selectedCryptoKey)) selectedCryptoKey = quotes[0]?.key;
+  const selected = quotes.find((item) => item.key === selectedCryptoKey); const history = selected?.history || [];
+  $("#crypto-quote-tabs").innerHTML = quotes.map((item) => `<button class="${item.key === selectedCryptoKey ? "active" : ""}" data-crypto-key="${item.key}"><strong>${escapeHtml(item.symbol)}</strong><span>${money(item.unitPrice)}</span><small class="${item.changePct >= 0 ? "profit-positive" : "profit-negative"}">${item.changePct >= 0 ? "+" : ""}${item.changePct}%</small></button>`).join("");
+  if (selected) { $("#crypto-chart-head").innerHTML = `<div><span>${escapeHtml(selected.name)}</span><strong>${money(selected.unitPrice)}</strong></div><small>${history.length} обновлений · каждые 30 секунд</small>`; $("#crypto-chart").innerHTML = lineChart(history.map((item) => item.price), selected.changePct >= 0); $("#crypto-trade [name='key']").value = selected.key; }
+  $("#exchange-summary").innerHTML = `<div><span>Стоимость портфеля</span><strong>${money(value)}</strong><small>${value - invested >= 0 ? "+" : ""}${money(value - invested)}</small></div><div><span>Криптопозиции</span><strong>${owned.filter((asset) => asset.type === "crypto").length}</strong><small>рыночная оценка</small></div><div><span>Материальные активы</span><strong>${owned.filter((asset) => asset.type === "item").length}</strong><small>коллекции и оборудование</small></div><div><span>Свободный баланс</span><strong>${money(state.player.availableCash)}</strong><small>доступно для сделок</small></div>`;
+  $("#exchange-market").innerHTML = listings.map((asset) => { const crypto = asset.type === "crypto"; return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${crypto ? `КРИПТО · ${escapeHtml(asset.symbol)}` : escapeHtml(categories[asset.category] || "АКТИВ")}</span><strong>${crypto ? escapeHtml(asset.symbol[0]) : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics">${crypto ? `<span>Курс<strong>${money(asset.unitPrice)}</strong></span><span>Пакет<strong>${number(asset.quantity)} ${escapeHtml(asset.symbol)}</strong></span><span>Движение<strong class="crypto-move ${asset.changePct >= 0 ? "up" : "down"}">${asset.changePct >= 0 ? "+" : ""}${asset.changePct}%</strong></span>` : `<span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span><span>Риск<strong>${asset.risk}/5</strong></span>`}</div><div class="asset-buy"><strong>${money(asset.price)}</strong><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>Купить</button></div></div></article>`; }).join("");
+  $("#exchange-owned").innerHTML = owned.length ? owned.map((asset) => `<article class="owned-asset"><div><span>${asset.type === "crypto" ? `Криптовалюта · ${escapeHtml(asset.symbol)}` : escapeHtml(categories[asset.category] || "Актив")}</span><strong>${escapeHtml(asset.name)}</strong><small>Куплено за ${money(asset.purchasePrice)}</small></div><div><span>Текущая оценка</span><strong>${money(asset.resaleValue)}</strong><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`).join("") : '<div class="no-offers">Биржевой портфель пока пуст.</div>';
+}
+
+function renderWardrobe() {
+  const clothing = (state.player.ownedAssets || []).filter((asset) => asset.category === "clothing"); const craft = state.player.clothingCraft; const ready = craft && craft.finishAt <= Date.now();
+  $("#wardrobe-stats").innerHTML = `<div><span>Всего вещей</span><strong>${number(clothing.length)}</strong></div><div><span>Стоимость</span><strong>${money(clothing.reduce((sum, asset) => sum + asset.resaleValue, 0))}</strong></div><div><span>Редких и выше</span><strong>${clothing.filter((asset) => ["rare", "epic", "legendary"].includes(asset.rarity)).length}</strong></div>`;
+  $("#wardrobe-craft-status").textContent = craft ? (ready ? "Вещь готова" : "Мастерская работает над заказом") : "Материалы стоят 1 200 ₽ · готовность 30–120 секунд"; $("#wardrobe-craft-timer").textContent = craft && !ready ? auctionTime(craft.finishAt) : "";
+  $("#wardrobe-view [data-clothing-craft]").disabled = Boolean(craft) || state.player.availableCash < 1200; $("#wardrobe-view [data-clothing-claim]").hidden = !ready;
+  $("#wardrobe-inventory").innerHTML = clothing.length ? clothing.slice().reverse().map((asset) => `<article class="clothing-item rarity-${escapeHtml(asset.rarity)}"><div class="clothing-placeholder">${asset.photoUrl ? `<img src="${escapeHtml(optimizedClothingPhotoUrl(asset.photoUrl, 360))}" alt="${escapeHtml(asset.name)}" loading="lazy">` : ""}<span>ОДЕЖДА</span></div><div><h4>${escapeHtml(asset.name)}</h4><p>${escapeHtml(asset.description)}</p></div><div><span>Оценка</span><strong>${money(asset.resaleValue)}</strong><div class="clothing-list-control"><input id="clothing-price-${asset.id}" type="number" min="100" step="100" value="${Math.max(100, asset.resaleValue)}"><button class="secondary-button" data-list-clothing="${asset.id}">На рынок</button></div></div></article>`).join("") : '<div class="no-offers">Гардероб пуст. Сшейте первую вещь.</div>';
+  $("#clothing-market").innerHTML = (state.clothingMarket || []).map((lot) => `<article class="clothing-market-lot"><div><span>${escapeHtml(lot.item.rarityName || lot.item.rarity)}</span><strong>${escapeHtml(lot.item.name)}</strong><small>${escapeHtml(lot.sellerName)}</small></div><strong>${money(lot.price)}</strong>${lot.viewerOwned ? `<button class="secondary-button" data-unlist-clothing="${lot.id}">Снять</button>` : `<button class="primary-button" data-buy-clothing="${lot.id}" ${state.player.availableCash < lot.price ? "disabled" : ""}>Купить</button>`}</article>`).join("") || '<div class="no-offers">Игроки пока не выставили вещи.</div>';
+  $("#item-container-grid").innerHTML = (state.itemContainerAuctions || []).map((box) => { const current = box.highestBid || box.startingPrice; const minimum = box.highestBid ? current + Math.max(100, Math.ceil(box.highestBid * .03 / 100) * 100) : current; return `<article class="item-container rarity-${box.rarity}"><div><span>${escapeHtml(box.rarity)}</span><strong>${escapeHtml(box.name)}</strong><small>Содержимое неизвестно</small></div><div><strong>${money(current)}</strong><time data-item-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div>${box.viewerLeading ? '<span class="leading-bid-note">Вы лидируете</span>' : `<form data-item-container-bid="${box.id}"><input name="amount" type="number" min="${minimum}" step="100" value="${minimum}"><button class="primary-button">Поставить</button></form>`}</article>`; }).join("");
+}
+
+function lineChart(values, positive = true) {
+  if (!values.length) values = [1, 1]; const min = Math.min(...values), max = Math.max(...values); const range = Math.max(1, max - min);
+  const points = values.map((value, index) => `${index / Math.max(1, values.length - 1) * 100},${38 - (value - min) / range * 34}`).join(" ");
+  return `<svg viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="График цены"><line x1="0" y1="39" x2="100" y2="39"></line><polyline class="${positive ? "up" : "down"}" points="${points}"></polyline></svg><div class="chart-range"><span>${money(min)}</span><span>${money(max)}</span></div>`;
+}
+
+function openPropertyDetail(assetId) {
+  const asset = [...(state.assetMarket || []), ...(state.player.ownedAssets || [])].find((item) => item.id === assetId && item.type === "property"); if (!asset) return;
+  const history = asset.propertyHistory || []; const first = history[0]?.value || asset.price; const last = history.at(-1)?.value || asset.price; const change = Math.round((last / first - 1) * 1000) / 10; const income = asset.incomeState;
+  $("#property-modal-content").innerHTML = `<div class="property-detail-head"><p class="eyebrow">Аналитика объекта</p><h2>${escapeHtml(asset.name)}</h2><p>${escapeHtml(asset.description)}</p></div><div class="property-detail-kpis"><div><span>Текущая цена</span><strong>${money(asset.price || asset.resaleValue)}</strong></div><div><span>Изменение за 24 мес.</span><strong class="${change >= 0 ? "profit-positive" : "profit-negative"}">${change >= 0 ? "+" : ""}${change}%</strong></div><div><span>Валовая доходность</span><strong>${history.at(-1)?.grossYield || 0}%</strong></div><div><span>Чистая прибыль</span><strong>${money(income?.netPerCycle || asset.income || 0)}/мин</strong></div></div><div class="property-chart"><div><strong>Динамика стоимости</strong><span>24 месяца</span></div>${lineChart(history.map((item) => item.value), change >= 0)}</div><div class="property-costs"><span>Аренда<strong>${money(income?.perCycle || asset.income || 0)}/мин</strong></span><span>Эксплуатация<strong>${money(income?.operatingCost || 0)}/мин</strong></span><span>Налог<strong>${money(income?.taxPerCycle || Math.round((asset.price || 0) * .00018))}/мин</strong></span><span>Состояние<strong>${asset.maintenance || asset.condition}%</strong></span></div>`;
+  $("#property-modal").hidden = false;
+}
+
+function renderBusiness() {
+  const owned = state.player.businesses || [];
+  const catalog = state.player.businessCatalog || [];
+  const cycleProfit = owned.reduce((sum, item) => sum + (item.state?.profitPerCycle || 0), 0);
+  const available = owned.reduce((sum, item) => sum + (item.state?.amount || 0), 0);
+  const invested = owned.reduce((sum, item) => sum + (item.invested || item.price || 0), 0);
+  $("#business-summary").innerHTML = `<div><span>Предприятий</span><strong>${owned.length}</strong><small>личное управление</small></div><div><span>Вложено</span><strong>${money(invested)}</strong><small>покупки и развитие</small></div><div><span>Чистая прибыль</span><strong>${money(cycleProfit)}/мин</strong><small>после расходов и зарплат</small></div><div><span>К получению</span><strong>${money(available)}</strong><small>накопленная прибыль</small></div>`;
+  $("#owned-businesses").innerHTML = owned.length ? owned.map((item) => `<article class="business-card"><div class="business-card-head"><span>${escapeHtml(item.industry)}</span><strong>${escapeHtml(item.name)}</strong><small>Уровень ${item.level}/5 · репутация ${item.reputation}/100</small></div><div class="business-metrics"><span>Выручка<strong>${money(item.state.revenue)}/мин</strong></span><span>Расходы<strong>${money(item.state.expenses)}/мин</strong></span><span>Прибыль<strong>${money(item.state.profitPerCycle)}/мин</strong></span><span>Штат<strong>${item.staff}/6</strong></span></div><div class="business-actions"><button class="primary-button" data-business-action="collect" data-business-id="${item.id}" ${item.state.amount < 1 ? "disabled" : ""}>Забрать ${money(item.state.amount)}</button><button class="secondary-button" data-business-action="hire" data-business-id="${item.id}" ${item.staff >= 6 ? "disabled" : ""}>Нанять сотрудника</button><button class="secondary-button" data-business-action="upgrade" data-business-id="${item.id}" ${item.level >= 5 ? "disabled" : ""}>Повысить уровень</button></div></article>`).join("") : '<div class="no-offers">У вас пока нет бизнеса. Выберите первое предприятие ниже.</div>';
+  $("#business-market").innerHTML = catalog.map((item) => { const purchased = owned.some((ownedItem) => ownedItem.key === item.key); return `<article class="business-card business-offer"><div class="business-card-head"><span>${escapeHtml(item.industry)}</span><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)}</p></div><div class="business-metrics"><span>Выручка<strong>${money(item.revenue)}/мин</strong></span><span>Базовые расходы<strong>${money(item.expenses)}/мин</strong></span><span>Стартовая прибыль<strong>${money(Math.max(0, Math.round(item.revenue * .98 - item.expenses)))}/мин</strong></span></div><div class="business-buy"><strong>${money(item.price)}</strong><button class="primary-button" data-buy-business="${item.key}" ${purchased || state.player.availableCash < item.price ? "disabled" : ""}>${purchased ? "Уже куплено" : "Купить"}</button></div></article>`; }).join("");
 }
 
 function updateAssetIncomeTimer() {
@@ -1086,6 +1138,9 @@ function renderView(view) {
   if (view === "profile" || view === "team") renderProfile();
   if (view === "chat") renderChat();
   if (view === "assets") renderAssets();
+  if (view === "exchange") renderExchange();
+  if (view === "wardrobe") renderWardrobe();
+  if (view === "business") renderBusiness();
   if (view === "store") renderStore();
   if (view === "admin") renderAdmin();
   if (view === "auctions") { renderContainers(); renderAuctions(); }
@@ -1336,6 +1391,11 @@ async function perform(path, body, success) {
 }
 
 document.addEventListener("click", async (event) => {
+  const cryptoKey = event.target.closest("[data-crypto-key]");
+  if (cryptoKey) { selectedCryptoKey = cryptoKey.dataset.cryptoKey; renderExchange(); return; }
+  if (event.target.closest("[data-close-property-modal]")) { $("#property-modal").hidden = true; return; }
+  const propertyCard = event.target.closest("[data-open-property]");
+  if (propertyCard && !event.target.closest("button, input, select, form")) { openPropertyDetail(propertyCard.dataset.openProperty); return; }
   if (event.target.closest("[data-close-player-modal]")) { closePlayerProfile(); return; }
   const playerProfile = event.target.closest("[data-player-profile]");
   if (playerProfile) { await openPlayerProfile(playerProfile.dataset.playerProfile); return; }
@@ -1394,10 +1454,10 @@ document.addEventListener("click", async (event) => {
     const type = preset.dataset.marketPreset;
     if (type === "auctions") { setView("auctions"); return; }
     $("#market-filters").reset();
-    marketFilters = { query: "", min: null, max: type === "budget" ? 300000 : null, saleType: type === "auctions" ? "auction" : "all", className: "all", condition: "all", priceBand: type === "deals" ? "below" : "all", sort: type === "deals" ? "deal" : "new", fresh: type === "fresh", mine: type === "mine" };
+    marketFilters = { query: "", min: type === "luxury" ? 10000000 : null, max: type === "budget" ? 300000 : null, saleType: type === "auctions" ? "auction" : "all", className: "all", condition: "all", priceBand: type === "deals" ? "below" : "all", sort: type === "deals" ? "deal" : type === "luxury" ? "priceDesc" : "new", fresh: type === "fresh", mine: type === "mine" };
     marketVisibleCount = 24;
     document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.toggle("active", button === preset));
-    $("#price-max").value = marketFilters.max || ""; $("#price-band-filter").value = marketFilters.priceBand; $("#market-sort").value = marketFilters.sort;
+    $("#price-min").value = marketFilters.min || ""; $("#price-max").value = marketFilters.max || ""; $("#price-band-filter").value = marketFilters.priceBand; $("#market-sort").value = marketFilters.sort;
     renderMarket(); return;
   }
   if (event.target.closest("#market-load-more")) { marketVisibleCount += 24; renderMarket(); return; }
@@ -1523,11 +1583,23 @@ document.addEventListener("click", async (event) => {
   if (registration) return perform("/api/car/registration", { carId: registration.dataset.carId, action: registration.dataset.registration, plateId: $(`#car-plate-${registration.dataset.carId}`)?.value }, registration.dataset.registration === "register" ? "Автомобиль поставлен на учёт" : registration.dataset.registration === "deregister" ? "Автомобиль снят с учёта" : registration.dataset.registration === "attach" ? "Номер установлен" : "Номер снят");
   const buyAsset = event.target.closest("[data-buy-asset]");
   if (buyAsset) return perform("/api/assets/buy", { assetId: buyAsset.dataset.buyAsset }, "Актив добавлен в ваш портфель");
+  const propertyAction = event.target.closest("[data-property-action]");
+  if (propertyAction) return perform("/api/property/manage", { assetId: propertyAction.dataset.assetId, action: propertyAction.dataset.propertyAction }, "Недвижимость обновлена");
+  const buyBusiness = event.target.closest("[data-buy-business]");
+  if (buyBusiness) return perform("/api/business/buy", { key: buyBusiness.dataset.buyBusiness }, "Бизнес куплен");
+  const businessAction = event.target.closest("[data-business-action]");
+  if (businessAction) return perform("/api/business/manage", { businessId: businessAction.dataset.businessId, action: businessAction.dataset.businessAction }, "Бизнес обновлён");
   if (event.target.closest("[data-clothing-craft]")) return perform("/api/clothing/craft", {}, "Мастерская начала шить вещь");
   if (event.target.closest("[data-clothing-claim]")) {
     try { const data = await request("/api/clothing/claim", { method: "POST", body: "{}" }); state = data; render(); const reward = data.clothingReward; if (reward) await showClothingReward(reward); renderAssets(); } catch (error) { showToast(error.message, true); }
     return;
   }
+  const listClothing = event.target.closest("[data-list-clothing]");
+  if (listClothing) return perform("/api/clothing/list", { assetId: listClothing.dataset.listClothing, price: $(`#clothing-price-${listClothing.dataset.listClothing}`)?.value }, "Вещь выставлена на рынок");
+  const buyClothing = event.target.closest("[data-buy-clothing]");
+  if (buyClothing) return perform("/api/clothing/buy", { lotId: buyClothing.dataset.buyClothing }, "Вещь добавлена в гардероб");
+  const unlistClothing = event.target.closest("[data-unlist-clothing]");
+  if (unlistClothing) return perform("/api/clothing/unlist", { lotId: unlistClothing.dataset.unlistClothing }, "Вещь снята с рынка");
   const sellAsset = event.target.closest("[data-sell-asset]");
   if (sellAsset) return perform("/api/assets/sell", { assetId: sellAsset.dataset.sellAsset }, "Актив продан");
   if (event.target.closest("[data-asset-income]")) return perform("/api/assets/income", {}, "Доход от недвижимости получен");
@@ -1558,6 +1630,15 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("submit", async (event) => {
+  if (event.target.id === "crypto-trade") {
+    event.preventDefault(); const data = new FormData(event.target);
+    return perform("/api/crypto/trade", { key: data.get("key"), rubles: data.get("rubles"), action: event.submitter?.value }, event.submitter?.value === "sell" ? "Криптовалюта продана" : "Криптовалюта куплена");
+  }
+  const itemContainerForm = event.target.closest("[data-item-container-bid]");
+  if (itemContainerForm) {
+    event.preventDefault(); const data = new FormData(itemContainerForm);
+    return perform("/api/item-container/bid", { containerId: itemContainerForm.dataset.itemContainerBid, amount: data.get("amount") }, "Ставка принята, сумма зарезервирована");
+  }
   if (event.target.id === "plate-filters") { event.preventDefault(); return; }
   const carBidForm = event.target.closest("[data-car-bid]");
   if (carBidForm) {
@@ -1661,5 +1742,5 @@ window.addEventListener("hashchange", () => { const view = location.hash.slice(1
 initAds();
 async function restore() { if (!token) return; try { await enterGame(await request("/api/state")); } catch { localStorage.removeItem("perekup-token"); token = ""; } }
 restore();
-setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); updateAssetIncomeTimer(); if (state.player && $("#assets-view")?.classList.contains("active-view")) renderAssets(); }, 1000);
+setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); updateAssetIncomeTimer(); if (state.player && $("#assets-view")?.classList.contains("active-view")) renderAssets(); if (state.player && $("#business-view")?.classList.contains("active-view")) renderBusiness(); if (state.player && $("#exchange-view")?.classList.contains("active-view")) renderExchange(); if (state.player && $("#wardrobe-view")?.classList.contains("active-view")) renderWardrobe(); }, 1000);
 document.addEventListener("contextmenu", (event) => event.preventDefault());

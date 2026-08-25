@@ -925,6 +925,25 @@ h1, h2, h3, h4,
 .property-income-panel > div:nth-child(2) span, .property-income-panel > div:nth-child(2) strong, .property-income-panel > div:nth-child(2) small { display: block; text-align: right; }
 .property-income-panel > div:nth-child(2) span { color: var(--muted); font-size: 8px; text-transform: uppercase; }
 .property-income-panel > div:nth-child(2) strong { margin: 3px 0; font-size: 21px; }
+.owned-property { align-items: stretch; }
+.owned-property > div:first-child { flex: 1; }
+.property-operations { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 1px; margin-top: 12px; background: var(--line); border: 1px solid var(--line); }
+.property-operations span { display: block; padding: 9px; background: var(--surface); color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.property-operations strong { display: block; margin-top: 4px; color: var(--ink); font-size: 11px; text-transform: none; }
+.property-actions, .business-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.business-owned-section, .business-market-section { margin-top: 22px; }
+.business-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.business-card { min-width: 0; padding: 18px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
+.business-card-head span, .business-card-head strong, .business-card-head small { display: block; }
+.business-card-head span { color: var(--green); font-size: 8px; text-transform: uppercase; }
+.business-card-head strong { margin-top: 5px; font-size: 18px; }
+.business-card-head small, .business-card-head p { margin: 6px 0 0; color: var(--muted); font-size: 9px; }
+.business-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 15px; background: var(--line); border: 1px solid var(--line); }
+.business-metrics span { min-width: 0; padding: 10px; background: var(--surface-soft); color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.business-metrics strong { display: block; margin-top: 5px; color: var(--ink); font-size: 11px; overflow-wrap: anywhere; text-transform: none; }
+.business-offer .business-metrics { grid-template-columns: repeat(3, 1fr); }
+.business-buy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; }
+.business-buy > strong { font-size: 18px; }
 .asset-filters { grid-template-columns: repeat(4, minmax(120px, 1fr)) auto auto; }
 .asset-section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 25px 0 12px; padding-top: 15px; border-top: 2px solid var(--ink); }
 .asset-section-head h3 { margin: 0; font-size: 20px; text-transform: uppercase; }
@@ -1018,6 +1037,8 @@ h1, h2, h3, h4,
 }
 
 @media (max-width: 760px) {
+  .business-grid { grid-template-columns: 1fr; }
+  .business-metrics, .property-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .legal-page { padding: 0; }
   .legal-page main { padding: 28px 20px 42px; }
   .legal-brand { margin-bottom: 35px; }
@@ -1149,6 +1170,69 @@ h1, h2, h3, h4,
   .exchange-part { grid-template-columns: 1fr auto; gap: 9px; }
   .exchange-price { text-align: right; }
   .exchange-part > button { grid-column: 1 / -1; width: 100%; }
+}
+
+/* Trading, wardrobe market and property analytics. */
+#assets-view #clothing-inventory-panel { display: none !important; }
+.crypto-terminal { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; margin-bottom: 18px; }
+.crypto-quote-tabs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 7px; }
+.crypto-quote-tabs button { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-m); background: white; color: var(--ink); text-align: left; }
+.crypto-quote-tabs button.active { border-color: var(--accent); background: #eff6ff; box-shadow: inset 0 -3px 0 var(--accent); }
+.crypto-quote-tabs span { font-family: var(--font-mono); font-size: 12px; text-align: right; }
+.crypto-quote-tabs small { grid-column: 1 / -1; font-size: 10px; }
+.crypto-chart-panel { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-m); background: white; }
+#crypto-chart-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+#crypto-chart-head span, #crypto-chart-head strong { display: block; }
+#crypto-chart-head strong { margin-top: 3px; font-family: var(--font-mono); font-size: 21px; }
+#crypto-chart-head small { color: var(--muted); font-size: 9px; }
+.crypto-trade { display: grid; grid-template-columns: 1fr 1fr; align-content: end; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-m); background: white; }
+.crypto-trade label { grid-column: 1 / -1; color: var(--muted); font-size: 10px; font-weight: 700; }
+.crypto-trade input, .clothing-list-control input, .item-container input { width: 100%; min-width: 0; min-height: 42px; margin-top: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafc; color: var(--ink); font: 12px var(--font-mono); }
+.market-chart { min-height: 190px; }
+.market-chart svg { display: block; width: 100%; height: 170px; overflow: visible; }
+.market-chart line { stroke: #e5e7eb; stroke-width: .35; }
+.market-chart polyline { fill: none; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.market-chart polyline.up { stroke: #079455; }
+.market-chart polyline.down { stroke: #d92d20; }
+.chart-range { display: flex; justify-content: space-between; color: var(--muted); font: 9px var(--font-mono); }
+.clothing-list-control { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 6px; margin-top: 8px; }
+.clothing-list-control input { margin: 0; }
+.clothing-market, .item-container-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 9px; }
+.clothing-market-lot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px 12px; min-height: 94px; padding: 13px; border: 1px solid var(--line); border-radius: var(--radius-m); background: white; }
+.clothing-market-lot span, .clothing-market-lot small, .item-container span, .item-container small { display: block; color: var(--muted); font-size: 9px; }
+.clothing-market-lot > strong { font-family: var(--font-mono); }
+.clothing-market-lot button { grid-column: 2; }
+.item-container { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: var(--radius-m); background: white; }
+.item-container.rarity-rare { border-left-color: #2e90fa; }.item-container.rarity-epic { border-left-color: #7f56d9; }.item-container.rarity-legendary { border-left-color: #f79009; }
+.item-container > div > strong, .item-container time { display: block; }
+.item-container time { margin-top: 4px; color: var(--muted); font: 10px var(--font-mono); text-align: right; }
+.item-container form { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.item-container form input { margin: 0; }
+.leading-bid-note { grid-column: 1 / -1; padding: 8px 10px; background: #ecfdf3; color: #067647 !important; font-weight: 800; }
+.property-detail-panel { width: min(880px, calc(100vw - 28px)); }
+.property-detail-head { padding-right: 42px; }
+.property-detail-head h2 { margin: 4px 0 7px; font-size: 26px; }
+.property-detail-head > p:last-child { color: var(--muted); }
+.property-detail-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 20px 0; background: var(--line); border: 1px solid var(--line); }
+.property-detail-kpis > div { padding: 13px; background: white; }
+.property-detail-kpis span, .property-costs span { color: var(--muted); font-size: 9px; }
+.property-detail-kpis strong, .property-costs strong { display: block; margin-top: 5px; font: 14px var(--font-mono); color: var(--ink); }
+.property-chart { padding: 16px; border: 1px solid var(--line); background: #f8fafc; }
+.property-chart > div:first-child { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.property-chart > div:first-child span { color: var(--muted); font-size: 10px; }
+.property-costs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
+.property-costs > span { padding: 12px; border-bottom: 2px solid var(--line); }
+.asset-property, .owned-property { cursor: pointer; }
+
+@media (max-width: 760px) {
+  .crypto-terminal { grid-template-columns: 1fr; }
+  .crypto-quote-tabs { display: flex; overflow-x: auto; scrollbar-width: none; }
+  .crypto-quote-tabs button { flex: 0 0 150px; }
+  .crypto-chart-panel, .crypto-trade { grid-column: 1; }
+  .market-chart { min-height: 150px; }.market-chart svg { height: 130px; }
+  .property-detail-kpis, .property-costs { grid-template-columns: repeat(2, 1fr); }
+  .property-detail-head h2 { font-size: 22px; }
+  .clothing-market, .item-container-grid { grid-template-columns: 1fr; }
 }
 
 /* Compact workspaces keep long management pages focused without hiding mechanics. */
