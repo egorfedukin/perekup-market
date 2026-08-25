@@ -94,7 +94,7 @@ const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "T
 const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
 const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
 const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
-const VEHICLE_PRICING_VERSION = 2;
+const VEHICLE_PRICING_VERSION = 3;
 const MAX_VEHICLE_VALUE = 2000000000;
 
 function parseVehicleCatalog() {
@@ -111,7 +111,16 @@ function parseVehicleCatalog() {
     const cells = line.split("\t");
     const model = String(cells[modelColumn] || "").trim();
     const make = vehicleMakeNames.find((name) => model === name || model.startsWith(`${name} `)) || model.split(" ")[0];
-    return { model, make, photoUrl: String(cells[photoColumn] || "").trim(), photoSource: String(cells[sourceColumn] || "").trim() };
+    const priceColumn = column("ЦЕНА_2026");
+    const collectibleColumn = column("КОЛЛЕКЦИОННАЯ");
+    const tierColumn = column("КОНТЕЙНЕР");
+    const referencePrice = priceColumn >= 0 ? Number(cells[priceColumn]) : 0;
+    return {
+      model, make, photoUrl: String(cells[photoColumn] || "").trim(), photoSource: String(cells[sourceColumn] || "").trim(),
+      referencePrice: Number.isFinite(referencePrice) && referencePrice > 0 ? referencePrice : null,
+      collectible: collectibleColumn >= 0 && String(cells[collectibleColumn] || "") === "1",
+      preferredTier: tierColumn >= 0 ? String(cells[tierColumn] || "").trim() : ""
+    };
   }).filter((item) => item.model && item.photoUrl && !seen.has(item.model) && seen.add(item.model));
 }
 
@@ -183,7 +192,7 @@ function vehicleProfile(entry) {
   if (className === "van") currentBase *= 1.08;
   if (/\b(360|600|700|800|1000|1100|1200|1300|1400|1500|1600)\b/.test(entry.model) && !premiumMakes.has(entry.make) && !exoticMakes.has(entry.make)) currentBase *= 0.78;
   if (/\b(flagship|turbo|performance|super|continental|phantom|veyron|chiron|aventador|murciélago|911|gallardo|corvette)\b/i.test(entry.model)) currentBase *= 1.32;
-  currentBase = modelPriceOverrides[entry.model] || currentBase;
+  currentBase = entry.referencePrice || modelPriceOverrides[entry.model] || currentBase;
   currentBase = Math.round(Math.max(500000, Math.min(MAX_VEHICLE_VALUE, currentBase)) / 10000) * 10000;
   const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model);
   const modernHint = /\b(ev|electric|électrique|e-tron|ioniq|model [3sxy]|polestar|rivian|lucid)\b/i.test(entry.model) || ["BYD", "Genesis"].includes(entry.make);
@@ -202,7 +211,7 @@ const CATALOG_SIZE = 10000;
 const CATALOG_VARIANTS_PER_MODEL = Math.ceil(CATALOG_SIZE / vehicleModels.length);
 const catalog = Array.from({ length: CATALOG_SIZE }, (_, index) => {
   const seed = vehicleModels[index % vehicleModels.length];
-  const { make, model, className, startYear, endYear, currentBase, photoUrl, photoSource } = seed;
+  const { make, model, className, startYear, endYear, currentBase, photoUrl, photoSource, collectible, preferredTier } = seed;
   const cycle = Math.floor(index / vehicleModels.length);
   const yearSpan = endYear - startYear + 1;
   const year = startYear + Math.round(cycle * Math.max(0, yearSpan - 1) / Math.max(1, CATALOG_VARIANTS_PER_MODEL - 1));
@@ -212,9 +221,9 @@ const catalog = Array.from({ length: CATALOG_SIZE }, (_, index) => {
   const trimMultiplier = 0.91 + stableVehicleUnit(`${model}:${year}`, "variant") * 0.18;
   const rarityPremium = age > 24 && ["classic", "coupe", "premium"].includes(className) ? 1 + Math.min(0.65, (age - 24) * 0.025) : 1;
   const calculatedBase = currentBase * depreciation * trimMultiplier * rarityPremium;
-  const collectibleFloor = currentBase * (collectibleValueFloors[model] || 0);
+  const collectibleFloor = currentBase * (collectibleValueFloors[model] || (collectible ? 0.78 : 0));
   return {
-    make, model, photoQuery: model, photoUrl, photoSource, year,
+    make, model, photoQuery: model, photoUrl, photoSource, year, collectible: Boolean(collectible), preferredTier: preferredTier || "",
     base: Math.max(60000, Math.min(MAX_VEHICLE_VALUE, Math.round(Math.max(calculatedBase, collectibleFloor) / 1000) * 1000)),
     className, color: vehicleColors[(index * 7 + cycle) % vehicleColors.length]
   };
@@ -394,6 +403,27 @@ const assetCatalog = [
   { key: "garage_coin", type: "crypto", category: "crypto", symbol: "GRC", name: "Garage Coin", description: "Спекулятивный токен сообщества с резкими движениями курса.", basePrice: 145, liquidity: 63, risk: 5, volatility: 0.12, skill: "riskManagement" }
 ];
 
+const clothingFallback = [
+  { id: "fallback-1", key: "uniqlo_tee", brand: "Uniqlo", model: "U", name: "Uniqlo U футболка", category: "Футболка", rarity: "common", chance: 52, value: 1800, description: "Базовая хлопковая футболка из повседневной коллекции.", photoUrl: "" },
+  { id: "fallback-2", key: "nike_hoodie", brand: "Nike", model: "Sportswear", name: "Nike Sportswear худи", category: "Худи", rarity: "uncommon", chance: 28, value: 5200, description: "Спортивное худи с мягким начёсом.", photoUrl: "" },
+  { id: "fallback-3", key: "adidas_track", brand: "Adidas", model: "Originals", name: "Adidas Originals олимпийка", category: "Одежда", rarity: "rare", chance: 14, value: 9800, description: "Олимпийка из лимитированной цветовой серии.", photoUrl: "" },
+  { id: "fallback-4", key: "carhartt_jacket", brand: "Carhartt WIP", model: "Detroit", name: "Carhartt WIP Detroit Jacket", category: "Куртка", rarity: "epic", chance: 5, value: 24500, description: "Плотная рабочая куртка из популярной streetwear-линейки.", photoUrl: "" },
+  { id: "fallback-5", key: "supreme_box", brand: "Supreme", model: "Box Logo", name: "Supreme Box Logo Hoodie", category: "Худи", rarity: "legendary", chance: 1, value: 68000, description: "Редкий коллекционный дроп с узнаваемым логотипом.", photoUrl: "" }
+];
+const clothingRarityKeys = { "Обычная": "common", "Необычная": "uncommon", "Редкая": "rare", "Эпическая": "epic", "Легендарная": "legendary" };
+const clothingCatalog = (() => {
+  try {
+    const source = JSON.parse(fs.readFileSync(path.join(__dirname, "каталог-одежды-с-фото.json"), "utf8"));
+    const parsed = source.map((item) => ({ ...item, key: item.id, name: `${item.brand} ${item.model} · ${item.category}`, rarity: clothingRarityKeys[item.rarity] || "common", chance: Number.parseFloat(String(item.chance).replace(",", ".")) || 0, value: Number(String(item.price).replace(/[^0-9]/g, "")) || 1000, type: "item", category: "clothing", seller: "Мастерская" }));
+    return parsed.length ? parsed : clothingFallback;
+  } catch (error) {
+    console.warn("Clothing catalog file unavailable, using fallback:", error.message);
+    return clothingFallback;
+  }
+})();
+const clothingRarityNames = { common: "Обычная", uncommon: "Необычная", rare: "Редкая", epic: "Эпическая", legendary: "Легендарная" };
+const clothingCrafts = new Map();
+
 const players = new Map();
 const sessions = new Map();
 const market = [];
@@ -428,7 +458,7 @@ function persistState() {
   const payload = JSON.stringify({
     players: [...players.entries()], sessions: [...sessions.entries()], market,
     offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, directMessages, moderationReports, assetMarket,
-    groups: [...groups.entries()], partsMarket, partsSalesHistory, plateMarket, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions,
+    groups: [...groups.entries()], partsMarket, partsSalesHistory, plateMarket, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions, clothingCrafts: [...clothingCrafts.entries()],
     vehiclePricingVersion: VEHICLE_PRICING_VERSION
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
@@ -466,7 +496,8 @@ function loadState() {
     plateMarket.push(...(saved.plateMarket || []).map(ensurePlateLot));
     Object.assign(partIndices, saved.partIndices || {});
     for (const [key, value] of saved.paymentOrders || []) paymentOrders.set(key, value);
-    containerAuctions.push(...(saved.containerAuctions || []));
+  containerAuctions.push(...(saved.containerAuctions || []));
+  for (const [playerId, craft] of (saved.clothingCrafts || [])) clothingCrafts.set(playerId, craft);
     return market.length > 0;
   } catch (error) {
     console.error("Failed to load saved game:", error.message);
@@ -1317,7 +1348,8 @@ function playerView(player) {
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory, plateInventory: player.plateInventory,
     ownedAssets: player.ownedAssets.map((asset) => ({ ...asset, resaleValue: assetResaleValue(asset, player), incomeState: propertyIncomeState(asset, player) })),
-    assetIncomeAvailable: assetIncomeAvailable(player),
+    clothingCraft: clothingCrafts.get(player.id) || null,
+    assetIncomeAvailable: assetIncomeAvailable(player), clothingCatalog: clothingCatalog.filter((_, index) => index < 200).map((item) => ({ ...item, rarityName: clothingRarityNames[item.rarity] })),
     incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
@@ -1391,7 +1423,7 @@ function snapshot(player) {
     catalogCount: catalog.length,
     containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
     assetMarket: assetMarket.filter((listing) => listing.stock > 0).map((listing) => publicAssetListing(listing, player)),
-    assetCategories: { electronics: "Техника", collectibles: "Коллекции", business: "Оборудование", residential: "Жилая недвижимость", commercial: "Коммерческая недвижимость", crypto: "Криптовалюта" },
+    assetCategories: { electronics: "Техника", collectibles: "Коллекции", business: "Оборудование", clothing: "Одежда", residential: "Жилая недвижимость", commercial: "Коммерческая недвижимость", crypto: "Криптовалюта" },
     leaderboard: leaderboard.rows,
     leaderboardCurrent: leaderboard.current,
     leaderboardTotal: leaderboard.total
@@ -1444,8 +1476,7 @@ function finalizeGroupJobs() {
 setInterval(finalizeGroupJobs, 1000).unref();
 
 function seedMarket() {
-  // A prime step spreads the first market across models, years and price segments.
-  for (let i = 0; i < 100; i += 1) market.push(makeCar((i * 137) % catalog.length));
+  for (const itemIndex of balancedNpcCatalogIndices(100)) market.push(makeCar(itemIndex));
   for (const item of catalog) {
     const comparable = market.find((car) => car.model === item.model);
     const anchor = comparable ? currentValue(comparable) : Math.round(item.base * 0.78 / 1000) * 1000;
@@ -1453,6 +1484,33 @@ function seedMarket() {
       salesHistory.push({ model: item.model, price: Math.max(1, Math.round(anchor * (0.9 + Math.random() * 0.2) / 1000) * 1000), at: Date.now() - randomInt(1, 30) * 86400000 });
     }
   }
+}
+
+function balancedNpcCatalogIndices(target = 100) {
+  const bands = [
+    { count: 25, items: catalog.map((item, index) => ({ item, index })).filter(({ item }) => !item.collectible && item.preferredTier !== "premium" && item.base <= 1200000) },
+    { count: 45, items: catalog.map((item, index) => ({ item, index })).filter(({ item }) => !item.collectible && !["performance", "premium"].includes(item.preferredTier) && item.base > 1200000 && item.base < 10000000) },
+    { count: 15, items: catalog.map((item, index) => ({ item, index })).filter(({ item }) => !item.collectible && item.preferredTier !== "premium" && (item.preferredTier === "performance" || (item.base >= 10000000 && item.base < 50000000))) },
+    { count: 7, ordered: true, items: catalog.map((item, index) => ({ item, index })).filter(({ item }) => !item.collectible && (item.preferredTier === "premium" || item.base >= 50000000)).sort((a, b) => b.item.base - a.item.base) },
+    { count: 8, ordered: true, items: catalog.map((item, index) => ({ item, index })).filter(({ item }) => item.collectible).sort((a, b) => b.item.base - a.item.base) }
+  ];
+  const selected = [];
+  const models = new Set();
+  for (const band of bands) {
+    const step = 137;
+    let bandSelected = 0;
+    for (let cursor = 0; cursor < band.items.length * 2 && selected.length < target && bandSelected < band.count; cursor += 1) {
+      const candidate = band.items[band.ordered ? cursor % Math.max(1, band.items.length) : (cursor * step) % Math.max(1, band.items.length)];
+      if (!candidate || models.has(candidate.item.model)) continue;
+      models.add(candidate.item.model); selected.push(candidate.index); bandSelected += 1;
+    }
+  }
+  for (let cursor = 0; selected.length < target && cursor < catalog.length; cursor += 1) {
+    const index = (cursor * 137) % catalog.length; const item = catalog[index];
+    if (models.has(item.model)) continue;
+    models.add(item.model); selected.push(index);
+  }
+  return selected;
 }
 
 function refreshLegacyNpcCatalog() {
@@ -1468,8 +1526,8 @@ function refreshLegacyNpcCatalog() {
     if (!car.sellerId && !protectedAuction) market.splice(index, 1);
   }
   const occupiedModels = new Set(market.filter((car) => !car.sellerId).map((car) => car.model));
-  for (let cursor = 0; market.filter((car) => !car.sellerId).length < 100 && cursor < catalog.length; cursor += 1) {
-    const itemIndex = (cursor * 137) % catalog.length;
+  for (const itemIndex of balancedNpcCatalogIndices(100)) {
+    if (market.filter((car) => !car.sellerId).length >= 100) break;
     const item = catalog[itemIndex];
     if (occupiedModels.has(item.model)) continue;
     market.push(makeCar(itemIndex));
@@ -1588,7 +1646,8 @@ function restockContainers() {
 
 function containerRewardCar(tierKey, invested, winner = null) {
   const tier = containerTiers[tierKey];
-  let pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
+  let pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue && (!item.preferredTier || item.preferredTier === tierKey));
+  if (pool.length < 8) pool = catalog.filter((item) => item.base >= tier.minValue && item.base <= tier.maxValue);
   if (tierKey === "performance") pool = pool.filter((item) => ["coupe", "roadster", "premium"].includes(item.className));
   const recentModels = new Set((winner?.garage || []).filter((car) => car.history?.some((entry) => entry.type === "container")).slice(-5).map((car) => car.model));
   const models = [...new Set(pool.map((item) => item.model))];
@@ -2307,6 +2366,27 @@ async function api(req, res, pathname) {
     addLedger(player, "income", "Доход от недвижимости", income, { profit: income, category: "Недвижимость" });
     broadcast(); return json(res, 200, snapshot(player));
   }
+  if (req.method === "POST" && pathname === "/api/clothing/craft") {
+    if (clothingCrafts.has(player.id)) return json(res, 400, { error: "В мастерской уже готовится вещь" });
+    const cost = 1200;
+    if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Нужно 1 200 ₽ на материалы" });
+    const durationMs = 30000 + randomInt(0, 90000);
+    const craft = { playerId: player.id, startedAt: Date.now(), finishAt: Date.now() + durationMs, cost };
+    player.cash -= cost; clothingCrafts.set(player.id, craft); addLedger(player, "craft", "Материалы для пошива вещи", -cost, { category: "Одежда" });
+    broadcast(); return json(res, 200, snapshot(player));
+  }
+  if (req.method === "POST" && pathname === "/api/clothing/claim") {
+    const craft = clothingCrafts.get(player.id);
+    if (!craft) return json(res, 404, { error: "В мастерской нет готового заказа" });
+    if (craft.finishAt > Date.now()) return json(res, 400, { error: `Вещь будет готова через ${Math.ceil((craft.finishAt - Date.now()) / 1000)} сек.` });
+    const rarityRoll = Math.random() * 100;
+    const rarity = rarityRoll < 52 ? "common" : rarityRoll < 80 ? "uncommon" : rarityRoll < 94 ? "rare" : rarityRoll < 99 ? "epic" : "legendary";
+    const pool = clothingCatalog.filter((item) => item.rarity === rarity);
+    const template = pool[Math.floor(Math.random() * Math.max(1, pool.length))] || clothingCatalog[0];
+    const asset = { ...template, type: "item", category: "clothing", id: id("owned_asset_"), purchasePrice: craft.cost, acquiredAt: Date.now(), condition: 100, fairValue: template.value, basePrice: template.value, stock: 1, seller: "Мастерская" };
+    player.ownedAssets.push(asset); player.stats.assetsBought += 1; addXp(player, template.rarity === "legendary" ? 100 : 30); clothingCrafts.delete(player.id); addLedger(player, "craft-reward", `Сшита вещь: ${template.name}`, 0, { category: "Одежда", rarity: template.rarity });
+    broadcast(); return json(res, 200, { ...snapshot(player), clothingReward: { ...template, rarityName: clothingRarityNames[template.rarity] } });
+  }
   if (req.method === "POST" && pathname === "/api/group/create") {
     if (player.groupId) return json(res, 400, { error: "Вы уже состоите в группе" });
     const name = String(body.name || "").trim().slice(0, 30);
@@ -2830,6 +2910,21 @@ async function api(req, res, pathname) {
     return json(res, 200, snapshot(player));
   }
 
+  if (req.method === "POST" && pathname === "/api/list/update-price") {
+    const car = market.find((item) => item.id === body.carId && item.sellerId === player.id);
+    if (!car) return json(res, 404, { error: "Ваше объявление не найдено" });
+    if (car.saleType === "auction" && car.highestBidderId) return json(res, 400, { error: "Нельзя менять цену аукциона после первой ставки" });
+    const price = Math.round(Number(body.price));
+    if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
+    const previous = car.price;
+    car.price = price;
+    if (car.saleType === "auction") car.startingPrice = price;
+    car.history.push({ type: "price", text: `Цена объявления изменена: ${previous.toLocaleString("ru-RU")} → ${price.toLocaleString("ru-RU")} ₽`, at: Date.now() });
+    broadcast();
+    if (car.saleType === "fixed") scheduleBots(car);
+    return json(res, 200, snapshot(player));
+  }
+
   if (req.method === "POST" && pathname === "/api/bid") {
     const car = market.find((item) => item.id === body.carId && item.saleType === "auction");
     if (!car || car.auctionEnd <= Date.now()) return json(res, 404, { error: "Аукцион уже завершён" });
@@ -2946,7 +3041,7 @@ async function api(req, res, pathname) {
   return json(res, 404, { error: "Команда не найдена" });
 }
 
-const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8" };
+const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".webp": "image/webp", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8" };
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {

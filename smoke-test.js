@@ -32,7 +32,7 @@ async function run() {
   check(Object.keys(seller.marketStats).length > 0, "Market statistics are missing");
   check(Object.values(seller.marketStats).every((stats) => stats.dealAverage > 0 && stats.normalLow >= 1), "Market price ranges are incomplete");
   check(seller.catalogCount === 10000, `Expected 10,000 catalog variants, got ${seller.catalogCount}`);
-  check(seller.market.every((car) => /^https:\/\//.test(car.photoUrl || "") && /^https:\/\//.test(car.photoSource || "")), "Direct catalog photos are missing");
+  check(seller.market.every((car) => /^(?:https:\/\/|\/car-photos\/)/.test(car.photoUrl || "") && /^(?:https:\/\/|LOCAL)/.test(car.photoSource || "")), "Direct catalog photos are missing");
   check(new Set(seller.market.filter((car) => !car.sellerId).map((car) => car.model)).size >= 85, "NPC market model variety is too low");
   check(seller.market.some((car) => !car.sellerId && car.price <= 650000), "New players have no affordable market entry");
   check(seller.market.some((car) => !car.sellerId && car.price >= 50000000), "Collector segment is missing from the market");

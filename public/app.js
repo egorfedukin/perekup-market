@@ -20,7 +20,7 @@ let storedCarPhotos = {};
 try { storedCarPhotos = JSON.parse(localStorage.getItem(CAR_PHOTO_CACHE_KEY) || "{}"); } catch { storedCarPhotos = {}; }
 let token = localStorage.getItem("perekup-token") || "";
 let state = { player: null, market: [], leaderboard: [], skillInfo: {}, equipmentInfo: {}, marketStats: {}, inspectionCategories: [], inspectionRequirements: {}, chatMessages: [] };
-let marketFilters = { query: "", min: null, max: null, saleType: "all", className: "all", condition: "all", priceBand: "all", sort: "new", fresh: false };
+let marketFilters = { query: "", min: null, max: null, saleType: "all", className: "all", condition: "all", priceBand: "all", sort: "new", fresh: false, mine: false };
 let marketVisibleCount = 24;
 let modalCarId = null;
 let modalMode = null;
@@ -328,6 +328,70 @@ function timingChallenge({ title, task, rounds = 1, mode = "timing", actions = n
   });
 }
 
+function optimizedClothingPhotoUrl(value, width = 420) {
+  if (!value) return "";
+  try {
+    const url = new URL(value, location.href);
+    if (url.hostname === "images.unsplash.com") {
+      url.searchParams.set("auto", "format");
+      url.searchParams.set("fm", "webp");
+      url.searchParams.set("fit", "crop");
+      url.searchParams.set("w", String(Math.max(180, Math.min(720, width))));
+      url.searchParams.set("q", width > 500 ? "78" : "68");
+    }
+    return url.href;
+  } catch { return value; }
+}
+
+function simpleInspectionChallenge({ title, task, mode }) {
+  if (activeChallenge) return Promise.reject(new Error("Завершите текущее действие"));
+  const root = $("#skill-challenge");
+  return new Promise((resolve) => {
+    const finish = (score) => {
+      root.innerHTML = `<div class="challenge-panel challenge-result"><p class="eyebrow">Проверка завершена</p><h2>${escapeHtml(title)}</h2><strong class="challenge-score ${score >= 80 ? "great" : "poor"}">${score}%</strong><p>${score >= 80 ? "Проверка выполнена точно." : "Результат принят, но лучше перепроверить узел позже."}</p><button class="primary-button" data-challenge-done>Продолжить</button></div>`;
+      root.querySelector("[data-challenge-done]").onclick = () => { root.hidden = true; root.innerHTML = ""; activeChallenge = null; resolve(score); };
+    };
+    root.innerHTML = mode === "wires" ? `<div class="challenge-panel"><div class="challenge-head"><div><p class="eyebrow">${escapeHtml(task)}</p><h2>${escapeHtml(title)}</h2></div><button class="icon-button" data-challenge-cancel aria-label="Отменить">×</button></div><p class="challenge-instruction">Соедините провода одинакового цвета. Нажмите слева, затем такой же цвет справа.</p><div class="wire-board"><div>${["Красный", "Синий", "Жёлтый", "Зелёный"].map((color) => `<button class="wire" data-wire-side="left" data-wire-color="${color}"><i></i>${color}</button>`).join("")}</div><div>${["Зелёный", "Жёлтый", "Синий", "Красный"].map((color) => `<button class="wire" data-wire-side="right" data-wire-color="${color}"><i></i>${color}</button>`).join("")}</div></div></div>` : (() => { const base = "WVW1A7CD8P123456"; const numericIndexes = [3, 5, 8, 10, 11, 12, 13, 14, 15]; const badIndex = numericIndexes[Math.floor(Math.random() * numericIndexes.length)]; const displayed = base.split(""); displayed[badIndex] = String((Number(displayed[badIndex]) + 1) % 10); root.dataset.vinBadIndex = badIndex; return `<div class="challenge-panel"><div class="challenge-head"><div><p class="eyebrow">${escapeHtml(task)}</p><h2>${escapeHtml(title)}</h2></div><button class="icon-button" data-challenge-cancel aria-label="Отменить">×</button></div><p class="challenge-instruction">Сравните VIN с эталоном и нажмите на неправильную цифру.</p><div class="vin-compare"><div><small>Эталон</small><strong>${base}</strong></div><div><small>На автомобиле</small><div class="vin-digits">${displayed.map((digit, i) => `<button data-vin-index="${i}">${digit}</button>`).join("")}</div></div></div></div>`; })();
+    root.hidden = false; activeChallenge = { title };
+    root.querySelector("[data-challenge-cancel]").onclick = () => { root.hidden = true; root.innerHTML = ""; activeChallenge = null; resolve(null); };
+    if (mode === "wires") {
+      let selected = null;
+      root.querySelectorAll("[data-wire-side]").forEach((button) => button.onclick = () => { if (button.classList.contains("matched")) return; if (!selected) { selected = button; button.classList.add("selected"); return; } const correct = selected.dataset.wireSide !== button.dataset.wireSide && selected.dataset.wireColor === button.dataset.wireColor; if (correct) { selected.classList.add("matched"); button.classList.add("matched"); selected = null; if (!root.querySelector("[data-wire-side]:not(.matched)")) finish(100); } else { selected.classList.add("wrong"); button.classList.add("wrong"); setTimeout(() => { selected?.classList.remove("wrong", "selected"); button.classList.remove("wrong"); selected = null; }, 350); } });
+    } else root.querySelectorAll("[data-vin-index]").forEach((button) => button.onclick = () => finish(Number(button.dataset.vinIndex) === Number(root.dataset.vinBadIndex) ? 100 : 25));
+  });
+}
+
+function inspectionChallenge(category) {
+  if (category === "electrics") return simpleInspectionChallenge({ title: "Соедините проводку", task: "Проверка электрики", mode: "wires" });
+  if (category === "documents") return simpleInspectionChallenge({ title: "Сверьте VIN", task: "Проверка VIN", mode: "vin" });
+  return timingChallenge({ title: categoryNames[category] || "Осмотр узла", task: "Точный замер", rounds: 1 });
+}
+
+function showClothingReward(reward) {
+  const root = $("#skill-challenge");
+  const catalog = state.player.clothingCatalog || [];
+  const rarityNames = { common: "Обычная", uncommon: "Необычная", rare: "Редкая", epic: "Эпическая", legendary: "Легендарная" };
+  return new Promise((resolve) => {
+    let step = 0;
+    root.hidden = false;
+    root.innerHTML = `<div class="challenge-panel clothing-reveal"><div class="challenge-head"><div><p class="eyebrow">Мастерская завершила заказ</p><h2>Что получилось?</h2></div></div><div class="clothing-reel"><div id="clothing-reel-card" class="clothing-reel-card"></div></div><p class="challenge-instruction">Определяем модель и редкость вещи...</p></div>`;
+    const card = $("#clothing-reel-card");
+    const sequence = Array.from({ length: 18 }, (_, index) => index === 17 ? reward : catalog[(index * 3 + Math.floor(Math.random() * Math.max(1, catalog.length))) % Math.max(1, catalog.length)] || reward);
+    const advance = () => {
+      const item = sequence[step];
+      card.className = `clothing-reel-card rarity-${item.rarity}`;
+      const photoUrl = item.photoUrl ? optimizedClothingPhotoUrl(item.photoUrl, step === sequence.length - 1 ? 640 : 240) : "";
+      card.innerHTML = `<div class="clothing-placeholder">${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(item.name)}" loading="eager" decoding="async" referrerpolicy="no-referrer" onerror="this.remove();this.parentElement.classList.add('photo-failed');">` : ""}<span>${escapeHtml(item.category || "Одежда")}</span><strong>${escapeHtml(item.name.split(" ")[0])}</strong></div><span>${escapeHtml(rarityNames[item.rarity] || item.rarityName || "Обычная")}</span><h3>${escapeHtml(item.name)}</h3>`;
+      step += 1;
+      if (step < sequence.length) return setTimeout(advance, 70 + step * 13);
+      root.querySelector(".challenge-instruction").textContent = `${rarityNames[reward.rarity] || reward.rarityName}: ${reward.name}`;
+      root.querySelector(".challenge-panel").insertAdjacentHTML("beforeend", `<div class="clothing-reward-value">Оценка вещи <strong>${money(reward.value)}</strong></div><button class="primary-button" data-clothing-reveal-done>Добавить в инвентарь</button>`);
+      root.querySelector("[data-clothing-reveal-done]").onclick = () => { root.hidden = true; root.innerHTML = ""; resolve(); };
+    };
+    advance();
+  });
+}
+
 function auctionTime(end) {
   const seconds = Math.max(0, Math.ceil((end - Date.now()) / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -437,7 +501,7 @@ function renderMarket() {
   }
   const query = marketFilters.query.trim().toLocaleLowerCase("ru-RU");
   const conditionMatches = (car) => marketFilters.condition === "all" || (marketFilters.condition === "good" && car.condition >= 72) || (marketFilters.condition === "medium" && car.condition >= 52 && car.condition < 72) || (marketFilters.condition === "low" && car.condition < 52);
-  const visible = state.market.filter((car) => car.saleType !== "auction" && (!query || `${car.model} ${car.seller}`.toLocaleLowerCase("ru-RU").includes(query)) && (!marketFilters.min || car.price >= marketFilters.min) && (!marketFilters.max || car.price <= marketFilters.max) && (marketFilters.saleType === "all" || car.saleType === marketFilters.saleType) && (marketFilters.className === "all" || car.className === marketFilters.className) && conditionMatches(car) && (marketFilters.priceBand === "all" || priceBand(car) === marketFilters.priceBand) && (!marketFilters.fresh || Date.now() - (car.listedAt || 0) <= 120000));
+  const visible = state.market.filter((car) => (marketFilters.mine || car.saleType !== "auction") && (!marketFilters.mine || car.sellerId === state.player.id) && (!query || `${car.model} ${car.seller}`.toLocaleLowerCase("ru-RU").includes(query)) && (!marketFilters.min || car.price >= marketFilters.min) && (!marketFilters.max || car.price <= marketFilters.max) && (marketFilters.saleType === "all" || car.saleType === marketFilters.saleType) && (marketFilters.className === "all" || car.className === marketFilters.className) && conditionMatches(car) && (marketFilters.priceBand === "all" || priceBand(car) === marketFilters.priceBand) && (!marketFilters.fresh || Date.now() - (car.listedAt || 0) <= 120000));
   if (marketFilters.sort === "new") visible.sort((a, b) => (b.listedAt || 0) - (a.listedAt || 0));
   if (marketFilters.sort === "deal") visible.sort((a, b) => (a.price / (state.marketStats[a.model]?.marketPrice || a.price)) - (b.price / (state.marketStats[b.model]?.marketPrice || b.price)));
   if (marketFilters.sort === "priceAsc") visible.sort((a, b) => a.price - b.price);
@@ -926,6 +990,26 @@ function renderAssets() {
   const invested = owned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
   const cryptoValue = owned.filter((asset) => asset.type === "crypto").reduce((sum, asset) => sum + asset.resaleValue, 0);
   const properties = owned.filter((asset) => asset.type === "property");
+  const clothingCraft = state.player.clothingCraft;
+  const clothing = owned.filter((asset) => asset.category === "clothing");
+  const rarityNames = { common: "Обычная", uncommon: "Необычная", rare: "Редкая", epic: "Эпическая", legendary: "Легендарная" };
+  const clothingValue = clothing.reduce((sum, asset) => sum + asset.resaleValue, 0);
+  const rarityCounts = clothing.reduce((counts, asset) => { counts[asset.rarity] = (counts[asset.rarity] || 0) + 1; return counts; }, {});
+  $("#clothing-inventory-panel").hidden = !["all", "item"].includes(assetMode);
+  $("#clothing-inventory-stats").innerHTML = `<div><span>Всего вещей</span><strong>${number(clothing.length)}</strong></div><div><span>Стоимость коллекции</span><strong>${money(clothingValue)}</strong></div><div><span>Редких и выше</span><strong>${number((rarityCounts.rare || 0) + (rarityCounts.epic || 0) + (rarityCounts.legendary || 0))}</strong></div><div><span>Легендарных</span><strong>${number(rarityCounts.legendary || 0)}</strong></div>`;
+  $("#clothing-inventory").innerHTML = clothing.length ? clothing.slice().reverse().map((asset) => { const photo = optimizedClothingPhotoUrl(asset.photoUrl, 360); const photo2x = optimizedClothingPhotoUrl(asset.photoUrl, 640); return `<article class="clothing-item rarity-${escapeHtml(asset.rarity)}"><div class="clothing-placeholder">${photo ? `<img src="${escapeHtml(photo)}" srcset="${escapeHtml(photo)} 1x, ${escapeHtml(photo2x)} 2x" sizes="110px" alt="${escapeHtml(asset.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove();this.parentElement.classList.add('photo-failed');">` : ""}<span>${escapeHtml(asset.category === "clothing" ? "ОДЕЖДА" : "ВЕЩЬ")}</span><strong>${escapeHtml(asset.name.split(" ")[0])}</strong></div><div><span class="clothing-rarity">${escapeHtml(rarityNames[asset.rarity] || "Обычная")}</span><h4>${escapeHtml(asset.name)}</h4><p>${escapeHtml(asset.description)}</p><small>${escapeHtml(asset.category === "clothing" ? "Сшито в мастерской" : "Получено")}</small></div><div><span>Оценка</span><strong>${money(asset.resaleValue)}</strong><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">Инвентарь пуст. Сшейте первую вещь в мастерской.</div>';
+  const craftReady = clothingCraft && clothingCraft.finishAt <= Date.now();
+  const craftStatus = $("#clothing-craft-status");
+  if (craftStatus && clothingCraft && !craftReady) {
+    const rotating = state.player.clothingCatalog?.[Math.floor(Date.now() / 420) % (state.player.clothingCatalog.length || 1)];
+    craftStatus.textContent = rotating ? `Шьётся: ${rotating.name} · материалы 1 200 ₽` : "Мастерская работает над заказом";
+  } else if (craftStatus && !clothingCraft) craftStatus.textContent = "Материалы стоят 1 200 ₽ · готовность 30–120 секунд";
+  const craftTimer = $("#clothing-craft-timer");
+  const craftButton = $("[data-clothing-craft]");
+  const claimButton = $("[data-clothing-claim]");
+  if (craftTimer) craftTimer.textContent = clothingCraft ? (craftReady ? "Вещь готова" : `Готовится ${auctionTime(clothingCraft.finishAt)}`) : "";
+  if (craftButton) craftButton.disabled = Boolean(clothingCraft) || state.player.availableCash < 1200;
+  if (claimButton) claimButton.hidden = !craftReady;
   const incomeRate = properties.reduce((sum, asset) => sum + (asset.incomeState?.perCycle || 0), 0);
   const nextIncomeAt = properties.map((asset) => asset.incomeState?.nextAt).filter(Boolean).sort((a, b) => a - b)[0];
   $("#asset-summary").innerHTML = `<div><span>Стоимость портфеля</span><strong>${money(portfolioValue)}</strong><small>${portfolioValue - invested >= 0 ? "+" : ""}${money(portfolioValue - invested)} к вложениям</small></div><div><span>Недвижимость</span><strong>${properties.length}</strong><small>${money(incomeRate)} в минуту</small></div><div><span>Криптопозиции</span><strong>${owned.filter((asset) => asset.type === "crypto").length}</strong><small>текущая цена ${money(cryptoValue)}</small></div><div><span>Свободный баланс</span><strong>${money(state.player.availableCash)}</strong><small>доступно для сделок</small></div>`;
@@ -939,7 +1023,7 @@ function renderAssets() {
   $("#asset-market-grid").innerHTML = visibleListings.map((asset) => { const deal = Math.round((asset.price / ((asset.estimateLow + asset.estimateHigh) / 2) - 1) * 100); const crypto = asset.type === "crypto"; return `<article class="asset-card asset-${asset.type}"><div class="asset-visual"><span>${crypto ? `КРИПТО · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "НЕДВИЖИМОСТЬ" : escapeHtml(categories[asset.category] || "ВЕЩЬ")}</span><strong>${crypto ? escapeHtml(asset.symbol[0]) : asset.type === "property" ? "▦" : "◆"}</strong></div><div class="asset-card-body"><p class="eyebrow">${escapeHtml(asset.seller)}</p><h3>${escapeHtml(asset.name)}</h3><p>${escapeHtml(asset.description)}</p><div class="asset-metrics">${crypto ? `<span>Курс<strong>${money(asset.unitPrice)}</strong></span><span>Пакет<strong>${number(asset.quantity)} ${escapeHtml(asset.symbol)}</strong></span><span>Движение<strong class="crypto-move ${asset.changePct >= 0 ? "up" : "down"}">${asset.changePct >= 0 ? "+" : ""}${asset.changePct}%</strong></span>` : `<span>Состояние<strong>${asset.condition}%</strong></span><span>Ликвидность<strong>${asset.liquidity}/100</strong></span>${asset.income ? `<span>Доход / мин<strong>${money(asset.income)}</strong></span>` : `<span>Риск<strong>${asset.risk}/5</strong></span>`}`}</div><div class="asset-estimate"><span>${crypto ? "Диапазон риск-оценки" : "Ваша оценка"}: ${money(asset.estimateLow)}–${money(asset.estimateHigh)}</span><b class="${deal <= -8 ? "profit-positive" : deal >= 8 ? "profit-negative" : ""}">${deal > 0 ? "+" : ""}${deal}%</b></div><div class="asset-buy"><strong>${money(asset.price)}</strong><small>${state.skillInfo[asset.skill]?.name || "Оценка"} ${asset.skillLevel}/5${crypto ? " · биржевая наценка 1,2%" : ` · остаток ${asset.stock}`}</small><button class="primary-button" data-buy-asset="${asset.id}" ${state.player.availableCash < asset.price ? "disabled" : ""}>${crypto ? "Купить пакет" : "Купить"}</button></div></div></article>`; }).join("") || '<div class="empty-filter">На этом рынке лотов по выбранным условиям нет.</div>';
   $("#asset-load-more-wrap").hidden = visibleListings.length >= filtered.length;
   $("#asset-load-more-label").textContent = `${visibleListings.length} из ${filtered.length}`;
-  const visibleOwned = owned.filter((asset) => assetMode === "all" || asset.type === assetMode);
+  const visibleOwned = owned.filter((asset) => asset.category !== "clothing" && (assetMode === "all" || asset.type === assetMode));
   $("#owned-assets").innerHTML = visibleOwned.length ? visibleOwned.map((asset) => { const delta = asset.resaleValue - asset.purchasePrice; const income = asset.incomeState; return `<article class="owned-asset"><div><span>${asset.type === "crypto" ? `Криптовалюта · ${escapeHtml(asset.symbol)}` : asset.type === "property" ? "Недвижимость" : escapeHtml(categories[asset.category] || "Вещь")}</span><strong>${escapeHtml(asset.name)}</strong><small>${asset.type === "crypto" ? `${number(asset.quantity)} ${escapeHtml(asset.symbol)} · куплено за ${money(asset.purchasePrice)}` : `Куплено за ${money(asset.purchasePrice)} · состояние ${asset.condition}%`}</small>${income?.perCycle ? `<small class="asset-income-line">Аренда ${money(income.perCycle)}/мин · накоплено ${money(income.amount)}</small>` : ""}</div><div><span>${asset.type === "crypto" ? "По курсу после комиссии" : "Быстрая продажа"}</span><strong>${money(asset.resaleValue)}</strong><small class="${delta >= 0 ? "profit-positive" : "profit-negative"}">${delta >= 0 ? "+" : ""}${money(delta)}</small><button class="secondary-button" data-sell-asset="${asset.id}">Продать</button></div></article>`; }).join("") : '<div class="no-offers">В выбранном разделе портфеля пока ничего нет.</div>';
 }
 
@@ -1095,7 +1179,7 @@ function marketModal(car) {
       <div><span>Оценка цены</span><strong class="price-signal ${priceClass}">${priceLabel}</strong></div>
     </div>` : ""}
     <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
-      ${own ? `<button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
+    ${own ? `<form class="edit-listing-form" data-edit-listing="${car.id}"><label>Новая цена<input name="price" type="number" min="1" max="2000000000" value="${car.price}" required></label><button class="primary-button" type="submit">Сохранить цену</button></form><button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
     </div>
     ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input id="modal-bid-${car.id}" name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
     ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input id="offer-amount-${car.id}" name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">Предложить цену</button></form>` : ""}
@@ -1310,7 +1394,7 @@ document.addEventListener("click", async (event) => {
     const type = preset.dataset.marketPreset;
     if (type === "auctions") { setView("auctions"); return; }
     $("#market-filters").reset();
-    marketFilters = { query: "", min: null, max: type === "budget" ? 300000 : null, saleType: type === "auctions" ? "auction" : "all", className: "all", condition: "all", priceBand: type === "deals" ? "below" : "all", sort: type === "deals" ? "deal" : "new", fresh: type === "fresh" };
+    marketFilters = { query: "", min: null, max: type === "budget" ? 300000 : null, saleType: type === "auctions" ? "auction" : "all", className: "all", condition: "all", priceBand: type === "deals" ? "below" : "all", sort: type === "deals" ? "deal" : "new", fresh: type === "fresh", mine: type === "mine" };
     marketVisibleCount = 24;
     document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.toggle("active", button === preset));
     $("#price-max").value = marketFilters.max || ""; $("#price-band-filter").value = marketFilters.priceBand; $("#market-sort").value = marketFilters.sort;
@@ -1382,7 +1466,7 @@ document.addEventListener("click", async (event) => {
   const check = event.target.closest("[data-check]");
   if (check) {
     try {
-      const interactionScore = await timingChallenge({ title: categoryNames[check.dataset.check] || "Осмотр узла", task: "Точный замер", rounds: 1 });
+      const interactionScore = await inspectionChallenge(check.dataset.check);
       if (interactionScore === null) return;
       const data = await request("/api/check", { method: "POST", body: JSON.stringify({ carId: check.dataset.carId, category: check.dataset.check, interactionScore }) });
       lastCheckResult = { ...data.checkResult, carId: check.dataset.carId }; state = data; render();
@@ -1393,7 +1477,7 @@ document.addEventListener("click", async (event) => {
   const marketCheck = event.target.closest("[data-market-check]");
   if (marketCheck) {
     try {
-      const interactionScore = await timingChallenge({ title: categoryNames[marketCheck.dataset.marketCheck] || "Осмотр автомобиля", task: "Предпродажная проверка", rounds: 1 });
+      const interactionScore = await inspectionChallenge(marketCheck.dataset.marketCheck);
       if (interactionScore === null) return;
       const data = await request("/api/market-check", { method: "POST", body: JSON.stringify({ carId: marketCheck.dataset.carId, category: marketCheck.dataset.marketCheck, interactionScore }) });
       state = data; render();
@@ -1439,6 +1523,11 @@ document.addEventListener("click", async (event) => {
   if (registration) return perform("/api/car/registration", { carId: registration.dataset.carId, action: registration.dataset.registration, plateId: $(`#car-plate-${registration.dataset.carId}`)?.value }, registration.dataset.registration === "register" ? "Автомобиль поставлен на учёт" : registration.dataset.registration === "deregister" ? "Автомобиль снят с учёта" : registration.dataset.registration === "attach" ? "Номер установлен" : "Номер снят");
   const buyAsset = event.target.closest("[data-buy-asset]");
   if (buyAsset) return perform("/api/assets/buy", { assetId: buyAsset.dataset.buyAsset }, "Актив добавлен в ваш портфель");
+  if (event.target.closest("[data-clothing-craft]")) return perform("/api/clothing/craft", {}, "Мастерская начала шить вещь");
+  if (event.target.closest("[data-clothing-claim]")) {
+    try { const data = await request("/api/clothing/claim", { method: "POST", body: "{}" }); state = data; render(); const reward = data.clothingReward; if (reward) await showClothingReward(reward); renderAssets(); } catch (error) { showToast(error.message, true); }
+    return;
+  }
   const sellAsset = event.target.closest("[data-sell-asset]");
   if (sellAsset) return perform("/api/assets/sell", { assetId: sellAsset.dataset.sellAsset }, "Актив продан");
   if (event.target.closest("[data-asset-income]")) return perform("/api/assets/income", {}, "Доход от недвижимости получен");
@@ -1483,7 +1572,7 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "market-filters") {
     event.preventDefault();
     const data = new FormData(event.target);
-    marketFilters = { query: String(data.get("query") || ""), min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, saleType: data.get("saleType") || "all", className: data.get("className") || "all", condition: data.get("condition") || "all", priceBand: data.get("priceBand") || "all", sort: data.get("sort") || "new", fresh: false };
+    marketFilters = { query: String(data.get("query") || ""), min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, saleType: data.get("saleType") || "all", className: data.get("className") || "all", condition: data.get("condition") || "all", priceBand: data.get("priceBand") || "all", sort: data.get("sort") || "new", fresh: false, mine: false };
     marketVisibleCount = 24;
     document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.remove("active"));
     renderMarket();
@@ -1516,6 +1605,12 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
     if (await perform("/api/list", { carId: form.dataset.carId, price: data.get("price"), description: data.get("description"), saleType: data.get("saleType"), durationSeconds: data.get("durationSeconds"), includePlate: data.get("includePlate") === "true" }, data.get("saleType") === "auction" ? "Аукцион запущен. Вы остались в гараже" : "Объявление опубликовано. Вы остались в гараже")) closeModal();
   }
+  const editListing = event.target.closest("[data-edit-listing]");
+  if (editListing) {
+    event.preventDefault(); const data = new FormData(editListing);
+    if (await perform("/api/list/update-price", { carId: editListing.dataset.editListing, price: data.get("price") }, "Цена объявления обновлена")) refreshOpenModal();
+    return;
+  }
   if (event.target.id === "offer-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
     if (await perform("/api/offer", { carId: form.dataset.carId, amount: data.get("amount") }, "Продавец рассмотрел вашу цену")) { const purchased = state.player.garage.some((car) => car.id === form.dataset.carId); closeModal(); setView(purchased ? "garage" : "deals"); }
@@ -1540,7 +1635,7 @@ document.addEventListener("change", (event) => {
 });
 
 $("#market-filters").addEventListener("reset", () => {
-  marketFilters = { query: "", min: null, max: null, saleType: "all", className: "all", condition: "all", priceBand: "all", sort: "new", fresh: false };
+  marketFilters = { query: "", min: null, max: null, saleType: "all", className: "all", condition: "all", priceBand: "all", sort: "new", fresh: false, mine: false };
   marketVisibleCount = 24;
   document.querySelectorAll("[data-market-preset]").forEach((button) => button.classList.toggle("active", button.dataset.marketPreset === "all"));
   setTimeout(renderMarket, 0);
@@ -1566,5 +1661,5 @@ window.addEventListener("hashchange", () => { const view = location.hash.slice(1
 initAds();
 async function restore() { if (!token) return; try { await enterGame(await request("/api/state")); } catch { localStorage.removeItem("perekup-token"); token = ""; } }
 restore();
-setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); updateAssetIncomeTimer(); }, 1000);
+setInterval(() => { updateAuctionTimers(); updateMarketRotationTimer(); updateAssetIncomeTimer(); if (state.player && $("#assets-view")?.classList.contains("active-view")) renderAssets(); }, 1000);
 document.addEventListener("contextmenu", (event) => event.preventDefault());

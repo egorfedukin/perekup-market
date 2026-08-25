@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json ./
 COPY server.js ./
 COPY vehicle-catalog.tsv vehicle-production-years.json ./
+COPY ["каталог-одежды-с-фото.json", "./"]
 COPY public ./public
 
 RUN mkdir -p /data && chown -R node:node /app /data

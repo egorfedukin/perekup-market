@@ -959,6 +959,26 @@ h1, h2, h3, h4,
 .crypto-move.up { color: var(--green); }
 .crypto-move.down { color: var(--accent); }
 .asset-income-line { margin-top: 5px; color: var(--green) !important; font-weight: 800; }
+.clothing-workshop { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:14px 0; padding:16px; border:1px solid var(--line); background:var(--surface); }
+.clothing-workshop h3 { margin:3px 0; font-size:18px; } .clothing-workshop span { color:var(--muted); font-size:10px; }
+.clothing-craft-actions { display:flex; align-items:center; gap:8px; } .clothing-craft-actions strong { min-width:125px; color:var(--green); font-size:12px; }
+.clothing-inventory-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+.clothing-inventory-stats > div { padding:12px; border:1px solid var(--line); background:var(--surface); } .clothing-inventory-stats span { display:block; color:var(--muted); font-size:9px; } .clothing-inventory-stats strong { display:block; margin-top:5px; font-size:17px; }
+.clothing-inventory { display:grid; gap:8px; } .clothing-item { display:grid; grid-template-columns:110px 1fr auto; align-items:center; gap:14px; padding:10px; border:1px solid var(--line); border-left:5px solid #777; background:var(--surface); }
+.clothing-item.rarity-uncommon { border-left-color:#4d9b62; } .clothing-item.rarity-rare { border-left-color:#4775c9; } .clothing-item.rarity-epic { border-left-color:#8b55ae; } .clothing-item.rarity-legendary { border-left-color:#c39128; }
+.clothing-item h4 { margin:3px 0; font-size:14px; } .clothing-item p,.clothing-item small,.clothing-item > div:last-child span { margin:0; color:var(--muted); font-size:9px; } .clothing-item > div:last-child { display:grid; justify-items:end; gap:6px; }
+.clothing-placeholder { display:grid; place-content:center; min-height:76px; padding:8px; background:linear-gradient(145deg,#f5eee2,#e4d7c5); color:#24211d; text-align:center; overflow:hidden; } .clothing-placeholder span { font-size:8px; font-weight:900; letter-spacing:.04em; text-transform:uppercase; } .clothing-placeholder strong { margin-top:5px; color:#8b3d35; font-size:15px; }
+.clothing-placeholder img { width:100%; height:76px; object-fit:cover; display:block; }
+.clothing-reel-card .clothing-placeholder { min-height:210px; padding:0; overflow:hidden; }
+.clothing-reel-card .clothing-placeholder img { height:210px; object-fit:cover; }
+.clothing-placeholder.photo-failed img { display:none; }
+.clothing-reel-card .clothing-placeholder.photo-failed { min-height:210px; }
+.clothing-rarity { color:var(--green); font-size:9px; font-weight:900; text-transform:uppercase; }
+.clothing-reveal { text-align:center; } .clothing-reel { display:grid; place-items:center; min-height:250px; margin:18px 0; overflow:hidden; border:1px solid var(--line); background:var(--paper); }
+.clothing-reel-card { width:min(280px,85%); padding:12px; border:2px solid #777; background:var(--surface); box-shadow:var(--shadow); } .clothing-reel-card.rarity-uncommon { border-color:#4d9b62; } .clothing-reel-card.rarity-rare { border-color:#4775c9; } .clothing-reel-card.rarity-epic { border-color:#8b55ae; } .clothing-reel-card.rarity-legendary { border-color:#c39128; box-shadow:0 0 24px rgba(195,145,40,.35); } .clothing-reel-card > span { display:block; margin-top:10px; color:var(--muted); font-size:10px; font-weight:900; text-transform:uppercase; } .clothing-reel-card h3 { margin:5px 0; }
+.clothing-reward-value { margin:12px 0; color:var(--muted); } .clothing-reward-value strong { color:var(--ink); }
+@media (max-width:760px) { .clothing-workshop { align-items:stretch; flex-direction:column; } .clothing-craft-actions { flex-wrap:wrap; } .clothing-craft-actions strong { flex:1 0 100%; } }
+@media (max-width:760px) { .clothing-inventory-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .clothing-item { grid-template-columns:82px 1fr; } .clothing-item > div:last-child { grid-column:1 / -1; grid-template-columns:1fr auto; align-items:center; justify-items:start; } .clothing-item > div:last-child button { justify-self:end; } }
 .known-defects { margin: 12px 0; padding: 10px 12px; background: #f6efe3; color: var(--accent-dark); font-size: 11px; line-height: 1.45; }
 .market-inspection { margin-top: 18px; padding-top: 15px; border-top: 2px solid var(--ink); }
 .market-inspection .workshop-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
@@ -1550,6 +1570,16 @@ h1, h2, h3, h4, .logo, .profile-monogram { font-family: Arial, Helvetica, sans-s
 .activity-card button { width: 100%; margin-top: auto; min-height: 38px; padding: 0 8px; font-size: 10px; }
 .activity-card button:disabled { border-color: #cfd5cd; background: #dfe6df; color: #6e796f; cursor: default; }
 .sequence-grid, .choice-grid, .risk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 18px 0; }
+
+.wire-board { display:grid; grid-template-columns:1fr 1fr; gap:28px; margin:20px 0; }
+.wire-board > div { display:grid; gap:9px; }
+.wire { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--line); border-radius:var(--radius-m); background:var(--paper); cursor:pointer; }
+.wire i { width:16px; height:16px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb,currentColor 20%,transparent); }
+.wire[data-wire-color="Красный"] { color:#c94b43; } .wire[data-wire-color="Синий"] { color:#4775c9; } .wire[data-wire-color="Жёлтый"] { color:#c39128; } .wire[data-wire-color="Зелёный"] { color:#4d9b62; }
+.wire.selected { outline:2px solid var(--ink); } .wire.matched { opacity:.45; text-decoration:line-through; } .wire.wrong { background:#f5d7d2; }
+.vin-compare { display:grid; gap:14px; margin:20px 0; } .vin-compare > div { padding:14px; border:1px solid var(--line); border-radius:var(--radius-m); background:var(--paper); } .vin-compare small { display:block; margin-bottom:8px; color:var(--muted); } .vin-compare strong { letter-spacing:2px; }
+.vin-digits { display:flex; flex-wrap:wrap; gap:4px; } .vin-digits button { min-width:28px; padding:8px 4px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:700; }
+.edit-listing-form { display:flex; align-items:end; gap:8px; margin:12px 0; } .edit-listing-form label { display:grid; gap:4px; font-size:.8rem; color:var(--muted); } .edit-listing-form input { width:150px; padding:9px; border:1px solid var(--line); border-radius:8px; }
 .sequence-step, .choice-card, .risk-card { min-height: 58px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); color: var(--ink); cursor: pointer; }
 .sequence-step { font-weight: 800; }
 .sequence-step:hover, .choice-card:hover, .risk-card:hover { border-color: var(--accent); transform: translateY(-1px); }
