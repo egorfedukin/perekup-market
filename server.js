@@ -94,7 +94,7 @@ const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "T
 const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
 const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
 const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
-const VEHICLE_PRICING_VERSION = 5;
+const VEHICLE_PRICING_VERSION = 6;
 const MAX_VEHICLE_VALUE = 2000000000;
 
 function parseVehicleCatalog() {
