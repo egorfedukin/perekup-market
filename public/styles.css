@@ -2477,6 +2477,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .tabs > .more-sections-tab { display: block; }
   .tabs > .desktop-team-tab,
   .tabs > [data-view="business"] { display: none; }
+  .tabs > .more-sections-tab {
+    display: flex !important;
+    grid-column: 5;
+    visibility: visible;
+    opacity: 1;
+    z-index: 2;
+  }
   .tabs > .tab {
     min-width: 0;
     height: 64px;
