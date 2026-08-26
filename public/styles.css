@@ -1172,6 +1172,55 @@ h1, h2, h3, h4,
   .exchange-part > button { grid-column: 1 / -1; width: 100%; }
 }
 
+/* Mobile touch layout: every action gets its own predictable row. */
+@media (max-width: 760px) {
+  button, input, select { min-height: 44px; }
+  .content { overflow-x: hidden; }
+  .section-heading { display: block; }
+  .section-heading .market-pulse { justify-content: flex-start; max-width: none; margin-top: 8px; }
+  .market-quick-filters { padding-bottom: 2px; }
+  .market-quick-filters .quick-filter { flex: 0 0 auto; min-height: 42px; padding: 0 12px; }
+  .market-filters { grid-template-columns: 1fr; gap: 10px; }
+  .market-filters .market-search { grid-column: auto; }
+  .market-filters > button { width: 100%; }
+  .asset-summary, .parts-summary, .business-dashboard { grid-template-columns: 1fr 1fr; }
+  .asset-summary > div, .parts-summary > div, .business-dashboard > div { min-width: 0; padding: 12px 10px; }
+  .asset-summary strong, .parts-summary strong, .business-dashboard strong { font-size: 16px; overflow-wrap: anywhere; }
+  .asset-card-body { min-width: 0; }
+  .asset-buy { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
+  .asset-buy button { width: 100%; }
+  .owned-asset { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+  .owned-asset > div:last-child { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; align-items: center; }
+  .owned-asset > div:last-child button { grid-column: 1 / -1; width: 100%; }
+  .property-actions, .business-actions, .garage-actions, .group-car-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .property-actions button, .business-actions button, .garage-actions button, .group-car-actions button { width: 100%; }
+  .property-operations { gap: 1px; }
+  .property-operations > span { min-width: 0; padding: 9px 7px; }
+  .property-operations strong { overflow-wrap: anywhere; }
+  .clothing-item { grid-template-columns: 82px minmax(0, 1fr); gap: 10px; }
+  .clothing-item > div:last-child { grid-column: 1 / -1; }
+  .clothing-list-control { grid-template-columns: 1fr; }
+  .clothing-list-control button { width: 100%; }
+  .crypto-trade { grid-template-columns: 1fr; }
+  .crypto-trade label { grid-column: auto; }
+  .crypto-trade button { width: 100%; }
+  .item-container { grid-template-columns: 1fr; gap: 9px; }
+  .item-container > div:nth-child(2) { display: flex; align-items: baseline; justify-content: space-between; }
+  .item-container time { margin-top: 0; }
+  .item-container form { grid-template-columns: 1fr; }
+  .item-container form button { width: 100%; }
+  .property-detail-kpis, .property-costs { gap: 1px; }
+  .property-detail-kpis > div, .property-costs > span { min-width: 0; padding: 10px 8px; }
+  .property-detail-kpis strong, .property-costs strong { font-size: 12px; overflow-wrap: anywhere; }
+  .modal { align-items: end; padding: 0; }
+  .modal-panel { width: 100%; max-width: none; max-height: calc(100dvh - 8px); border-radius: 12px 12px 0 0; }
+  .modal-body { padding: 16px 14px 24px; }
+  .modal-action-row, .offer-actions, .inspection-actions { grid-template-columns: 1fr; display: grid; gap: 8px; }
+  .modal-action-row button, .offer-actions button, .inspection-actions button { width: 100%; }
+  .tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .tab { min-height: 62px; overflow-wrap: anywhere; }
+}
+
 /* Trading, wardrobe market and property analytics. */
 #assets-view #clothing-inventory-panel { display: none !important; }
 .crypto-terminal { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; margin-bottom: 18px; }
