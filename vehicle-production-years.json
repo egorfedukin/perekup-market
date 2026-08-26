@@ -1706,5 +1706,765 @@
   "Bentley Brooklands Coupé": {
     "startYear": 2008,
     "endYear": 2011
+  },
+  "Acura C": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Acura CDX": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Acura NSX-T I": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Acura Precision Concept": {
+    "startYear": 2010,
+    "endYear": 2026
+  },
+  "Acura RSX": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Acura TL II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Acura TSX I": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Acura ZDX": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 147 GTA": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 156 GTA": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 156 GTA Sportwagon": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 156 Sportwagon": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 159 Sportwagon": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 164": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 2uettottanta": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 33 Stradale": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 4C Concept": {
+    "startYear": 2010,
+    "endYear": 2026
+  },
+  "Alfa Romeo 4C Spider": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 8C Competizione": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo 8C Spider": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo Brera Concept": {
+    "startYear": 2010,
+    "endYear": 2026
+  },
+  "Alfa Romeo Giulia Veloce": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo Giulietta": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo GT": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo Junior": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo MiTo": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo Stelvio Quadrifoglio": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Alfa Romeo Tonale": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi 100 Avant": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi 90": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A1": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A1 quattro": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A1 Sportback": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A3": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A3 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A3 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A3 Sportback III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A3 Sportback IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A4 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A4 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A4 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A4 V": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A5 COUPE": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A6": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A6 Allroad qattro": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A6 Avant IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A6 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A6 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A6 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A6 Sportback e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A6 V": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A6L V": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi A7": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi A8": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q3": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q3 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi Q4 e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q5": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q5 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi Q6 e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q7": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi Q8 e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi R8": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS 3": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS 4 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi RS 5": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS 6 Avant II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi RS 7": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS Q3": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS Q3 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi RS3 REST": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi RS4 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi RS5 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi RS6": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S1": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S3 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S3 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S4": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S4 I": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S4 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S4 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S5": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S5 Avant": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S6 Avant": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi S6 IV": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S6 V": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S7 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S8 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi S8 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi SQ Sportback II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi SQ2": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi SQ5": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi SQ5 III": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi SQ6 e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi SQ7 II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Audi SQ8": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Audi SQ8 e-tron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW 1er I (E87)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 1er II (F20)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 1er III (F40)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 1er IV (F70)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 1er M Coupe (E82)": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW 2er Active Tourer II": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 2er I (F22)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 2er II (G42)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er GT VI (F34)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er IV (E46)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er V (E90)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er V (E91)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er V (E92)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er VI (F30)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er VI (F31)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er VII (G20)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 3er VII (G21)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er I (F32)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er I (F33)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er I (F36)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er I (F36) Gran Coupe": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er II (G22)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 4er II (G26)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er GT VI (F07)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er III (E34)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er IV (E39)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er VI (F10)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er VI (F11)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er VII (G30)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er VII (G31)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 5er VIII (G60)": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW 5er VIII (G61)": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW 6er Gran Coupe III (F06)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 6er Gran Turismo IV (G32)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 6er II (E63)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 6er III (F13)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 7er III (E38)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 7er IV (E65)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 7er V (F01)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 7er VI (G11)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 7er VII (G70)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 8er Gran Coupe II (G16)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 8er I (E31)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW 8er II (G15)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW iX I (I20)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW iX3 II (NA5)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW iX5 I (G65)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M1 (E26)": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW M2 I (F87)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M2 II (G87)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M235i xDrive Gran Coupé (F44)": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW M240i": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "BMW M3 III (E46)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M3 IV (E92)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M3 V (F80)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M3 VI (G80)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M3 VI (G80) (CS)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M3 VI (G81)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M4 GTS I (F82)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M4 I (F82)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M4 I (F83)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M4 II (G82)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M4 II (G82) (CS)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M5 Touring VII (G99)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M5 V (F10)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M5 VI (F90)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M5 VII (G90)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M6 Gran Coupe III (F06)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M6 III (F13)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M8 II (F91)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW M8 II (F92)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X1 I (E84)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X1 II (F48)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X1 III (U11)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X2 I (F39)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X2 M35i II (U10)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X3 II (F25)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X3 III (G01)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X3 IV (G45)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X3 M I (F97)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X4 I (F26)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X4 II (G02)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X5 I (E53)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X5 M II (F85)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X5 M III (F95)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X6 M II (F86)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X6 M III (F96)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW X7 I (G07)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW Z4 II (E89)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "BMW Z4 III (G29)": {
+    "startYear": 2005,
+    "endYear": 2026
+  },
+  "Bugatti Chiron": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Bugatti Divo": {
+    "startYear": 2000,
+    "endYear": 2026
+  },
+  "Bugatti Tourbillon": {
+    "startYear": 2000,
+    "endYear": 2026
   }
 }
