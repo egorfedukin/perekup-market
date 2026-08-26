@@ -1284,6 +1284,18 @@ h1, h2, h3, h4,
   .clothing-market, .item-container-grid { grid-template-columns: 1fr; }
 }
 
+/* Final mobile nav override: keep the five primary destinations inside an iPhone viewport. */
+@media screen and (max-width: 760px) {
+  .tabs { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; width: 100vw !important; max-width: 100vw !important; overflow: hidden !important; }
+  .tabs > .desktop-team-tab,
+  .tabs > [data-view="business"] { display: none !important; }
+  .tabs > [data-view="market"],
+  .tabs > [data-view="garage"],
+  .tabs > [data-view="auctions"],
+  .tabs > [data-view="assets"],
+  .tabs > .more-sections-tab { display: flex !important; min-width: 0 !important; width: auto !important; max-width: none !important; overflow: hidden !important; }
+}
+
 /* Compact workspaces keep long management pages focused without hiding mechanics. */
 .workspace-switcher {
   display: grid;
