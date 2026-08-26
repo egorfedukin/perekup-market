@@ -2474,6 +2474,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     max-height: min(72dvh, 620px);
     border-radius: 10px;
   }
+  .tabs {
+    width: 100vw;
+    max-width: 100vw;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    box-sizing: border-box;
+  }
   .tabs > .more-sections-tab { display: block; }
   .tabs > .desktop-team-tab,
   .tabs > [data-view="business"] { display: none; }
@@ -2486,6 +2492,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
   .tabs > .tab {
     min-width: 0;
+    width: 100%;
+    max-width: 100%;
     height: 64px;
     display: flex;
     flex-direction: column;
@@ -2494,7 +2502,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     font-size: 9px;
     line-height: 1.1;
     white-space: normal;
+    overflow: hidden;
   }
+  .tabs > .tab.more-sections-tab { min-width: 0 !important; width: 100%; }
   .tabs > .tab .badge {
     flex: 0 0 16px;
     width: auto;
