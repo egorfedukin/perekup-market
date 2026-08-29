@@ -990,6 +990,10 @@ function renderChat() {
 }
 
 function renderAssets() {
+  const collectionOnly = assetMode === "owned";
+  ["#asset-filters", "#property-market-heading", "#asset-market-grid", "#asset-load-more-wrap"].forEach((selector) => { const node = $(selector); if (node) node.hidden = collectionOnly; });
+  const heading = $("#assets-view h2");
+  if (heading) heading.textContent = collectionOnly ? "Моя коллекция недвижимости" : "Недвижимость";
   const listings = state.assetMarket || [];
   const owned = state.player.ownedAssets || [];
   const categories = state.assetCategories || {};
@@ -1205,7 +1209,7 @@ function setView(view) {
   const currentView = document.querySelector(".view.active-view")?.id?.replace(/-view$/, "");
   if (view !== currentView && view === "garage") garageMode = requestedPlates ? "plates" : "cars";
   if (view !== currentView && view === "profile") profileMode = "overview";
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
+  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view && (!tab.dataset.assetMode || tab.dataset.assetMode === assetMode)));
   document.querySelectorAll(".utility-nav [data-view]").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
   $("#utility-nav")?.classList.remove("open");
