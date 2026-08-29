@@ -42,14 +42,16 @@
       <p class="join-copy">Один рынок для всех игроков. Покупай, ремонтируй и продавай автомобили, участвуй в торгах, развивай гараж и получай доход от недвижимости.</p>
       <form id="join-form">
         <div class="auth-fields">
-          <label for="player-name">Имя на рынке<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
-          <label for="player-pin">PIN-код<input id="player-pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="4–12 цифр" required></label>
+          <label for="player-name">Логин<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
+          <label for="player-email" class="registration-only">Email для подтверждения<input id="player-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" autocomplete="current-password" placeholder="Не менее 8 символов" required></label>
         </div>
         <div class="auth-actions">
           <button type="submit" data-auth-action="login">Войти <span aria-hidden="true">→</span></button>
           <button type="submit" data-auth-action="register" class="auth-secondary">Создать аккаунт</button>
         </div>
         <p id="join-error" class="form-error" role="alert"></p>
+        <p class="auth-hint">При регистрации на email придёт ссылка подтверждения.</p>
       </form>
       <div class="join-stats">
         <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>

@@ -27,6 +27,8 @@ const PUBLIC_AD_CONFIG = {
   adsenseClient: process.env.PEREKUP_ADSENSE_CLIENT || ""
 };
 const ADS_TXT = String(process.env.PEREKUP_ADS_TXT || "").trim();
+const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
+const AUTH_FROM_EMAIL = String(process.env.AUTH_FROM_EMAIL || "Рынок <onboarding@resend.dev>").trim();
 const cashPackages = [
   { id: "starter", rubles: 99, cash: 250000, name: "Первый оборот", tag: "Старт", description: "На диагностику, инструменты и первую выгодную сделку", bonus: "+ статус Бронза", supporterTier: "bronze" },
   { id: "dealer", rubles: 249, cash: 800000, name: "Капитал дилера", tag: "Выгодно", description: "Запас на торг, ремонт и несколько автомобилей", bonus: "+ статус Серебро", supporterTier: "silver" },
@@ -468,6 +470,7 @@ const businessCatalog = [
 
 const players = new Map();
 const sessions = new Map();
+const emailVerifications = new Map();
 const market = [];
 const salesHistory = [];
 const marketIndices = {};
@@ -498,7 +501,7 @@ let loadedVehiclePricingVersion = 0;
 
 function persistState() {
   const payload = JSON.stringify({
-    players: [...players.entries()], sessions: [...sessions.entries()], market,
+    players: [...players.entries()], sessions: [...sessions.entries()], emailVerifications: [...emailVerifications.entries()], market,
     offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, directMessages, moderationReports, assetMarket,
     groups: [...groups.entries()], partsMarket, partsSalesHistory, plateMarket, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions, clothingCrafts: [...clothingCrafts.entries()], clothingMarket, itemContainerAuctions, cryptoHistory,
     vehiclePricingVersion: VEHICLE_PRICING_VERSION
@@ -524,6 +527,7 @@ function loadState() {
     loadedVehiclePricingVersion = Number(saved.vehiclePricingVersion || 0);
     for (const [key, value] of saved.players || []) { ensurePlayerDefaults(value); players.set(key, value); }
     for (const [key, value] of saved.sessions || []) sessions.set(key, value);
+    for (const [key, value] of saved.emailVerifications || []) emailVerifications.set(key, value);
     for (const car of saved.market || []) { ensureCarDefaults(car); market.push(car); }
     for (const [key, value] of saved.offers || []) offers.set(key, value);
     for (const sale of saved.salesHistory || []) salesHistory.push(sale);
@@ -549,6 +553,10 @@ function loadState() {
 }
 
 function ensurePlayerDefaults(player) {
+  player.email ||= null;
+  player.passwordSalt ||= null;
+  player.passwordHash ||= null;
+  player.emailVerified ??= Boolean(player.email ? false : true);
   player.skills ||= {};
   player.equipment ||= {};
   player.skills.diagnostics ??= Math.max(player.skills.engine || 0, player.skills.chassis || 0);
@@ -1717,11 +1725,31 @@ function verifyPin(pin, player) {
   return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
 }
 
-function createPlayer(name, pin = null) {
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  return { salt, hash: crypto.scryptSync(password, salt, 64).toString("hex") };
+}
+
+function verifyPassword(password, player) {
+  if (!player.passwordSalt || !player.passwordHash) return false;
+  const candidate = Buffer.from(hashPassword(password, player.passwordSalt).hash, "hex");
+  const expected = Buffer.from(player.passwordHash, "hex");
+  return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
+}
+
+async function sendVerificationEmail(email, name, token) {
+  if (!RESEND_API_KEY) throw new Error("Подтверждение почты временно недоступно: владелец ещё не настроил почтовый сервис");
+  const link = `${PUBLIC_URL}/verify-email.html?token=${encodeURIComponent(token)}`;
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: AUTH_FROM_EMAIL, to: [email], subject: "Подтвердите почту в игре «Рынок»", html: `<p>Здравствуйте, ${String(name).replace(/[<>]/g, "")}</p><p>Нажмите кнопку, чтобы подтвердить адрес электронной почты:</p><p><a href="${link}">Подтвердить почту</a></p><p>Ссылка действует 24 часа.</p>` }) });
+  if (!response.ok) throw new Error("Не удалось отправить письмо подтверждения");
+}
+
+function createPlayer(name, pin = null, account = {}) {
   const credentials = pin ? hashPin(pin) : {};
+  const password = account.password ? hashPassword(account.password) : {};
   const player = {
     id: id("player_"), name, normalizedName: name.toLocaleLowerCase("ru-RU"),
     pinSalt: credentials.salt || null, pinHash: credentials.hash || null,
+    email: account.email || null, passwordSalt: password.salt || null, passwordHash: password.hash || null, emailVerified: account.emailVerified ?? !account.email,
     cash: STARTING_CASH, profit: 0, deals: 0, garage: [], xp: 0, skillPoints: 1,
     skills: {}, equipment: {}, garageCapacity: MAX_GARAGE, parts: { common: 0, premium: 0 }, groupId: null, groupRole: null,
     stats: { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0 }
@@ -2188,26 +2216,45 @@ async function api(req, res, pathname) {
     const body = await readBody(req);
     const name = String(body.name || "").trim().slice(0, 20);
     const pin = String(body.pin || "");
+    const email = String(body.email || "").trim().toLowerCase();
+    const password = String(body.password || "");
     if (name.length < 2) return json(res, 400, { error: "Введите имя от 2 символов" });
-    if (!/^\d{4,12}$/.test(pin)) return json(res, 400, { error: "PIN должен содержать от 4 до 12 цифр" });
+    if (!/^\S+@\S+\.\S+$/.test(email)) return json(res, 400, { error: "Введите корректный email" });
+    if (password.length < 8 || password.length > 72) return json(res, 400, { error: "Пароль должен содержать от 8 до 72 символов" });
     const normalized = name.toLocaleLowerCase("ru-RU");
-    if ([...players.values()].some((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === normalized && item.pinHash)) {
+    if ([...players.values()].some((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === normalized && (item.pinHash || item.passwordHash))) {
       return json(res, 409, { error: "Аккаунт с таким именем уже существует" });
     }
-    const player = createPlayer(name, pin);
-    const token = id("session_");
+    if ([...players.values()].some((item) => item.email === email)) return json(res, 409, { error: "Этот email уже зарегистрирован" });
+    const player = createPlayer(name, null, { email, password, emailVerified: false });
+    const verificationToken = id("verify_");
+    emailVerifications.set(verificationToken, { playerId: player.id, expiresAt: Date.now() + 86400000 });
+    try { await sendVerificationEmail(email, name, verificationToken); } catch (error) { emailVerifications.delete(verificationToken); return json(res, 503, { error: error.message }); }
     players.set(player.id, player);
-    sessions.set(token, player.id);
-    broadcast();
-    return json(res, 200, { token, ...snapshot(player) });
+    persistState();
+    return json(res, 200, { pendingVerification: true, email });
+  }
+
+  if (req.method === "GET" && pathname === "/api/verify-email") {
+    const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+    const verificationToken = requestUrl.searchParams.get("token") || "";
+    const record = emailVerifications.get(verificationToken);
+    if (!record || record.expiresAt < Date.now()) return json(res, 400, { error: "Ссылка недействительна или устарела" });
+    const player = players.get(record.playerId);
+    if (!player) return json(res, 404, { error: "Аккаунт не найден" });
+    player.emailVerified = true; emailVerifications.delete(verificationToken); persistState();
+    return json(res, 200, { ok: true });
   }
 
   if (req.method === "POST" && pathname === "/api/login") {
     const body = await readBody(req);
     const name = String(body.name || "").trim().toLocaleLowerCase("ru-RU");
+    const password = String(body.password || "");
     const pin = String(body.pin || "");
-    const player = [...players.values()].find((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === name && item.pinHash);
-    if (!player || !verifyPin(pin, player)) return json(res, 401, { error: "Неверное имя или PIN" });
+    const player = [...players.values()].find((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === name && (item.passwordHash || item.pinHash));
+    const valid = player && (player.passwordHash ? verifyPassword(password, player) : verifyPin(pin, player));
+    if (!valid) return json(res, 401, { error: "Неверный логин или пароль" });
+    if (player.passwordHash && !player.emailVerified) return json(res, 403, { error: "Подтвердите email по ссылке из письма" });
     const blocked = banMessage(player);
     if (blocked) return json(res, 403, { error: blocked });
     const token = id("session_");

@@ -1405,7 +1405,7 @@ async function enterGame(data) {
 $("#join-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; button.disabled = true; $("#join-error").textContent = "";
   const action = event.submitter?.dataset.authAction || "login";
-  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, pin: $("#player-pin").value }) }); token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
+  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Подтвердите адрес и войдите.`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
   catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
 });
 
