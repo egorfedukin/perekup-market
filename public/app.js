@@ -896,6 +896,10 @@ function renderProfile() {
   $("#profile-name-large").textContent = player.name;
   const supporterName = supporterTierNames[player.supporterTier];
   $("#profile-career").innerHTML = `${player.level} уровень · ${player.xp} XP · ${player.deals} сделок${supporterName ? ` <span class="supporter-badge tier-${escapeHtml(player.supporterTier)}">${supporterName}</span>` : ""}`;
+  const benefits = player.supporterBenefits || [];
+  let supporterPanel = document.getElementById("supporter-benefits");
+  if (!supporterPanel) { supporterPanel = document.createElement("div"); supporterPanel.id = "supporter-benefits"; supporterPanel.className = "supporter-benefits"; $("#profile-career").after(supporterPanel); }
+  supporterPanel.innerHTML = supporterName ? `<strong>Статус поддержки: ${escapeHtml(supporterName)}</strong><span>${benefits.map(escapeHtml).join(" · ")}</span>` : "";
   $("#profile-cash").textContent = money(player.cash);
   $("#profile-reputation").textContent = `${player.reputation?.score || 50}/100`;
   const levelRange = Math.max(1, player.nextLevelXp - player.levelStartXp);

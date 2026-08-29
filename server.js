@@ -37,6 +37,7 @@ const cashPackages = [
   { id: "founder", rubles: 999, cash: 4500000, name: "Партнёр рынка", tag: "Максимум", description: "Большой запас для коллекционных машин и собственного холдинга", benefits: ["Коллекционные автомобили", "Статус Партнёр в чате"], bonus: "+ статус Партнёр", supporterTier: "founder" }
 ];
 const supporterTierRank = { none: 0, bronze: 1, silver: 2, gold: 3, platinum: 4, founder: 5 };
+const supporterTierBenefits = { none: [], bronze: ["Бронзовый бейдж в профиле и чате"], silver: ["Серебряный бейдж", "Приоритетный цвет имени в чате"], gold: ["Золотой бейдж", "Выделение профиля среди участников"], platinum: ["Платиновый бейдж", "Особая отметка постоянного партнёра"], founder: ["Бейдж партнёра", "Особая отметка раннего участника проекта"] };
 const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, "game.db"));
@@ -1433,7 +1434,7 @@ function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, training: player.training,
+    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
