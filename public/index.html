@@ -258,13 +258,13 @@
         <section id="public-chat-panel" class="workspace-panel chat-shell">
           <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
           <form id="chat-form" class="chat-form">
-            <input id="chat-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Сообщение игрокам" required>
+            <input id="chat-input" name="message" minlength="1" maxlength="200" autocomplete="off" placeholder="Сообщение игрокам" required>
             <button class="primary-button" type="submit">Отправить</button>
           </form>
         </section>
         <section id="direct-chat-panel" class="workspace-panel direct-shell" hidden>
           <aside class="direct-sidebar"><div class="direct-sidebar-head"><strong>Диалоги</strong><span>Только начатые переписки</span></div><div id="direct-users" class="direct-users"></div></aside>
-          <div class="direct-conversation"><header id="direct-head"><strong>Выберите игрока</strong><span>Диалог откроется здесь</span></header><div id="direct-messages" class="chat-messages direct-messages" aria-live="polite"></div><form id="direct-form" class="chat-form" hidden><input id="direct-input" name="message" minlength="2" maxlength="200" autocomplete="off" placeholder="Личное сообщение" required><button class="primary-button" type="submit">Отправить</button></form></div>
+          <div class="direct-conversation"><header id="direct-head"><strong>Выберите игрока</strong><span>Диалог откроется здесь</span></header><div id="direct-messages" class="chat-messages direct-messages" aria-live="polite"></div><form id="direct-form" class="chat-form" hidden><input id="direct-input" name="message" minlength="1" maxlength="200" autocomplete="off" placeholder="Личное сообщение" required><button class="primary-button" type="submit">Отправить</button></form></div>
         </section>
       </section>
 
@@ -376,12 +376,13 @@
           <button type="button" data-profile-mode="history">История <span>Доходы и расходы</span></button>
         </nav>
         <section id="profile-overview-panel" class="workspace-panel">
-        <div class="profile-hero">
+          <div class="profile-hero">
           <div class="profile-monogram" id="profile-monogram">P</div>
           <div class="profile-identity"><p class="eyebrow">Профиль игрока</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p><div class="profile-level-track"><i id="profile-xp-bar"></i></div><small id="profile-xp-label">0 XP до следующего уровня</small></div>
           <div class="profile-capital"><span>Общий баланс</span><strong id="profile-cash">0 ₽</strong></div>
           <div class="profile-reputation"><span>Репутация</span><strong id="profile-reputation">50/100</strong></div>
-        </div>
+          </div>
+          <form id="profile-edit-form" class="profile-edit-form"><div><p class="eyebrow">Настройки профиля</p><h3>Как вас видят игроки</h3></div><label>Ник и логин<input id="profile-edit-name" maxlength="20" minlength="2" autocomplete="off" required><small>После смены входите по новому нику</small></label><label>Аватар<input id="profile-edit-avatar" maxlength="4" placeholder="🚗" aria-describedby="profile-avatar-hint"><small id="profile-avatar-hint">Один эмодзи или до двух символов</small></label><button class="primary-button" type="submit">Сохранить профиль</button><p id="profile-edit-message" class="form-error" role="alert"></p></form>
         <nav class="profile-shortcuts" aria-label="Быстрые действия">
           <button data-view="garage"><strong>Мои автомобили</strong><span>Осмотр, ремонт и продажа</span></button>
           <button data-view="deals"><strong>Предложения</strong><span>Ответить покупателям и продавцам</span></button>

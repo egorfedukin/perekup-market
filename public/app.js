@@ -485,7 +485,7 @@ async function openPlayerProfile(playerId) {
     const supporter = supporterTierNames[profile.supporterTier];
     profile.name = profile.profileBadge ? `${profile.name} · ${profile.profileBadge}` : profile.name;
     const listings = profile.listings || [];
-    $("#player-profile-content").innerHTML = `<div class="public-profile-head"><div class="public-profile-avatar">${escapeHtml(profile.name[0].toUpperCase())}</div><div><p class="eyebrow">Публичный профиль</p><h2 id="player-profile-title">${escapeHtml(profile.name)}</h2><span>Уровень ${profile.level}${supporter ? ` · ${escapeHtml(supporter)}` : ""}</span></div><button class="primary-button" data-message-player="${profile.id}">Написать сообщение</button></div><div class="public-profile-stats"><div><span>Репутация</span><strong>${profile.reputation}/100</strong></div><div><span>Завершено сделок</span><strong>${number(profile.completedDeals)}</strong></div><div><span>Активных лотов</span><strong>${number(profile.listingsCount)}</strong></div><div><span>Команда</span><strong>${escapeHtml(profile.groupName || "Не состоит")}</strong></div></div><section class="public-profile-listings"><div><p class="eyebrow">Объявления игрока</p><h3>Сейчас в продаже</h3></div>${listings.length ? listings.map((car) => `<button data-profile-car="${car.id}">${carArt(car)}<span><strong>${escapeHtml(car.model)}</strong><small>${car.year} · ${money(car.price)}</small></span></button>`).join("") : '<div class="no-offers">У игрока сейчас нет активных автомобильных лотов.</div>'}</section>`;
+    $("#player-profile-content").innerHTML = `<div class="public-profile-head"><div class="public-profile-avatar">${escapeHtml(profile.avatar || profile.name[0].toUpperCase())}</div><div><p class="eyebrow">Публичный профиль</p><h2 id="player-profile-title">${escapeHtml(profile.name)}</h2><span>Уровень ${profile.level}${supporter ? ` · ${escapeHtml(supporter)}` : ""}</span></div><button class="primary-button" data-message-player="${profile.id}">Написать сообщение</button></div><div class="public-profile-stats"><div><span>Репутация</span><strong>${profile.reputation}/100</strong></div><div><span>Завершено сделок</span><strong>${number(profile.completedDeals)}</strong></div><div><span>Активных лотов</span><strong>${number(profile.listingsCount)}</strong></div><div><span>Команда</span><strong>${escapeHtml(profile.groupName || "Не состоит")}</strong></div></div><section class="public-profile-listings"><div><p class="eyebrow">Объявления игрока</p><h3>Сейчас в продаже</h3></div>${listings.length ? listings.map((car) => `<button data-profile-car="${car.id}">${carArt(car)}<span><strong>${escapeHtml(car.model)}</strong><small>${car.year} · ${money(car.price)}</small></span></button>`).join("") : '<div class="no-offers">У игрока сейчас нет активных автомобильных лотов.</div>'}</section>`;
     $("#player-modal").hidden = false;
     document.body.style.overflow = "hidden";
     hydrateCarPhotos($("#player-profile-content"));
@@ -893,8 +893,12 @@ function groupRoleSelect(member, group) {
 
 function renderProfile() {
   const player = state.player;
-  $("#profile-monogram").textContent = player.name[0].toUpperCase();
+  $("#profile-monogram").textContent = player.avatar || player.name[0].toUpperCase();
   $("#profile-name-large").textContent = player.name;
+  const profileNameInput = $("#profile-edit-name");
+  const profileAvatarInput = $("#profile-edit-avatar");
+  if (document.activeElement !== profileNameInput || !profileNameInput.value) profileNameInput.value = player.name;
+  if (document.activeElement !== profileAvatarInput) profileAvatarInput.value = player.avatar || "";
   const supporterName = supporterTierNames[player.supporterTier];
   $("#profile-career").innerHTML = `${player.level} уровень · ${player.xp} XP · ${player.deals} сделок${supporterName ? ` <span class="supporter-badge tier-${escapeHtml(player.supporterTier)}">${supporterName}</span>` : ""}`;
   const benefits = player.supporterBenefits || [];
@@ -1143,7 +1147,7 @@ function updateShell() {
   $("#cash-compact").textContent = compactMoney(state.player.availableCash);
   $("#cash").title = state.player.reservedCash ? `Баланс ${money(state.player.cash)}, в ставках зарезервировано ${money(state.player.reservedCash)}` : `Баланс ${money(state.player.cash)}`;
   $("#profile-name").textContent = state.player.name;
-  $("#avatar").textContent = state.player.name[0].toUpperCase();
+  $("#avatar").textContent = state.player.avatar || state.player.name[0].toUpperCase();
   $("#market-count").textContent = state.market.filter((car) => car.saleType !== "auction").length;
   $("#garage-count").textContent = `${state.player.garage.length}/${state.player.garageCapacity}`;
   $("#auction-count").textContent = (state.market || []).filter((car) => car.saleType === "auction").length + (state.containerAuctions || []).length;
@@ -1744,6 +1748,22 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = $("#chat-input");
     if (await perform("/api/chat", { message: input.value }, "Сообщение отправлено")) input.value = "";
+    return;
+  }
+  if (event.target.id === "profile-edit-form") {
+    event.preventDefault();
+    const message = $("#profile-edit-message");
+    message.classList.remove("success");
+    message.textContent = "";
+    try {
+      state = await request("/api/profile/update", { method: "POST", body: JSON.stringify({ name: $("#profile-edit-name").value, avatar: $("#profile-edit-avatar").value }) });
+      render();
+      message.classList.add("success");
+      message.textContent = "Профиль сохранён";
+      showToast("Профиль сохранён");
+    } catch (error) {
+      message.textContent = error.message;
+    }
     return;
   }
   if (event.target.id === "direct-form") {

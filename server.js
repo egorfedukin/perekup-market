@@ -556,6 +556,7 @@ function loadState() {
 }
 
 function ensurePlayerDefaults(player) {
+  player.avatar ||= "";
   player.profileBadge ||= "";
   player.adminGranted ??= false;
   player.email ||= null;
@@ -1436,7 +1437,7 @@ function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
+    id: player.id, name: player.name, avatar: player.avatar || "", cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
@@ -1477,6 +1478,7 @@ function publicPlayerProfile(candidate, viewer) {
   return {
     id: candidate.id,
     name: candidate.name,
+    avatar: candidate.avatar || "",
     level: levelForXp(candidate.xp),
     reputation: candidate.reputation?.score || 50,
     completedDeals: candidate.reputation?.completed || candidate.deals || 0,
@@ -1504,8 +1506,8 @@ function snapshot(player) {
     inspectionRequirements,
     marketStats: marketStatistics(),
     partsMarketStats: partsMarketStatistics(),
-    chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none", profileBadge: players.get(message.playerId)?.profileBadge || (isAdmin(players.get(message.playerId)) ? "Администратор" : "") })),
-    directMessages: playerDirectMessages,
+    chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, playerName: players.get(message.playerId)?.name || message.playerName, supporterTier: players.get(message.playerId)?.supporterTier || "none", profileBadge: players.get(message.playerId)?.profileBadge || (isAdmin(players.get(message.playerId)) ? "Администратор" : "") })),
+    directMessages: playerDirectMessages.map((message) => ({ ...message, senderName: players.get(message.senderId)?.name || message.senderName, recipientName: players.get(message.recipientId)?.name || message.recipientName })),
     directUnread: playerDirectMessages.filter((message) => message.recipientId === player?.id && !message.readAt).length,
     playerDirectory: player ? [...directContactIds].map((playerId) => players.get(playerId)).filter((candidate) => candidate && !banMessage(candidate)).map((candidate) => ({ id: candidate.id, name: candidate.name, level: levelForXp(candidate.xp), reputation: candidate.reputation?.score || 50 })) : [],
     partsMarket: partsMarket.slice(-100),
@@ -2204,7 +2206,7 @@ function moderateChat(player, rawText) {
   const now = Date.now();
   const chat = player.chatState;
   if (chat.mutedUntil > now) throw new Error(`Чат временно недоступен ещё ${Math.ceil((chat.mutedUntil - now) / 1000)} сек.`);
-  if (text.length < 2) throw new Error("Сообщение слишком короткое");
+  if (text.length < 1) throw new Error("Введите сообщение");
   if ((text.match(/https?:\/\/|www\.|\.ru\b|\.com\b/gi) || []).length > 1) throw new Error("В сообщении слишком много ссылок");
   if (/\b(?:телеграм|telegram|whatsapp|ватсап)\b.*(?:@|\+?\d[\d\s()-]{8,})/iu.test(text)) throw new Error("Не публикуйте личные контакты в игровом чате");
   if (/\b(?:убью|зарежу|найду тебя|сдохни|суицид)\b/iu.test(text)) {
@@ -2251,6 +2253,7 @@ async function api(req, res, pathname) {
     if (!/^\S+@\S+\.\S+$/.test(email)) return json(res, 400, { error: "Введите корректный email" });
     if (!validPassword(password)) return json(res, 400, { error: "Пароль: 8–72 символа, только английские буквы, цифры и спецсимволы" });
     const normalized = name.toLocaleLowerCase("ru-RU");
+    if (ADMIN_NAMES.has(normalized)) return json(res, 409, { error: "Этот логин зарезервирован" });
     if ([...players.values()].some((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === normalized && (item.pinHash || item.passwordHash))) {
       return json(res, 409, { error: "Аккаунт с таким именем уже существует" });
     }
@@ -2322,6 +2325,7 @@ async function api(req, res, pathname) {
     const body = await readBody(req);
     const name = String(body.name || "").trim().slice(0, 20);
     if (name.length < 2) return json(res, 400, { error: "Введите имя от 2 символов" });
+    if (ADMIN_NAMES.has(name.toLocaleLowerCase("ru-RU"))) return json(res, 409, { error: "Этот логин зарезервирован" });
     const token = id("session_");
     const player = createPlayer(name);
     players.set(player.id, player);
@@ -2335,6 +2339,19 @@ async function api(req, res, pathname) {
   const blocked = banMessage(player);
   if (blocked) return json(res, 403, { error: blocked });
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
+  if (req.method === "POST" && pathname === "/api/profile/update") {
+    const body = await readBody(req);
+    const name = String(body.name || "").trim().slice(0, 20);
+    const normalized = name.toLocaleLowerCase("ru-RU");
+    if (name.length < 2) return json(res, 400, { error: "Ник должен содержать минимум 2 символа" });
+    if (![...players.values()].every((candidate) => candidate.id === player.id || (candidate.normalizedName || candidate.name.toLocaleLowerCase("ru-RU")) !== normalized)) return json(res, 409, { error: "Этот ник уже занят" });
+    const hadAdminAccess = isAdmin(player);
+    if (!hadAdminAccess && ADMIN_NAMES.has(normalized)) return json(res, 409, { error: "Этот ник зарезервирован" });
+    const avatar = [...String(body.avatar || "").trim()].slice(0, 2).join("");
+    player.name = name; player.normalizedName = normalized; player.avatar = avatar;
+    if (hadAdminAccess) player.adminGranted = true;
+    persistState(); broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "GET" && pathname === "/api/player/profile") {
     const playerId = new URL(req.url, `http://${req.headers.host}`).searchParams.get("id");
     const candidate = players.get(String(playerId || ""));

@@ -2582,3 +2582,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .plate-result-panel{width:min(520px,calc(100vw - 28px));padding:20px}.plate-result-panel .plate-card{margin:0}.plate-result-panel .primary-button{width:100%;margin-top:14px;min-height:48px}@media(max-width:760px){.plate-result-panel{width:100%;max-height:calc(100dvh - 8px);border-radius:12px 12px 0 0;padding:16px 14px 24px}}
 
+.profile-edit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, .65fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+}
+.profile-edit-form > div { grid-column: 1 / -1; }
+.profile-edit-form h3 { margin: 2px 0 0; font-size: 18px; }
+.profile-edit-form label { min-width: 0; color: var(--muted); font-size: 10px; font-weight: 800; }
+.profile-edit-form label input { width: 100%; height: 42px; margin-top: 6px; border: 1px solid var(--line); padding: 0 10px; color: var(--ink); }
+.profile-edit-form label small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; font-weight: 500; }
+.profile-edit-form button { min-height: 42px; }
+.profile-edit-form .form-error { grid-column: 1 / -1; min-height: 16px; margin: 0; color: #b42318; }
+.profile-edit-form .form-error.success { color: #067647; }
+
+@media (max-width: 700px) {
+  .profile-edit-form { grid-template-columns: 1fr; padding: 14px; }
+  .profile-edit-form button { width: 100%; }
+}
+
