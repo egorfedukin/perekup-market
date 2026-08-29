@@ -1402,9 +1402,23 @@ async function enterGame(data) {
   connectEvents();
 }
 
+let authMode = "register";
+function setAuthMode(mode) {
+  authMode = mode === "login" ? "login" : "register";
+  const registration = authMode === "register";
+  $("#auth-title").innerHTML = registration ? "Создай аккаунт.<br>Начни торговать." : "С возвращением.<br>Продолжим сделку.";
+  $("#auth-submit").dataset.authAction = authMode;
+  $("#auth-submit").innerHTML = registration ? "Создать аккаунт <span aria-hidden=\"true\">→</span>" : "Войти <span aria-hidden=\"true\">→</span>";
+  $("#player-email").required = registration;
+  $(".auth-hint").textContent = registration ? "После регистрации на email придёт ссылка подтверждения." : "Введите логин и пароль, указанные при регистрации.";
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
+}
+document.addEventListener("click", (event) => { const switchButton = event.target.closest("[data-auth-mode]"); if (switchButton) setAuthMode(switchButton.dataset.authMode); });
+setAuthMode("register");
+
 $("#join-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; button.disabled = true; $("#join-error").textContent = "";
-  const action = event.submitter?.dataset.authAction || "login";
+  const action = authMode;
   try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Подтвердите адрес и войдите.`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
   catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
 });

@@ -38,17 +38,20 @@
     </div>
     <main class="join-panel">
       <p class="eyebrow">Мультиплеерная биржа активов</p>
-      <h1>Купи дешевле.<br>Продай дороже.</h1>
+      <h1 id="auth-title">Создай аккаунт.<br>Начни торговать.</h1>
       <p class="join-copy">Один рынок для всех игроков. Покупай, ремонтируй и продавай автомобили, участвуй в торгах, развивай гараж и получай доход от недвижимости.</p>
       <form id="join-form">
+        <div class="auth-switch" role="tablist" aria-label="Способ входа">
+          <button type="button" class="auth-switch-button active" data-auth-mode="register" role="tab" aria-selected="true">Регистрация</button>
+          <button type="button" class="auth-switch-button" data-auth-mode="login" role="tab" aria-selected="false">Вход</button>
+        </div>
         <div class="auth-fields">
           <label for="player-name">Логин<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
           <label for="player-email" class="registration-only">Email для подтверждения<input id="player-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
           <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" autocomplete="current-password" placeholder="Не менее 8 символов" required></label>
         </div>
         <div class="auth-actions">
-          <button type="submit" data-auth-action="login">Войти <span aria-hidden="true">→</span></button>
-          <button type="submit" data-auth-action="register" class="auth-secondary">Создать аккаунт</button>
+          <button id="auth-submit" type="submit" data-auth-action="register">Создать аккаунт <span aria-hidden="true">→</span></button>
         </div>
         <p id="join-error" class="form-error" role="alert"></p>
         <p class="auth-hint">При регистрации на email придёт ссылка подтверждения.</p>
