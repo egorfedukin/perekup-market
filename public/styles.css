@@ -1286,6 +1286,7 @@ h1, h2, h3, h4,
 
 /* Final mobile nav override: keep the five primary destinations inside an iPhone viewport. */
 @media screen and (max-width: 760px) {
+  .tabs > .desktop-collection-tab { display: none !important; }
   .tabs { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; width: 100vw !important; max-width: 100vw !important; overflow: hidden !important; }
   .tabs > .desktop-team-tab,
   .tabs > [data-view="business"] { display: none !important; }
