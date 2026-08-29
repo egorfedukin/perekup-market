@@ -2361,7 +2361,7 @@ async function api(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     return json(res, 200, {
-      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "", profileBadge: item.profileBadge || "", isAdmin: isAdmin(item) })),
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, avatar: item.avatar || "", cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "", profileBadge: item.profileBadge || "", supporterTier: item.supporterTier || "none", isAdmin: isAdmin(item) })),
       reports: moderationReports.filter((report) => report.status === "open").slice().reverse(),
       economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length }
     });
@@ -2468,11 +2468,16 @@ async function api(req, res, pathname) {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     const target = players.get(String(body.playerId || ""));
     const action = String(body.action || "");
-    if (["set-badge", "set-admin"].includes(action)) {
+    if (["set-badge", "set-supporter", "set-admin"].includes(action)) {
       if (!target) return json(res, 404, { error: "Игрок не найден" });
       if (action === "set-admin" && target.id === player.id && !body.enabled) return json(res, 400, { error: "Нельзя забрать админку у самого себя" });
       if (action === "set-admin") target.adminGranted = Boolean(body.enabled);
-      else target.profileBadge = String(body.badge || "").trim().slice(0, 32);
+      else if (action === "set-badge") target.profileBadge = String(body.badge || "").trim().slice(0, 32);
+      else {
+        const supporterTier = String(body.supporterTier || "none");
+        if (!Object.prototype.hasOwnProperty.call(supporterTierRank, supporterTier)) return json(res, 400, { error: "Неизвестный статус поддержки" });
+        target.supporterTier = supporterTier;
+      }
       persistState();
     } else if (["delete-message"].includes(action)) {
       const messageId = String(body.messageId || "");

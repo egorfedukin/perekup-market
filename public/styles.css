@@ -2607,3 +2607,26 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .profile-edit-form button { width: 100%; }
 }
 
+.admin-player { grid-template-columns: minmax(220px, .65fr) minmax(0, 1.7fr); }
+.admin-profile-controls {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr) auto;
+  align-items: end;
+  gap: 7px;
+}
+.admin-profile-controls label { display: grid; gap: 4px; color: var(--muted); font-size: 9px; font-weight: 700; }
+.admin-profile-controls select { min-width: 0; width: 100%; height: 38px; border: 1px solid #cfd5dd; padding: 0 9px; }
+.admin-profile-controls [data-admin-access] { grid-column: 1 / -1; justify-self: start; }
+.admin-save-feedback { min-height: 16px; margin: 0; color: #067647; font-size: 10px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .admin-player { grid-template-columns: 1fr; }
+  .admin-profile-controls { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-profile-controls [data-admin-access] { grid-column: 1 / -1; }
+}
+
+@media (max-width: 520px) {
+  .admin-profile-controls { grid-template-columns: 1fr; }
+  .admin-profile-controls [data-admin-access] { grid-column: auto; width: 100%; }
+}
+

@@ -29,6 +29,8 @@ let events = null;
 let toastTimer = null;
 const pendingActions = new Set();
 let adminState = null;
+let renderedAdminState = null;
+const adminFeedback = new Map();
 let shownRewardId = null;
 let shownNotificationId = null;
 let partsMode = "needs";
@@ -950,12 +952,31 @@ function renderStore() {
 function renderAdmin() {
   $("#admin-tab").hidden = !state.player.isAdmin;
   if (!state.player.isAdmin || !adminState) return;
+  if (renderedAdminState === adminState) return;
+  renderedAdminState = adminState;
   const economy = adminState.economy;
   $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Сделок", economy.deals], ["Предложений", economy.activeOffers], ["Жалоб", economy.openReports], ["Оплат", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
   $("#admin-reports").innerHTML = adminState.reports.length ? adminState.reports.map((report) => `<article class="admin-report"><div><strong>${escapeHtml(report.accusedName)} · ${report.source === "direct" ? "личные сообщения" : "общий чат"}</strong><small>Жалоба от ${escapeHtml(report.reporterName)} · ${new Date(report.createdAt).toLocaleString("ru-RU")}</small><p>«${escapeHtml(report.messageText)}»</p><span>${escapeHtml(report.reason)}</span></div><div><button class="secondary-button" data-admin-report-mute="${report.id}" data-player-id="${report.accusedId}">Чат-бан на 1 час</button><button class="danger-button" data-admin-report-ban="${report.id}" data-player-id="${report.accusedId}">Заблокировать аккаунт</button><button class="secondary-button" data-admin-report="resolve" data-report-id="${report.id}">Закрыть</button><button class="secondary-button" data-admin-report="dismiss" data-report-id="${report.id}">Отклонить</button></div></article>`).join("") : '<div class="no-offers">Новых жалоб нет.</div>';
   $("#admin-players").innerHTML = adminState.players.map((player) => {
     const banned = player.bannedUntil === -1 || player.bannedUntil > Date.now();
-    return `<article class="admin-player ${banned ? "banned" : ""}"><header><div class="admin-player-avatar">${escapeHtml(player.name[0].toUpperCase())}</div><div><strong>${escapeHtml(player.name)} ${player.isAdmin ? '<i class="admin-badge">Администратор</i>' : player.profileBadge ? `<i class="profile-badge">${escapeHtml(player.profileBadge)}</i>` : ""}</strong><small>Уровень ${player.level} · ${player.deals} сделок · гараж ${player.garage} · репутация ${player.reputation}</small>${banned ? `<b>Заблокирован: ${escapeHtml(player.banReason || "причина не указана")}</b>` : ""}</div></header><div class="admin-player-tools"><div class="admin-value-row"><label><span>Плашка профиля</span><select id="admin-badge-${player.id}"><option value="">Без плашки</option><option value="Создатель" ${player.profileBadge === "Создатель" ? "selected" : ""}>Создатель</option><option value="Администратор" ${player.profileBadge === "Администратор" ? "selected" : ""}>Администратор</option><option value="Модератор" ${player.profileBadge === "Модератор" ? "selected" : ""}>Модератор</option><option value="Партнёр проекта" ${player.profileBadge === "Партнёр проекта" ? "selected" : ""}>Партнёр проекта</option></select></label><button class="secondary-button" data-admin-badge="${player.id}">Сохранить плашку</button><button class="secondary-button" data-admin-access="${player.id}" data-enabled="${player.isAdmin ? "0" : "1"}">${player.isAdmin ? "Забрать админку" : "Выдать админку"}</button></div><div class="admin-value-row"><label><span>Баланс</span><input id="admin-cash-${player.id}" type="number" step="1" placeholder="Сумма"></label><button class="primary-button" data-admin-value="cash" data-player-id="${player.id}">Изменить баланс</button></div><div class="admin-ban-actions"><select id="admin-ban-duration-${player.id}"><option value="60">1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="-1">Навсегда</option></select><input id="admin-ban-reason-${player.id}" maxlength="160" placeholder="Причина блокировки"><button class="${banned ? "secondary-button" : "danger-button"}" data-admin-${banned ? "unban" : "ban"}="${player.id}">${banned ? "Снять блокировку" : "Заблокировать"}</button></div></div></article>`;
+    const supporterName = supporterTierNames[player.supporterTier];
+    const badge = player.isAdmin ? '<i class="admin-badge">Администратор</i>' : player.profileBadge ? `<i class="profile-badge">${escapeHtml(player.profileBadge)}</i>` : "";
+    const supporterBadge = supporterName ? `<i class="supporter-badge tier-${escapeHtml(player.supporterTier)}">${escapeHtml(supporterName)}</i>` : "";
+    return `<article class="admin-player ${banned ? "banned" : ""}">
+      <header><div class="admin-player-avatar">${escapeHtml(player.avatar || player.name[0].toUpperCase())}</div><div><strong>${escapeHtml(player.name)} ${badge} ${supporterBadge}</strong><small>Уровень ${player.level} · ${player.deals} сделок · гараж ${player.garage} · репутация ${player.reputation}</small>${banned ? `<b>Заблокирован: ${escapeHtml(player.banReason || "причина не указана")}</b>` : ""}</div></header>
+      <div class="admin-player-tools">
+        <div class="admin-profile-controls">
+          <label><span>Плашка профиля</span><select id="admin-badge-${player.id}"><option value="">Без плашки</option><option value="Создатель" ${player.profileBadge === "Создатель" ? "selected" : ""}>Создатель</option><option value="Администратор" ${player.profileBadge === "Администратор" ? "selected" : ""}>Администратор</option><option value="Модератор" ${player.profileBadge === "Модератор" ? "selected" : ""}>Модератор</option><option value="Партнёр проекта" ${player.profileBadge === "Партнёр проекта" ? "selected" : ""}>Партнёр проекта</option></select></label>
+          <button class="secondary-button" data-admin-badge="${player.id}">Сохранить плашку</button>
+          <label><span>Статус поддержки</span><select id="admin-supporter-${player.id}"><option value="none">Без статуса</option><option value="bronze" ${player.supporterTier === "bronze" ? "selected" : ""}>Бронза</option><option value="silver" ${player.supporterTier === "silver" ? "selected" : ""}>Серебро</option><option value="gold" ${player.supporterTier === "gold" ? "selected" : ""}>Золото</option><option value="platinum" ${player.supporterTier === "platinum" ? "selected" : ""}>Платина</option><option value="founder" ${player.supporterTier === "founder" ? "selected" : ""}>Партнёр</option></select></label>
+          <button class="secondary-button" data-admin-supporter="${player.id}">Сохранить статус</button>
+          <button class="secondary-button" data-admin-access="${player.id}" data-enabled="${player.isAdmin ? "0" : "1"}">${player.isAdmin ? "Забрать админку" : "Выдать админку"}</button>
+        </div>
+        <p class="admin-save-feedback" id="admin-feedback-${player.id}">${escapeHtml(adminFeedback.get(player.id) || "")}</p>
+        <div class="admin-value-row"><label><span>Баланс</span><input id="admin-cash-${player.id}" type="number" step="1" placeholder="Сумма"></label><button class="primary-button" data-admin-value="cash" data-player-id="${player.id}">Изменить баланс</button></div>
+        <div class="admin-ban-actions"><select id="admin-ban-duration-${player.id}"><option value="60">1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="-1">Навсегда</option></select><input id="admin-ban-reason-${player.id}" maxlength="160" placeholder="Причина блокировки"><button class="${banned ? "secondary-button" : "danger-button"}" data-admin-${banned ? "unban" : "ban"}="${player.id}">${banned ? "Снять блокировку" : "Заблокировать"}</button></div>
+      </div>
+    </article>`;
   }).join("");
 }
 
@@ -1477,7 +1498,7 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-mobile-menu]")) { toggleSectionMenu(); return; }
   if (event.target.closest("[data-close-section-menu]")) { toggleSectionMenu(false); return; }
-  const tab = event.target.closest("[data-view]"); if (tab) { if (tab.dataset.assetMode) assetMode = tab.dataset.assetMode; else if (tab.dataset.view === "assets") assetMode = "all"; setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
+  const tab = event.target.closest("[data-view]"); if (tab) { if (tab.dataset.assetMode) assetMode = tab.dataset.assetMode; else if (tab.dataset.view === "assets") assetMode = "all"; setView(tab.dataset.view); if (tab.dataset.view === "admin") { if (adminState) renderAdmin(); else loadAdmin(); } return; }
   if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
   const garageModeButton = event.target.closest("[data-garage-mode]");
   if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderView("garage"); renderWorkspaceModes(); hydrateCarPhotos($("#garage-view")); window.scrollTo({ top: 0, behavior: window.matchMedia("(max-width: 760px)").matches ? "auto" : "smooth" }); return; }
@@ -1631,9 +1652,11 @@ document.addEventListener("click", async (event) => {
   const deleteMessage = event.target.closest("[data-admin-delete-message]");
   if (deleteMessage) { if (await perform("/api/admin/moderation", { action: "delete-message", messageId: deleteMessage.dataset.adminDeleteMessage }, "Сообщение удалено")) renderChat(); return; }
   const adminBadge = event.target.closest("[data-admin-badge]");
-  if (adminBadge) { const playerId = adminBadge.dataset.adminBadge; if (await perform("/api/admin/moderation", { action: "set-badge", playerId, badge: $(`#admin-badge-${playerId}`)?.value }, "Плашка сохранена")) await loadAdmin(); return; }
+  if (adminBadge) { const playerId = adminBadge.dataset.adminBadge; if (await perform("/api/admin/moderation", { action: "set-badge", playerId, badge: $(`#admin-badge-${playerId}`)?.value }, "Плашка сохранена")) { adminFeedback.set(playerId, "Плашка профиля обновлена"); await loadAdmin(); } return; }
+  const adminSupporter = event.target.closest("[data-admin-supporter]");
+  if (adminSupporter) { const playerId = adminSupporter.dataset.adminSupporter; if (await perform("/api/admin/moderation", { action: "set-supporter", playerId, supporterTier: $(`#admin-supporter-${playerId}`)?.value }, "Статус поддержки сохранён")) { adminFeedback.set(playerId, "Статус поддержки обновлён"); await loadAdmin(); } return; }
   const adminAccess = event.target.closest("[data-admin-access]");
-  if (adminAccess) { if (await perform("/api/admin/moderation", { action: "set-admin", playerId: adminAccess.dataset.adminAccess, enabled: adminAccess.dataset.enabled === "1" }, "Права администратора изменены")) await loadAdmin(); return; }
+  if (adminAccess) { const playerId = adminAccess.dataset.adminAccess; if (await perform("/api/admin/moderation", { action: "set-admin", playerId, enabled: adminAccess.dataset.enabled === "1" }, "Права администратора изменены")) { adminFeedback.set(playerId, "Права администратора обновлены"); await loadAdmin(); } return; }
   const reportChat = event.target.closest("[data-report-chat]");
   if (reportChat) {
     const reason = window.prompt("Причина жалобы", "Оскорбление или нарушение правил");
