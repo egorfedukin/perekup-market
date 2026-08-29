@@ -55,6 +55,13 @@
         </div>
         <p id="join-error" class="form-error" role="alert"></p>
         <p class="auth-hint">При регистрации на email придёт ссылка подтверждения.</p>
+        <button type="button" class="forgot-link" data-auth-mode="recovery">Забыли логин или пароль?</button>
+      </form>
+      <form id="recovery-form" class="recovery-form" hidden>
+        <label for="recovery-email">Email регистрации<input id="recovery-email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+        <button id="recovery-submit" type="submit">Отправить письмо восстановления <span aria-hidden="true">→</span></button>
+        <p id="recovery-message" class="form-error" role="alert"></p>
+        <button type="button" class="forgot-link" data-auth-mode="login">Вернуться ко входу</button>
       </form>
       <div class="join-stats">
         <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>

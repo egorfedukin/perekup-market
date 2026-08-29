@@ -1404,12 +1404,15 @@ async function enterGame(data) {
 
 let authMode = "register";
 function setAuthMode(mode) {
+  if (mode === "recovery") { $("#join-form").hidden = true; $("#recovery-form").hidden = false; $("#auth-title").innerHTML = "Восстанови доступ.<br>Вернись в игру."; return; }
+  $("#join-form").hidden = false; $("#recovery-form").hidden = true;
   authMode = mode === "login" ? "login" : "register";
   const registration = authMode === "register";
   $("#auth-title").innerHTML = registration ? "Создай аккаунт.<br>Начни торговать." : "С возвращением.<br>Продолжим сделку.";
   $("#auth-submit").dataset.authAction = authMode;
   $("#auth-submit").innerHTML = registration ? "Создать аккаунт <span aria-hidden=\"true\">→</span>" : "Войти <span aria-hidden=\"true\">→</span>";
   $("#player-email").required = registration;
+  $("#player-email").closest("label").hidden = !registration;
   $(".auth-hint").textContent = registration ? "После регистрации на email придёт ссылка подтверждения." : "Введите логин и пароль, указанные при регистрации.";
   document.querySelectorAll("[data-auth-mode]").forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
 }
@@ -1421,6 +1424,11 @@ $("#join-form").addEventListener("submit", async (event) => {
   const action = authMode;
   try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Подтвердите адрес и войдите.`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
   catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
+});
+$("#recovery-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const button = $("#recovery-submit"); button.disabled = true; $("#recovery-message").textContent = "";
+  try { const data = await request("/api/request-password-reset", { method: "POST", body: JSON.stringify({ email: $("#recovery-email").value }) }); $("#recovery-message").textContent = data.message; }
+  catch (error) { $("#recovery-message").textContent = error.message; } finally { button.disabled = false; }
 });
 
 async function perform(path, body, success) {

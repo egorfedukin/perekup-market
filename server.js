@@ -471,6 +471,7 @@ const businessCatalog = [
 const players = new Map();
 const sessions = new Map();
 const emailVerifications = new Map();
+const passwordResets = new Map();
 const market = [];
 const salesHistory = [];
 const marketIndices = {};
@@ -501,7 +502,7 @@ let loadedVehiclePricingVersion = 0;
 
 function persistState() {
   const payload = JSON.stringify({
-    players: [...players.entries()], sessions: [...sessions.entries()], emailVerifications: [...emailVerifications.entries()], market,
+    players: [...players.entries()], sessions: [...sessions.entries()], emailVerifications: [...emailVerifications.entries()], passwordResets: [...passwordResets.entries()], market,
     offers: [...offers.entries()], salesHistory, marketIndices, chatMessages, directMessages, moderationReports, assetMarket,
     groups: [...groups.entries()], partsMarket, partsSalesHistory, plateMarket, partIndices, paymentOrders: [...paymentOrders.entries()], containerAuctions, clothingCrafts: [...clothingCrafts.entries()], clothingMarket, itemContainerAuctions, cryptoHistory,
     vehiclePricingVersion: VEHICLE_PRICING_VERSION
@@ -528,6 +529,7 @@ function loadState() {
     for (const [key, value] of saved.players || []) { ensurePlayerDefaults(value); players.set(key, value); }
     for (const [key, value] of saved.sessions || []) sessions.set(key, value);
     for (const [key, value] of saved.emailVerifications || []) emailVerifications.set(key, value);
+    for (const [key, value] of saved.passwordResets || []) passwordResets.set(key, value);
     for (const car of saved.market || []) { ensureCarDefaults(car); market.push(car); }
     for (const [key, value] of saved.offers || []) offers.set(key, value);
     for (const sale of saved.salesHistory || []) salesHistory.push(sale);
@@ -1743,6 +1745,14 @@ async function sendVerificationEmail(email, name, token) {
   if (!response.ok) throw new Error("Не удалось отправить письмо подтверждения");
 }
 
+async function sendPasswordResetEmail(email, name, token) {
+  if (!RESEND_API_KEY) throw new Error("Восстановление почты временно недоступно");
+  const link = `${PUBLIC_URL}/reset-password.html?token=${encodeURIComponent(token)}`;
+  const safeName = String(name).replace(/[<>]/g, "");
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: AUTH_FROM_EMAIL, to: [email], subject: "Восстановление доступа к игре «Рынок»", html: `<p>Здравствуйте, ${safeName}</p><p>Ваш логин: <strong>${safeName}</strong></p><p><a href="${link}">Установить новый пароль</a></p><p>Ссылка действует 1 час. Если вы не запрашивали восстановление, просто проигнорируйте письмо.</p>` }) });
+  if (!response.ok) throw new Error("Не удалось отправить письмо восстановления");
+}
+
 function createPlayer(name, pin = null, account = {}) {
   const credentials = pin ? hashPin(pin) : {};
   const password = account.password ? hashPassword(account.password) : {};
@@ -2243,6 +2253,32 @@ async function api(req, res, pathname) {
     const player = players.get(record.playerId);
     if (!player) return json(res, 404, { error: "Аккаунт не найден" });
     player.emailVerified = true; emailVerifications.delete(verificationToken); persistState();
+    return json(res, 200, { ok: true });
+  }
+
+  if (req.method === "POST" && pathname === "/api/request-password-reset") {
+    const body = await readBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    const player = [...players.values()].find((item) => item.email === email && item.passwordHash);
+    if (player && player.emailVerified) {
+      const resetToken = id("reset_");
+      passwordResets.set(resetToken, { playerId: player.id, expiresAt: Date.now() + 3600000 });
+      try { await sendPasswordResetEmail(email, player.name, resetToken); } catch (error) { passwordResets.delete(resetToken); }
+    }
+    return json(res, 200, { message: "Если такой email зарегистрирован, письмо с инструкциями уже отправлено." });
+  }
+
+  if (req.method === "POST" && pathname === "/api/reset-password") {
+    const body = await readBody(req);
+    const resetToken = String(body.token || "");
+    const password = String(body.password || "");
+    const record = passwordResets.get(resetToken);
+    if (!record || record.expiresAt < Date.now()) return json(res, 400, { error: "Ссылка недействительна или устарела" });
+    if (password.length < 8 || password.length > 72) return json(res, 400, { error: "Пароль должен содержать от 8 до 72 символов" });
+    const player = players.get(record.playerId);
+    if (!player) return json(res, 404, { error: "Аккаунт не найден" });
+    const credentials = hashPassword(password); player.passwordSalt = credentials.salt; player.passwordHash = credentials.hash; player.emailVerified = true;
+    passwordResets.delete(resetToken); persistState();
     return json(res, 200, { ok: true });
   }
 
