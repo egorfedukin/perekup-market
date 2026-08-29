@@ -661,7 +661,8 @@ function renderPlates() {
   }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
   const registrationSignature = JSON.stringify({ garage: garage.map((car) => ({ id: car.id, model: car.model, year: car.year, photoUrl: car.photoUrl, registration: car.registration })), plates: inventory.map((plate) => ({ id: plate.id, number: plate.number, rarityName: plate.rarityName })) });
   if (renderSignatures.plateRegistration !== registrationSignature) {
-    $("#registration-cars").innerHTML = registrationMarkup;
+    const registrationCars = $("#registration-cars");
+    if (registrationCars) registrationCars.innerHTML = registrationMarkup;
     renderSignatures.plateRegistration = registrationSignature;
   }
   const inventoryMarkup = inventory.length ? inventory.map((plate) => plateCard(plate, `<div class="plate-list-action"><input id="plate-price-${plate.id}" type="number" min="1" max="100000000" value="${plate.estimatedValue}" aria-label="Цена номера ${escapeHtml(plate.number)}"><button class="secondary-button" data-list-plate="${plate.id}">Продать</button></div>`)).join("") : '<div class="plate-empty">Свободных номеров нет. Получите номер в МРЭО или купите на бирже.</div>';
