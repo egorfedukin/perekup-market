@@ -201,6 +201,8 @@ h1, h2, h3, h4,
 .join-stats strong, .join-stats span { display: block; }
 .join-stats strong { font-size: 14px; }
 .join-stats span { margin-top: 5px; color: #938878; font-size: 11px; }
+.public-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 22px; font-size: 11px; }
+.public-links a { color: #c9bda9; text-decoration: underline; text-underline-offset: 3px; }
 
 .game { min-height: 100vh; }
 .topbar { position: sticky; z-index: 20; top: 0; height: 72px; display: grid; grid-template-columns: 170px 1fr auto auto auto; align-items: center; gap: 18px; padding: 0 max(24px, calc((100vw - 1400px) / 2)); border-bottom: 1px solid #37332c; background: var(--dark); color: white; }
