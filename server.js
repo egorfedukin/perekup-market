@@ -556,6 +556,8 @@ function loadState() {
 }
 
 function ensurePlayerDefaults(player) {
+  player.profileBadge ||= "";
+  player.adminGranted ??= false;
   player.email ||= null;
   player.passwordSalt ||= null;
   player.passwordHash ||= null;
@@ -627,7 +629,7 @@ function addLedger(player, type, title, amount = 0, details = {}, at = Date.now(
 }
 
 function isAdmin(player) {
-  return Boolean(player && ADMIN_NAMES.has(String(player.normalizedName || player.name).toLocaleLowerCase("ru-RU")));
+  return Boolean(player && (player.adminGranted || ADMIN_NAMES.has(String(player.normalizedName || player.name).toLocaleLowerCase("ru-RU"))));
 }
 
 function banMessage(player) {
@@ -1434,7 +1436,7 @@ function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
-    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
+    id: player.id, name: player.name, cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
@@ -1479,6 +1481,7 @@ function publicPlayerProfile(candidate, viewer) {
     reputation: candidate.reputation?.score || 50,
     completedDeals: candidate.reputation?.completed || candidate.deals || 0,
     deals: candidate.deals || 0,
+    profileBadge: candidate.profileBadge || (isAdmin(candidate) ? "Администратор" : ""),
     supporterTier: candidate.supporterTier || "none",
     groupName: group?.name || null,
     groupRole: candidate.groupRole || null,
@@ -1501,7 +1504,7 @@ function snapshot(player) {
     inspectionRequirements,
     marketStats: marketStatistics(),
     partsMarketStats: partsMarketStatistics(),
-    chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none" })),
+    chatMessages: chatMessages.slice(-100).map((message) => ({ ...message, supporterTier: players.get(message.playerId)?.supporterTier || "none", profileBadge: players.get(message.playerId)?.profileBadge || (isAdmin(players.get(message.playerId)) ? "Администратор" : "") })),
     directMessages: playerDirectMessages,
     directUnread: playerDirectMessages.filter((message) => message.recipientId === player?.id && !message.readAt).length,
     playerDirectory: player ? [...directContactIds].map((playerId) => players.get(playerId)).filter((candidate) => candidate && !banMessage(candidate)).map((candidate) => ({ id: candidate.id, name: candidate.name, level: levelForXp(candidate.xp), reputation: candidate.reputation?.score || 50 })) : [],
@@ -2341,7 +2344,7 @@ async function api(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     return json(res, 200, {
-      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "" })),
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "", profileBadge: item.profileBadge || "", isAdmin: isAdmin(item) })),
       reports: moderationReports.filter((report) => report.status === "open").slice().reverse(),
       economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length }
     });
@@ -2448,7 +2451,20 @@ async function api(req, res, pathname) {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
     const target = players.get(String(body.playerId || ""));
     const action = String(body.action || "");
-    if (["ban", "unban", "mute"].includes(action)) {
+    if (["set-badge", "set-admin"].includes(action)) {
+      if (!target) return json(res, 404, { error: "Игрок не найден" });
+      if (action === "set-admin" && target.id === player.id && !body.enabled) return json(res, 400, { error: "Нельзя забрать админку у самого себя" });
+      if (action === "set-admin") target.adminGranted = Boolean(body.enabled);
+      else target.profileBadge = String(body.badge || "").trim().slice(0, 32);
+      persistState();
+    } else if (["delete-message"].includes(action)) {
+      const messageId = String(body.messageId || "");
+      const publicIndex = chatMessages.findIndex((message) => message.id === messageId);
+      const directIndex = directMessages.findIndex((message) => message.id === messageId);
+      if (publicIndex < 0 && directIndex < 0) return json(res, 404, { error: "Сообщение уже удалено" });
+      if (publicIndex >= 0) chatMessages.splice(publicIndex, 1); else directMessages.splice(directIndex, 1);
+      persistState();
+    } else if (["ban", "unban", "mute"].includes(action)) {
       if (!target) return json(res, 404, { error: "Игрок не найден" });
       if (isAdmin(target)) return json(res, 400, { error: "Нельзя заблокировать администратора" });
       if (action === "mute") { target.chatState.mutedUntil = Date.now() + 60 * 60000; }

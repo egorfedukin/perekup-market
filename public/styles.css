@@ -209,6 +209,8 @@ h1, h2, h3, h4,
 .supporter-benefits { margin-top: 10px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .supporter-benefits strong, .supporter-benefits span { display: block; }
 .supporter-benefits strong { color: var(--accent-dark); font-size: 11px; }
+.profile-badge, .admin-badge { display: inline-block; margin-left: 5px; padding: 3px 6px; border-radius: 999px; background: #26231f; color: #f3c76d; font-size: 8px; font-style: normal; font-weight: 900; letter-spacing: .02em; text-transform: uppercase; vertical-align: middle; }
+.admin-badge { background: #9b3e32; color: white; }
 @media (max-width: 560px) { .auth-page { padding: 0; align-items: start; } .auth-card { min-height: 100vh; padding: 30px 22px 42px; } }
 .auth-fields label { margin: 0; }
 .auth-fields input { display: block; width: 100%; height: 54px; margin-top: 9px; border: 1px solid #504a40; background: #292520; color: white; padding: 0 16px; outline: none; }
