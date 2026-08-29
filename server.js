@@ -1665,6 +1665,20 @@ function refreshLegacyNpcCatalog() {
   loadedVehiclePricingVersion = VEHICLE_PRICING_VERSION;
   persistState();
 }
+function resetAccountsOnStartup() {
+  if (process.env.PEREKUP_RESET_ALL !== "1") return;
+  const marker = path.join(DATA_DIR, ".full-reset-admin-v1");
+  if (fs.existsSync(marker)) return;
+  const password = String(process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
+  if (!validPassword(password)) throw new Error("PEREKUP_RESET_ADMIN_PASSWORD не задан или некорректен");
+  const credentials = hashPassword(password);
+  const admin = { id: id("player_admin_"), name: "federuk", normalizedName: "federuk", email: "fedukinegor@gmail.com", passwordSalt: credentials.salt, passwordHash: credentials.hash, emailVerified: true, pinSalt: null, pinHash: null, cash: STARTING_CASH, profit: 0, deals: 0, garage: [], xp: 0, skillPoints: 1, skills: {}, equipment: {}, garageCapacity: MAX_GARAGE, parts: { common: 0, premium: 0 }, groupId: null, groupRole: null, stats: {}, ownedAssets: [], businesses: [], plateInventory: [], notifications: [], reputation: { score: 50, completed: 0, failed: 0 } };
+  const state = { players: [[admin.id, admin]], sessions: [], emailVerifications: [], passwordResets: [], market: [], offers: [], salesHistory: [], marketIndices: {}, chatMessages: [], directMessages: [], moderationReports: [], assetMarket: [], groups: [], partsMarket: [], partsSalesHistory: [], plateMarket: [], partIndices: {}, paymentOrders: [], containerAuctions: [], clothingCrafts: [], clothingMarket: [], itemContainerAuctions: [], cryptoHistory: [], vehiclePricingVersion: 0 };
+  db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at").run(JSON.stringify(state), Date.now());
+  fs.writeFileSync(marker, new Date().toISOString(), "utf8");
+  console.log("FULL_RESET_OK: created federuk");
+}
+resetAccountsOnStartup();
 if (!loadState()) {
   seedMarket();
   persistState();
