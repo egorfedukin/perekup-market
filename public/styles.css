@@ -899,6 +899,8 @@ h1, h2, h3, h4,
 .store-package > strong { font-size: 28px; }
 .store-package > small { margin-top: 3px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
 .store-package > p { margin: 16px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.store-package ul { margin: 0 0 12px; padding: 0; list-style: none; color: var(--ink); font-size: 10px; line-height: 1.7; }
+.store-package li::before { content: "✓"; margin-right: 6px; color: var(--green); font-weight: 900; }
 .store-package > em { color: var(--green); font-size: 10px; font-style: normal; font-weight: 900; }
 .store-package button { align-self: end; margin-top: 18px; }
 .store-package button:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .65; }

@@ -933,7 +933,7 @@ function renderStore() {
   $("#store-packages").innerHTML = store.packages.map((pack) => `<article class="store-package ${pack.popular ? "popular" : ""}">
     <div class="store-package-head"><span>${escapeHtml(pack.tag || "Поддержка")}</span>${pack.popular ? "<b>Популярный</b>" : ""}</div>
     <h3>${escapeHtml(pack.name)}</h3><strong>${money(pack.cash)}</strong><small>игровых рублей</small>
-    <p>${escapeHtml(pack.description || "Пополнение игрового баланса")}</p><em>${escapeHtml(pack.bonus || "")}</em>
+    <p>${escapeHtml(pack.description || "Пополнение игрового баланса")}</p>${pack.benefits?.length ? `<ul>${pack.benefits.map((benefit) => `<li>${escapeHtml(benefit)}</li>`).join("")}</ul>` : ""}<em>${escapeHtml(pack.bonus || "")}</em>
     <button class="danger-button" data-buy-cash="${pack.id}" ${store.enabled ? "" : "disabled"}>${store.enabled ? `Получить за ${number(pack.rubles)} ₽` : `${number(pack.rubles)} ₽ · скоро`}</button>
   </article>`).join("");
 }

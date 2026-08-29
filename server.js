@@ -30,11 +30,11 @@ const ADS_TXT = String(process.env.PEREKUP_ADS_TXT || "").trim();
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const AUTH_FROM_EMAIL = String(process.env.AUTH_FROM_EMAIL || "Рынок <onboarding@resend.dev>").trim();
 const cashPackages = [
-  { id: "starter", rubles: 99, cash: 250000, name: "Первый оборот", tag: "Старт", description: "На диагностику, инструменты и первую выгодную сделку", bonus: "+ статус Бронза", supporterTier: "bronze" },
-  { id: "dealer", rubles: 249, cash: 800000, name: "Капитал дилера", tag: "Выгодно", description: "Запас на торг, ремонт и несколько автомобилей", bonus: "+ статус Серебро", supporterTier: "silver" },
-  { id: "business", rubles: 499, cash: 1900000, name: "Развитие бизнеса", tag: "Выбор игроков", description: "Для командного гаража, персонала и среднего сегмента", bonus: "+ статус Золото", supporterTier: "gold", popular: true },
-  { id: "holding", rubles: 999, cash: 4500000, name: "Торговый холдинг", tag: "Крупный капитал", description: "Недвижимость, дорогие лоты и развитие команды", bonus: "+ статус Платина", supporterTier: "platinum" },
-  { id: "founder", rubles: 1990, cash: 10000000, name: "Партнёр проекта", tag: "Максимум", description: "Большой капитал и особый статус раннего сторонника", bonus: "+ статус Партнёр", supporterTier: "founder" }
+  { id: "starter", rubles: 20, cash: 40000, name: "Пробный заезд", tag: "Поддержка", description: "Небольшой запас на первую диагностику и торг", benefits: ["Проверить первый лот", "Статус Бронза в профиле"], bonus: "+ статус Бронза", supporterTier: "bronze" },
+  { id: "dealer", rubles: 79, cash: 220000, name: "Первый оборот", tag: "Старт", description: "На ремонт бюджетной машины и выгодную перепродажу", benefits: ["Диагностика и ремонт", "Участие в торгах"], bonus: "+ статус Серебро", supporterTier: "silver" },
+  { id: "business", rubles: 199, cash: 650000, name: "Гараж дилера", tag: "Популярный", description: "Запас на несколько сделок и развитие гаража", benefits: ["Автомобили среднего сегмента", "Номера и обслуживание"], bonus: "+ статус Золото", supporterTier: "gold", popular: true },
+  { id: "holding", rubles: 499, cash: 1900000, name: "Большой гараж", tag: "Для активной игры", description: "Капитал для дорогих лотов, торгов и недвижимости", benefits: ["Премиальные автомобили", "Покупка доходного объекта"], bonus: "+ статус Платина", supporterTier: "platinum" },
+  { id: "founder", rubles: 999, cash: 4500000, name: "Партнёр рынка", tag: "Максимум", description: "Большой запас для коллекционных машин и собственного холдинга", benefits: ["Коллекционные автомобили", "Статус Партнёр в чате"], bonus: "+ статус Партнёр", supporterTier: "founder" }
 ];
 const supporterTierRank = { none: 0, bronze: 1, silver: 2, gold: 3, platinum: 4, founder: 5 };
 const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
