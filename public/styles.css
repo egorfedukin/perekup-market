@@ -1295,6 +1295,8 @@ h1, h2, h3, h4,
   .tabs > [data-view="auctions"],
   .tabs > [data-view="assets"],
   .tabs > .more-sections-tab { display: flex !important; min-width: 0 !important; width: auto !important; max-width: none !important; overflow: hidden !important; }
+  .tabs > .desktop-collection-tab { display: none !important; }
+  .tabs > .more-sections-tab { padding-inline: 2px !important; font-size: 10px !important; white-space: nowrap; }
 }
 
 /* Compact workspaces keep long management pages focused without hiding mechanics. */

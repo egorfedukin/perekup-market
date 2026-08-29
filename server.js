@@ -200,6 +200,11 @@ function domesticMarketProfile(model) {
     "uaz 452": [1965, 2026, 620000], "uaz 469": [1972, 2007, 520000], "uaz hunter": [2003, 2026, 780000], "uaz patriot": [2005, 2026, 1250000]
   };
   if (exact[value]) { const [startYear, endYear, marketAnchor] = exact[value]; return { startYear, endYear, marketAnchor }; }
+  if (/^lada (?:210[1-9]|211[0-5]|212[0-3]|2302|2323|2329|4x4|riva|samara|ale[kк]o|forma|signet|t 134|1922|1121|1152)\b/.test(value)) return { startYear: 1970, endYear: 2013, marketAnchor: 230000 };
+  if (/^lada (?:granta|kalina|priora|largus)\b/.test(value)) return { startYear: 2004, endYear: 2026, marketAnchor: 920000 };
+  if (/^lada (?:vesta|xray|iskra|azimut|niva)\b/.test(value)) return { startYear: 2015, endYear: 2026, marketAnchor: 1450000 };
+  if (/^toyota avensis\b/.test(value)) return { startYear: 1997, endYear: 2018, marketAnchor: 1450000 };
+  if (/^ferrari 412\b/.test(value)) return { startYear: 1985, endYear: 1989, marketAnchor: 28000000 };
   if (/^moskvich 21(?:3[6-8]|4[134])\b/.test(value)) return { startYear: 1976, endYear: 2002, marketAnchor: 190000 };
   if (/^lada 21(?:0[1-9]|099|1[0-5])\b/.test(value)) return { startYear: 1975, endYear: 2013, marketAnchor: 220000 };
   if (/^gaz 31(?:02|029|10|105)\b/.test(value)) return { startYear: 1982, endYear: 2009, marketAnchor: 320000 };
@@ -208,6 +213,7 @@ function domesticMarketProfile(model) {
 }
 
 function vehicleProfile(entry) {
+  const domesticProfile = domesticMarketProfile(entry.model);
   const unit = stableVehicleUnit(entry.model, "price");
   const className = vehicleClass(entry.model, entry.make);
   const makeBase = makeReferencePrices[entry.make] || (premiumMakes.has(entry.make) ? 7500000 : exoticMakes.has(entry.make) ? 30000000 : budgetMakes.has(entry.make) ? 1400000 : valueMakes.has(entry.make) ? 2700000 : 3800000);
@@ -217,11 +223,11 @@ function vehicleProfile(entry) {
   if (className === "van") currentBase *= 1.08;
   if (/\b(360|600|700|800|1000|1100|1200|1300|1400|1500|1600)\b/.test(entry.model) && !premiumMakes.has(entry.make) && !exoticMakes.has(entry.make)) currentBase *= 0.78;
   if (/\b(flagship|turbo|performance|super|continental|phantom|veyron|chiron|aventador|murciélago|911|gallardo|corvette)\b/i.test(entry.model)) currentBase *= 1.32;
-  currentBase = entry.referencePrice || modelPriceOverrides[entry.model] || currentBase;
+  currentBase = domesticProfile?.marketAnchor || entry.referencePrice || modelPriceOverrides[entry.model] || currentBase;
   currentBase = Math.round(Math.max(500000, Math.min(MAX_VEHICLE_VALUE, currentBase)) / 10000) * 10000;
-  const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model);
+  const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model)
+    || /^(?:Ferrari (?:2\d\d|3\d\d|4(?:0\d|12)|5(?:0\d|12)|6(?:12))|Lamborghini (?:350|400|Countach|Miura)|Toyota 2000GT)\b/i.test(entry.model);
   const modernHint = /\b(ev|electric|électrique|e-tron|ioniq|model [3sxy]|polestar|rivian|lucid)\b/i.test(entry.model) || ["BYD", "Genesis"].includes(entry.make);
-  const domesticProfile = domesticMarketProfile(entry.model);
   const knownYears = domesticProfile || vehicleProductionYears[entry.model];
   const inferredStartYear = classicHint ? 1950 + Math.floor(stableVehicleUnit(entry.model, "year") * 28) : modernHint ? 2012 + Math.floor(stableVehicleUnit(entry.model, "year") * 10) : 1988 + Math.floor(stableVehicleUnit(entry.model, "year") * 27);
   const startYear = knownYears?.startYear || inferredStartYear;
@@ -478,11 +484,11 @@ const partIndices = {};
 const paymentOrders = new Map();
 const containerAuctions = [];
 const containerTiers = {
-  salvage: { label: "Разборка", name: "Забытый бокс", description: "Дешёвые проекты с большим количеством неисправностей", minValue: 10000, maxValue: 180000, startMin: 2000, startMax: 25000, color: "#6f736b" },
-  cheap: { label: "Бюджетный", name: "Гаражная находка", description: "Массовые автомобили для первого оборота", minValue: 100000, maxValue: 850000, startMin: 25000, startMax: 130000, color: "#52715d" },
-  middle: { label: "Дилерский", name: "Дилерский склад", description: "Ликвидные машины среднего сегмента", minValue: 650000, maxValue: 8000000, startMin: 180000, startMax: 1200000, color: "#aa792d" },
-  performance: { label: "Спортивный", name: "Трековый ангар", description: "Купе, родстеры и мощные проекты", minValue: 3500000, maxValue: 35000000, startMin: 900000, startMax: 6500000, color: "#356d78" },
-  premium: { label: "Коллекционный", name: "Коллекционный бокс", description: "Редкие и премиальные автомобили верхнего сегмента", minValue: 15000000, maxValue: MAX_VEHICLE_VALUE, startMin: 3500000, startMax: 120000000, color: "#8b3d35" }
+  salvage: { label: "Разборка", name: "Забытый бокс", description: "Дешёвые проекты с большим количеством неисправностей", minValue: 50000, maxValue: 450000, startMin: 5000, startMax: 70000, color: "#6f736b" },
+  cheap: { label: "Бюджетный", name: "Гаражная находка", description: "Массовые автомобили для первого оборота", minValue: 180000, maxValue: 1800000, startMin: 40000, startMax: 280000, color: "#52715d" },
+  middle: { label: "Дилерский", name: "Дилерский склад", description: "Ликвидные машины среднего сегмента", minValue: 1200000, maxValue: 15000000, startMin: 300000, startMax: 2500000, color: "#aa792d" },
+  performance: { label: "Спортивный", name: "Трековый ангар", description: "Купе, родстеры и мощные проекты", minValue: 7000000, maxValue: 80000000, startMin: 1500000, startMax: 12000000, color: "#356d78" },
+  premium: { label: "Коллекционный", name: "Коллекционный бокс", description: "Редкие и премиальные автомобили верхнего сегмента", minValue: 35000000, maxValue: MAX_VEHICLE_VALUE, startMin: 8000000, startMax: 180000000, color: "#8b3d35" }
 };
 const clients = new Set();
 let revision = 0;

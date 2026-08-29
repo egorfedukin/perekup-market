@@ -994,7 +994,7 @@ function renderAssets() {
   const collectionOnly = assetMode === "owned";
   ["#asset-filters", "#property-market-heading", "#asset-market-grid", "#asset-load-more-wrap"].forEach((selector) => { const node = $(selector); if (node) node.hidden = collectionOnly; });
   const heading = $("#assets-view h2");
-  if (heading) heading.textContent = collectionOnly ? "Моя коллекция недвижимости" : "Недвижимость";
+  if (heading) heading.textContent = collectionOnly ? "Моя недвижимость" : "Недвижимость";
   const listings = state.assetMarket || [];
   const owned = state.player.ownedAssets || [];
   const categories = state.assetCategories || {};
