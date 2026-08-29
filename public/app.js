@@ -1031,6 +1031,19 @@ function renderAssets() {
   $("#owned-assets").querySelectorAll(".owned-property").forEach((card, index) => { if (visibleOwned[index]) card.dataset.openProperty = visibleOwned[index].id; });
 }
 
+function showIssuedPlate(plate) {
+  if (!plate || !$("#plate-result-modal")) return;
+  $("#plate-result-content").innerHTML = `<p class="eyebrow">Номер получен</p><h2 id="plate-result-title">Ваш новый номер</h2>${plateCard(plate)}<button class="primary-button" data-close-plate-result>Понятно</button>`;
+  $("#plate-result-modal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeIssuedPlate() {
+  if (!$("#plate-result-modal")) return;
+  $("#plate-result-modal").hidden = true;
+  if ($("#car-modal").hidden && $("#property-modal").hidden && $("#player-modal").hidden) document.body.style.overflow = "";
+}
+
 function renderExchange() {
   const categories = state.assetCategories || {};
   const listings = (state.assetMarket || []).filter((asset) => asset.type !== "property" && asset.category !== "clothing");
@@ -1575,7 +1588,16 @@ document.addEventListener("click", async (event) => {
     if (reason) await perform("/api/chat/report", { messageId: reportChat.dataset.reportChat, reason }, "Жалоба отправлена модераторам");
     return;
   }
-  if (event.target.closest("[data-issue-plate]")) return perform("/api/plates/issue", {}, "Новый номер выдан и добавлен в коллекцию");
+  if (event.target.closest("[data-issue-plate]")) {
+    try {
+      const data = await request("/api/plates/issue", { method: "POST", body: "{}" });
+      state = data;
+      render();
+      showIssuedPlate(data.issuedPlate);
+    } catch (error) { showToast(error.message, true); }
+    return;
+  }
+  if (event.target.closest("[data-close-plate-result]")) { closeIssuedPlate(); return; }
   const buyPlate = event.target.closest("[data-buy-plate]"); if (buyPlate) return perform("/api/plates/buy", { lotId: buyPlate.dataset.buyPlate }, "Номер куплен");
   const listPlate = event.target.closest("[data-list-plate]"); if (listPlate) return perform("/api/plates/list", { plateId: listPlate.dataset.listPlate, price: $(`#plate-price-${listPlate.dataset.listPlate}`)?.value }, "Номер выставлен на биржу");
   const unlistPlate = event.target.closest("[data-unlist-plate]"); if (unlistPlate) return perform("/api/plates/unlist", { lotId: unlistPlate.dataset.unlistPlate }, "Номер снят с биржи");
@@ -1737,6 +1759,7 @@ document.addEventListener("keydown", (event) => {
   if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-player-profile][role='button']")) { event.preventDefault(); openPlayerProfile(event.target.dataset.playerProfile); return; }
   if (event.key === "Escape" && !$("#player-modal").hidden) closePlayerProfile();
   else if (event.key === "Escape" && !$("#car-modal").hidden) closeModal();
+  else if (event.key === "Escape" && !$("#plate-result-modal").hidden) closeIssuedPlate();
 });
 window.addEventListener("hashchange", () => { const view = location.hash.slice(1); if (document.getElementById(`${view}-view`) && state.player) setView(view); });
 initAds();

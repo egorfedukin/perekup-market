@@ -2545,3 +2545,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .container-guide-panel .container-guide { padding: 8px; }
   .container-guide-panel .container-guide > div { flex-basis: 74%; }
 }
+
+.plate-result-panel{width:min(520px,calc(100vw - 28px));padding:20px}.plate-result-panel .plate-card{margin:0}.plate-result-panel .primary-button{width:100%;margin-top:14px;min-height:48px}@media(max-width:760px){.plate-result-panel{width:100%;max-height:calc(100dvh - 8px);border-radius:12px 12px 0 0;padding:16px 14px 24px}}
+

@@ -67,8 +67,7 @@
         <button class="tab" data-view="garage">Мои авто <span id="garage-count" class="badge">0/4</span></button>
         <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
         <button class="tab" data-view="assets">Недвижимость</button>
-        <button class="tab" data-view="business">Бизнес</button>
-        <button class="tab desktop-team-tab" data-view="team">Команда</button>
+        <button class="tab" data-view="garage" data-garage-mode="plates">Номера</button>
         <button class="tab more-sections-tab" data-mobile-menu aria-expanded="false">Ещё</button>
       </nav>
       <div class="wallet">
@@ -83,10 +82,9 @@
     <button id="utility-menu-backdrop" class="utility-menu-backdrop" type="button" data-close-section-menu aria-label="Закрыть меню" hidden></button>
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
       <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
-      <button class="utility-team-link" data-view="team"><span>Команда</span><small>Бизнес и сотрудники</small></button>
-      <button data-view="business"><span>Мой бизнес</span><small>Предприятия, персонал и прибыль</small></button>
-      <button data-view="exchange"><span>Биржа активов</span><small>Криптовалюта и инвестиционные лоты</small></button>
-      <button data-view="wardrobe"><span>Гардероб</span><small>Одежда, пошив и коллекция</small></button>
+      <button data-view="assets"><span>Недвижимость</span><small>Пассивный доход и налоги</small></button>
+      <button data-view="collections"><span>Коллекции</span><small>Пассивные коллекционные активы</small></button>
+      <button data-view="plates"><span>Номера и учёт</span><small>Получение и продажа номеров</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
@@ -285,7 +283,7 @@
         <section id="property-income-panel" class="property-income-panel"><div><p class="eyebrow">Арендный поток</p><h3>Доход недвижимости</h3><span id="property-income-explanation">Начисляется отдельно по каждому объекту</span></div><div><span>К получению</span><strong id="property-income-value">0 ₽</strong><small id="property-income-rate">0 ₽ в минуту</small></div><button class="primary-button" data-asset-income disabled>Получить доход</button></section>
         <form id="asset-filters" class="market-filters asset-filters" hidden>
           <input name="type" type="hidden" value="all">
-          <label>Категория<select name="category"><option value="all">Все категории</option><option value="electronics">Техника</option><option value="collectibles">Коллекции</option><option value="business">Оборудование</option><option value="clothing">Одежда</option><option value="residential">Жилая недвижимость</option><option value="commercial">Коммерческая недвижимость</option><option value="crypto">Криптовалюта</option></select></label>
+          <label>Категория<select name="category"><option value="all">Все активы</option><option value="collectibles">Коллекции</option><option value="residential">Жилая недвижимость</option><option value="commercial">Коммерческая недвижимость</option></select></label>
           <label>Цена от<input name="min" type="number" min="1" step="10000" placeholder="10 000 ₽"></label>
           <label>Цена до<input name="max" type="number" min="1" step="10000" placeholder="100 000 000 ₽"></label>
           <label>Сортировка<select name="sort"><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option><option value="income">По доходности</option></select></label>
@@ -406,6 +404,7 @@
       </section>
     </div>
     <div id="property-modal" class="modal" hidden><button class="modal-backdrop" data-close-property-modal aria-label="Закрыть окно"></button><section class="modal-panel property-detail-panel" role="dialog" aria-modal="true"><button class="icon-button close-button" data-close-property-modal title="Закрыть" aria-label="Закрыть">×</button><div id="property-modal-content"></div></section></div>
+    <div id="plate-result-modal" class="modal" hidden><button class="modal-backdrop" data-close-plate-result aria-label="Закрыть окно"></button><section class="modal-panel plate-result-panel" role="dialog" aria-modal="true" aria-labelledby="plate-result-title"><button class="icon-button close-button" data-close-plate-result title="Закрыть" aria-label="Закрыть">×</button><div id="plate-result-content"></div></section></div>
 
     <div id="toast" class="toast" role="status"></div>
     <div id="skill-challenge" class="skill-challenge" hidden></div>
