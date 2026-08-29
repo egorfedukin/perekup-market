@@ -1730,6 +1730,7 @@ function verifyPin(pin, player) {
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   return { salt, hash: crypto.scryptSync(password, salt, 64).toString("hex") };
 }
+function validPassword(password) { return /^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]{8,72}$/.test(password); }
 
 function verifyPassword(password, player) {
   if (!player.passwordSalt || !player.passwordHash) return false;
@@ -2230,7 +2231,7 @@ async function api(req, res, pathname) {
     const password = String(body.password || "");
     if (name.length < 2) return json(res, 400, { error: "Введите имя от 2 символов" });
     if (!/^\S+@\S+\.\S+$/.test(email)) return json(res, 400, { error: "Введите корректный email" });
-    if (password.length < 8 || password.length > 72) return json(res, 400, { error: "Пароль должен содержать от 8 до 72 символов" });
+    if (!validPassword(password)) return json(res, 400, { error: "Пароль: 8–72 символа, только английские буквы, цифры и спецсимволы" });
     const normalized = name.toLocaleLowerCase("ru-RU");
     if ([...players.values()].some((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === normalized && (item.pinHash || item.passwordHash))) {
       return json(res, 409, { error: "Аккаунт с таким именем уже существует" });
@@ -2274,7 +2275,7 @@ async function api(req, res, pathname) {
     const password = String(body.password || "");
     const record = passwordResets.get(resetToken);
     if (!record || record.expiresAt < Date.now()) return json(res, 400, { error: "Ссылка недействительна или устарела" });
-    if (password.length < 8 || password.length > 72) return json(res, 400, { error: "Пароль должен содержать от 8 до 72 символов" });
+    if (!validPassword(password)) return json(res, 400, { error: "Пароль: 8–72 символа, только английские буквы, цифры и спецсимволы" });
     const player = players.get(record.playerId);
     if (!player) return json(res, 404, { error: "Аккаунт не найден" });
     const credentials = hashPassword(password); player.passwordSalt = credentials.salt; player.passwordHash = credentials.hash; player.emailVerified = true;

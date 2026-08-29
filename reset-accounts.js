@@ -1,0 +1,18 @@
+const path = require("path");
+const fs = require("fs");
+const { DatabaseSync } = require("node:sqlite");
+const dataDir = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
+const dbPath = path.join(dataDir, "game.db");
+if (!fs.existsSync(dbPath)) throw new Error(`База не найдена: ${dbPath}`);
+const db = new DatabaseSync(dbPath);
+const row = db.prepare("SELECT payload FROM game_state WHERE id = 1").get();
+if (!row) throw new Error("Состояние игры не найдено");
+const state = JSON.parse(row.payload);
+const removed = Array.isArray(state.players) ? state.players.length : 0;
+state.players = [];
+state.sessions = [];
+state.emailVerifications = [];
+state.passwordResets = [];
+db.prepare("UPDATE game_state SET payload = ?, updated_at = ? WHERE id = 1").run(JSON.stringify(state), Date.now());
+db.close();
+console.log(`Удалено аккаунтов: ${removed}. Рынок и остальные игровые данные сохранены.`);
