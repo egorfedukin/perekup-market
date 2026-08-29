@@ -48,7 +48,7 @@
         <div class="auth-fields">
           <label for="player-name">Логин<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
           <label for="player-email" class="registration-only">Email для подтверждения<input id="player-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
-          <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" autocomplete="current-password" placeholder="Не менее 8 символов" required></label>
+          <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" pattern="[A-Za-z0-9!@#$%^&amp;*()_+\-=\[\]{};':&quot;\\|,.&lt;&gt;/?`~]{8,72}" autocomplete="current-password" placeholder="Английские буквы, цифры, символы" required></label>
         </div>
         <div class="auth-actions">
           <button id="auth-submit" type="submit" data-auth-action="register">Создать аккаунт <span aria-hidden="true">→</span></button>
