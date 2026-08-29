@@ -610,6 +610,13 @@ function renderGarage() {
   const garageMarkup = garage.map((car) => {
     const open = car.defects.filter((defect) => !defect.repaired);
     const checked = car.inspection?.checked || 0;
+    const registration = car.registration || { registered: false, plate: null };
+    const plates = state.player.plateInventory || [];
+    const registrationControls = registration.registered && registration.plate
+      ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>`
+      : plates.length
+        ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${plates.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="${registration.registered ? "attach" : "register"}" data-car-id="${car.id}">${registration.registered ? "Установить номер" : "Поставить на учёт · 8 500 ₽"}</button>`
+        : `<button class="secondary-button" data-garage-mode="plates">Сначала получить номер</button>`;
     return `<article class="garage-car">
       ${carArt(car)}
       <div class="garage-main"><h3>${escapeHtml(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p></div>
@@ -621,7 +628,7 @@ function renderGarage() {
       <div class="garage-actions">
         <button class="secondary-button" data-open-garage="${car.id}">Осмотр и ремонт</button>
         <button class="primary-button" data-list-car="${car.id}">Выставить на рынок</button>
-        <details class="garage-more-actions" data-car-id="${car.id}" ${openMoreActions.has(car.id) ? "open" : ""}><summary>Другие действия</summary><div><button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
+        <details class="garage-more-actions" data-car-id="${car.id}" ${openMoreActions.has(car.id) ? "open" : ""}><summary>Другие действия</summary><div>${registrationControls}<button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
       </div>
     </article>`;
   }).join("");
