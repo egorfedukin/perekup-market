@@ -1192,6 +1192,8 @@ function scheduleRender() {
 }
 
 function setView(view) {
+  if (view === "plates") { garageMode = "plates"; view = "garage"; }
+  if (view === "collections") view = "assets";
   const currentView = document.querySelector(".view.active-view")?.id?.replace(/-view$/, "");
   if (view !== currentView && view === "garage") garageMode = "cars";
   if (view !== currentView && view === "profile") profileMode = "overview";
