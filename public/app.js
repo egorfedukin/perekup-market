@@ -986,7 +986,7 @@ function renderAssets() {
   const listings = state.assetMarket || [];
   const owned = state.player.ownedAssets || [];
   const categories = state.assetCategories || {};
-  const filtered = listings.filter((asset) => asset.type === "property").sort((a, b) => ((b.income || 0) / b.price) - ((a.income || 0) / a.price));
+  const filtered = (assetMode === "owned" ? [] : listings.filter((asset) => asset.type === "property")).sort((a, b) => ((b.income || 0) / b.price) - ((a.income || 0) / a.price));
   const propertyOwned = owned.filter((asset) => asset.type === "property");
   const portfolioValue = propertyOwned.reduce((sum, asset) => sum + asset.resaleValue, 0);
   const invested = propertyOwned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
@@ -1434,7 +1434,7 @@ document.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-mobile-menu]")) { toggleSectionMenu(); return; }
   if (event.target.closest("[data-close-section-menu]")) { toggleSectionMenu(false); return; }
-  const tab = event.target.closest("[data-view]"); if (tab) { setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
+  const tab = event.target.closest("[data-view]"); if (tab) { if (tab.dataset.assetMode) assetMode = tab.dataset.assetMode; else if (tab.dataset.view === "assets") assetMode = "all"; setView(tab.dataset.view); if (tab.dataset.view === "admin") loadAdmin(); return; }
   if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
   const garageModeButton = event.target.closest("[data-garage-mode]");
   if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderView("garage"); renderWorkspaceModes(); hydrateCarPhotos($("#garage-view")); window.scrollTo({ top: 0, behavior: window.matchMedia("(max-width: 760px)").matches ? "auto" : "smooth" }); return; }
