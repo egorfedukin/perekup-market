@@ -1760,10 +1760,10 @@ function verifyPassword(password, player) {
 }
 
 async function sendVerificationEmail(email, name, token) {
-  if (!RESEND_API_KEY) throw new Error("Подтверждение почты временно недоступно: владелец ещё не настроил почтовый сервис");
+  if (!RESEND_API_KEY) throw new Error("Почта пока не настроена: администратору нужно добавить RESEND_API_KEY в Railway");
   const link = `${PUBLIC_URL}/verify-email.html?token=${encodeURIComponent(token)}`;
   const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: AUTH_FROM_EMAIL, to: [email], subject: "Подтвердите почту в игре «Рынок»", html: `<p>Здравствуйте, ${String(name).replace(/[<>]/g, "")}</p><p>Нажмите кнопку, чтобы подтвердить адрес электронной почты:</p><p><a href="${link}">Подтвердить почту</a></p><p>Ссылка действует 24 часа.</p>` }) });
-  if (!response.ok) throw new Error("Не удалось отправить письмо подтверждения");
+  if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Почтовый ключ Resend недействителен: проверьте RESEND_API_KEY в Railway" : "Письмо не отправлено: проверьте подтверждённый адрес AUTH_FROM_EMAIL в Railway");
 }
 
 async function sendPasswordResetEmail(email, name, token) {
