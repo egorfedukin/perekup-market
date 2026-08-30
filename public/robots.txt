@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://perekup-market-production.up.railway.app/sitemap.xml
+Sitemap: https://www.perekup-market.ru/sitemap.xml
