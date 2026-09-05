@@ -18,7 +18,7 @@ const ASSET_INCOME_CYCLE_MS = process.env.PEREKUP_FAST_ASSETS === "1" ? 600 : 60
 const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
-const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://www.perekup-market.ru").replace(/\/$/, "");
+const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market.ru").replace(/\/$/, "");
 const AD_PROVIDER = ["yandex", "adsense"].includes(String(process.env.PEREKUP_AD_PROVIDER || "").toLowerCase()) ? String(process.env.PEREKUP_AD_PROVIDER).toLowerCase() : "";
 const PUBLIC_AD_CONFIG = {
   provider: AD_PROVIDER,
