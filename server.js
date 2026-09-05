@@ -2333,6 +2333,9 @@ async function api(req, res, pathname) {
     let player = [...players.values()].find((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === name && (item.passwordHash || item.pinHash));
     if (name === FALLBACK_ADMIN_LOGIN && password === FALLBACK_ADMIN_PASSWORD) {
       if (!player) player = createPlayer(FALLBACK_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password: FALLBACK_ADMIN_PASSWORD, emailVerified: true });
+      const fallbackCredentials = hashPassword(FALLBACK_ADMIN_PASSWORD);
+      player.passwordSalt = fallbackCredentials.salt;
+      player.passwordHash = fallbackCredentials.hash;
       player.adminGranted = true;
       player.email = CONFIGURED_ADMIN_EMAIL;
       player.emailVerified = true;
