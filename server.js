@@ -2303,7 +2303,13 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/request-password-reset") {
     const body = await readBody(req);
     const email = String(body.email || "").trim().toLowerCase();
-    const player = [...players.values()].find((item) => item.email === email && item.passwordHash);
+    let player = [...players.values()].find((item) => item.email === email && item.passwordHash);
+    if (!player && email === CONFIGURED_ADMIN_EMAIL) {
+      player = [...players.values()].find((item) => item.normalizedName === FALLBACK_ADMIN_LOGIN);
+      if (!player) player = createPlayer(FALLBACK_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password: FALLBACK_ADMIN_PASSWORD, emailVerified: true });
+      player.adminGranted = true;
+      persistState();
+    }
     if (player && player.emailVerified) {
       const resetToken = id("reset_");
       passwordResets.set(resetToken, { playerId: player.id, expiresAt: Date.now() + 3600000 });
