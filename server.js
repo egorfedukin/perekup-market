@@ -1691,6 +1691,15 @@ if (!loadState()) {
   seedMarket();
   persistState();
 }
+function ensureConfiguredAdmin() {
+  const password = String(process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
+  if (!validPassword(password) || [...players.values()].some((player) => (player.normalizedName || player.name || "").toLocaleLowerCase("ru-RU") === "federuk")) return;
+  const admin = createPlayer("federuk", null, { email: "fedukinegor@gmail.com", password, emailVerified: true });
+  admin.adminGranted = true;
+  persistState();
+  console.log("ADMIN_READY: created federuk");
+}
+ensureConfiguredAdmin();
 restockAssetMarket();
 restockItemContainers();
 initializeMarketIndices();
