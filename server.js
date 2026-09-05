@@ -16,6 +16,8 @@ const NPC_ROTATION_COUNT = 10;
 const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
 const ASSET_INCOME_CYCLE_MS = process.env.PEREKUP_FAST_ASSETS === "1" ? 600 : 60000;
 const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
+const CONFIGURED_ADMIN_LOGIN = "federuk";
+const CONFIGURED_ADMIN_EMAIL = "fedukinegor@gmail.com";
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market.ru").replace(/\/$/, "");
@@ -1692,12 +1694,12 @@ if (!loadState()) {
   persistState();
 }
 function ensureConfiguredAdmin() {
-  const password = String(process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
+  const password = String(process.env.PEREKUP_ADMIN_PASSWORD || process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
   if (!validPassword(password)) return;
-  let admin = [...players.values()].find((player) => (player.normalizedName || player.name || "").toLocaleLowerCase("ru-RU") === "federuk");
-  if (!admin) admin = createPlayer("federuk", null, { email: "fedukinegor@gmail.com", password, emailVerified: true });
+  let admin = [...players.values()].find((player) => (player.normalizedName || player.name || "").toLocaleLowerCase("ru-RU") === CONFIGURED_ADMIN_LOGIN);
+  if (!admin) admin = createPlayer(CONFIGURED_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password, emailVerified: true });
   const credentials = hashPassword(password);
-  admin.email = "fedukinegor@gmail.com";
+  admin.email = CONFIGURED_ADMIN_EMAIL;
   admin.emailVerified = true;
   admin.passwordSalt = credentials.salt;
   admin.passwordHash = credentials.hash;
