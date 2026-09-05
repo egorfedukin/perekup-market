@@ -1693,11 +1693,17 @@ if (!loadState()) {
 }
 function ensureConfiguredAdmin() {
   const password = String(process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
-  if (!validPassword(password) || [...players.values()].some((player) => (player.normalizedName || player.name || "").toLocaleLowerCase("ru-RU") === "federuk")) return;
-  const admin = createPlayer("federuk", null, { email: "fedukinegor@gmail.com", password, emailVerified: true });
+  if (!validPassword(password)) return;
+  let admin = [...players.values()].find((player) => (player.normalizedName || player.name || "").toLocaleLowerCase("ru-RU") === "federuk");
+  if (!admin) admin = createPlayer("federuk", null, { email: "fedukinegor@gmail.com", password, emailVerified: true });
+  const credentials = hashPassword(password);
+  admin.email = "fedukinegor@gmail.com";
+  admin.emailVerified = true;
+  admin.passwordSalt = credentials.salt;
+  admin.passwordHash = credentials.hash;
   admin.adminGranted = true;
   persistState();
-  console.log("ADMIN_READY: created federuk");
+  console.log("ADMIN_READY: configured federuk");
 }
 ensureConfiguredAdmin();
 restockAssetMarket();
