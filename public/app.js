@@ -172,7 +172,9 @@ function loadExternalScript(id, src, attributes = {}) {
 
 function initAds() {
   const ads = window.PEREKUP_CONFIG?.ads || {};
-  const placements = [["ad-market", ads.marketSlot], ["ad-garage", ads.garageSlot]].filter(([, blockId]) => blockId);
+  const placements = ads.provider === "sape"
+    ? [["ad-market", ads.sapeTag], ["ad-garage", ads.sapeTag]]
+    : [["ad-market", ads.marketSlot], ["ad-garage", ads.garageSlot]].filter(([, blockId]) => blockId);
   if (!ads.provider || !placements.length) return;
   if (ads.provider === "yandex") {
     window.yaContextCb = window.yaContextCb || [];
@@ -184,6 +186,15 @@ function initAds() {
       container.hidden = false;
       container.innerHTML = `<span class="ad-label">Реклама</span><div id="${renderId}" class="ad-network"></div>`;
       window.yaContextCb.push(() => window.Ya?.Context?.AdvManager?.render({ blockId, renderTo: renderId }));
+    });
+  }
+  if (ads.provider === "sape" && ads.sapeScript && ads.sapeTag) {
+    loadExternalScript("sape-rtb-script", ads.sapeScript);
+    placements.forEach(([containerId]) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.hidden = false;
+      container.innerHTML = `<span class="ad-label">Реклама</span><div class="${escapeHtml(ads.sapeTag)} ad-network"></div>`;
     });
   }
   if (ads.provider === "adsense" && /^ca-pub-\d+$/.test(ads.adsenseClient || "")) {

@@ -19,12 +19,14 @@ const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market.ru").replace(/\/$/, "");
-const AD_PROVIDER = ["yandex", "adsense"].includes(String(process.env.PEREKUP_AD_PROVIDER || "").toLowerCase()) ? String(process.env.PEREKUP_AD_PROVIDER).toLowerCase() : "";
+const AD_PROVIDER = ["yandex", "adsense", "sape"].includes(String(process.env.PEREKUP_AD_PROVIDER || "").toLowerCase()) ? String(process.env.PEREKUP_AD_PROVIDER).toLowerCase() : "";
 const PUBLIC_AD_CONFIG = {
   provider: AD_PROVIDER,
   marketSlot: process.env.PEREKUP_AD_MARKET_SLOT || "",
   garageSlot: process.env.PEREKUP_AD_GARAGE_SLOT || "",
-  adsenseClient: process.env.PEREKUP_ADSENSE_CLIENT || ""
+  adsenseClient: process.env.PEREKUP_ADSENSE_CLIENT || "",
+  sapeScript: process.env.PEREKUP_SAPE_SCRIPT || "https://cdn-rtb.sape.ru/rtb-b/js/u/997/873974997.js",
+  sapeTag: process.env.PEREKUP_SAPE_TAG || "srtb-tag-873974997"
 };
 const ADS_TXT = String(process.env.PEREKUP_ADS_TXT || "").trim();
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
