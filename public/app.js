@@ -525,7 +525,8 @@ function renderMarket() {
   $("#market-kpi-models").textContent = number(new Set(regularMarket.map((car) => car.model)).size);
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
-  const marketMarkup = shown.map((car) => {
+  const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><strong>Доступ до ${money(state.player.marketMaxPrice)}</strong><span>Новые ценовые уровни открываются с ростом опыта. Покупка и успешная продажа автомобиля дают XP.</span></div>` : "";
+  const marketMarkup = accessNote + shown.map((car) => {
     const [label, className] = conditionLabel(car.condition);
     const [priceLabel, priceClass] = pricePosition(car);
     const own = car.sellerId === state.player.id;
@@ -544,7 +545,7 @@ function renderMarket() {
       </div>
     </button>`;
   }).join("") || '<div class="empty-filter">По выбранным параметрам машин нет. Измените или сбросьте фильтры.</div>';
-  const marketSignature = shown.map((car) => `${car.id}:${car.price}:${car.condition}:${car.offerCount}:${car.bidCount}`).join("|") + `/${visible.length}`;
+  const marketSignature = `${state.player?.level}:${state.player?.marketMaxPrice}/` + shown.map((car) => `${car.id}:${car.price}:${car.condition}:${car.offerCount}:${car.bidCount}`).join("|") + `/${visible.length}`;
   if (renderSignatures.market !== marketSignature) { $("#market-grid").innerHTML = marketMarkup; renderSignatures.market = marketSignature; }
   $("#market-load-more-wrap").hidden = shown.length >= visible.length;
   $("#market-load-more-label").textContent = `Показано ${shown.length} из ${visible.length}`;
@@ -782,6 +783,15 @@ function renderContainers() {
 }
 
 function renderAuctions() {
+  if (state.player && !state.player.auctionUnlocked) {
+    $("#auction-count").textContent = "0";
+    $("#auction-cars-count").textContent = "0";
+    $("#auction-containers-count").textContent = "0";
+    $("#auction-mine-count").textContent = "0";
+    $("#auction-car-grid").innerHTML = `<div class="auction-empty-state"><strong>Аукционы откроются с ${state.player.auctionUnlockLevel || 3} уровня</strong><span>Покупайте и продавайте автомобили, чтобы получать опыт.</span></div>`;
+    $("#container-grid").innerHTML = `<div class="auction-empty-state"><strong>Контейнерные аукционы пока закрыты</strong><span>Доступ появится с ${state.player.auctionUnlockLevel || 3} уровня.</span></div>`;
+    return;
+  }
   const allAuctions = state.market.filter((car) => car.saleType === "auction");
   const auctions = allAuctions.filter((car) => {
     const conditionOk = auctionFilters.condition === "all" || (auctionFilters.condition === "good" && car.condition >= 72) || (auctionFilters.condition === "medium" && car.condition >= 52 && car.condition < 72) || (auctionFilters.condition === "low" && car.condition < 52);

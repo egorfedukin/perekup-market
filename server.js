@@ -1448,6 +1448,7 @@ function playerView(player) {
     id: player.id, name: player.name, avatar: player.avatar || "", cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
+    marketMaxPrice: maxVehiclePriceForLevel(levelForXp(player.xp)), auctionUnlockLevel: AUCTION_UNLOCK_LEVEL, auctionUnlocked: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL,
     skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
@@ -1507,7 +1508,7 @@ function snapshot(player) {
   return {
     revision,
     player: player ? playerView(player) : null,
-    market: market.map((car) => publicCar(car, car.sellerId === player?.id, player)),
+    market: market.filter((car) => canAccessCar(player, car) && (car.saleType !== "auction" || levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL || car.sellerId === player.id || car.participantIds?.includes(player.id))).map((car) => publicCar(car, car.sellerId === player?.id, player)),
     skillInfo,
     equipmentInfo,
     inspectionCategories: inspectionCategories(),
@@ -1529,7 +1530,7 @@ function snapshot(player) {
     employeeCandidates, groupJobCatalog: Object.values(groupJobCatalog),
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
     catalogCount: catalog.length,
-    containerAuctions: containerAuctions.map((container) => publicContainer(container, player)),
+    containerAuctions: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL ? containerAuctions.map((container) => publicContainer(container, player)) : [],
     assetMarket: assetMarket.filter((listing) => listing.stock > 0).map((listing) => publicAssetListing(listing, player)), cryptoQuotes: cryptoQuotes(), clothingMarket: clothingMarket.map((lot) => ({ ...lot, viewerOwned: lot.sellerId === player.id })), itemContainerAuctions: itemContainerAuctions.map((box) => ({ ...box, viewerLeading: box.highestBidderId === player.id, viewerParticipated: box.participantIds.includes(player.id) })),
     assetCategories: { electronics: "Техника", collectibles: "Коллекции", business: "Оборудование", clothing: "Одежда", residential: "Жилая недвижимость", commercial: "Коммерческая недвижимость", crypto: "Криптовалюта" },
     leaderboard: leaderboard.rows,
@@ -1696,6 +1697,20 @@ resetAccountsOnStartup();
 if (!loadState()) {
   seedMarket();
   persistState();
+}
+
+const AUCTION_UNLOCK_LEVEL = 3;
+const MARKET_LEVEL_CAPS = [1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000, MAX_VEHICLE_VALUE];
+function maxVehiclePriceForLevel(level) {
+  return MARKET_LEVEL_CAPS[Math.min(MARKET_LEVEL_CAPS.length - 1, Math.max(0, Number(level || 1) - 1))];
+}
+function carAccessPrice(car) { return Math.max(0, Number(car?.price || car?.cleanValue || 0)); }
+function canAccessCar(player, car) {
+  return Boolean(player && car && (car.sellerId === player.id || carAccessPrice(car) <= maxVehiclePriceForLevel(levelForXp(player.xp))));
+}
+function carUnlockMessage(player, car) {
+  const required = Math.max(1, MARKET_LEVEL_CAPS.findIndex((cap) => cap >= carAccessPrice(car)) + 1);
+  return `Эта машина откроется с ${required} уровня. Текущий лимит: ${maxVehiclePriceForLevel(levelForXp(player.xp)).toLocaleString("ru-RU")} ₽.`;
 }
 function ensureConfiguredAdmin() {
   const password = String(process.env.PEREKUP_ADMIN_PASSWORD || process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
@@ -2973,6 +2988,7 @@ async function api(req, res, pathname) {
     if (!car) return json(res, 404, { error: "Лот уже продан или снят с рынка. Обновите список автомобилей." });
     if (car.sellerId === player.id) return json(res, 400, { error: "Это ваше объявление" });
     if (car.saleType === "auction") return json(res, 400, { error: "Эту машину можно купить только через ставку" });
+    if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: `Гараж заполнен: ${player.garage.length}/${player.garageCapacity}. Продайте или разберите автомобиль.` });
     if (player.cash - reservedCash(player) < car.price) return json(res, 400, { error: `Не хватает свободных денег: нужно ${car.price.toLocaleString("ru-RU")} ₽, доступно ${(player.cash - reservedCash(player)).toLocaleString("ru-RU")} ₽.` });
     if (!completeSale(car, player, car.price)) return json(res, 409, { error: "Лот только что купил другой игрок. Обновите рынок." });
@@ -3252,6 +3268,7 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
+    if (saleType === "auction" && levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const includePlate = body.includePlate === true && Boolean(car.registration?.registered && car.registration?.plate);
     car.plateIncluded = includePlate;
     if (includePlate) {
@@ -3330,9 +3347,11 @@ async function api(req, res, pathname) {
   }
 
   if (req.method === "POST" && pathname === "/api/bid") {
+    if (levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const car = market.find((item) => item.id === body.carId && item.saleType === "auction");
     if (!car || car.auctionEnd <= Date.now()) return json(res, 404, { error: "Аукцион уже завершён" });
     if (car.sellerId === player.id) return json(res, 400, { error: "Нельзя делать ставки на свою машину" });
+    if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
     const amount = Math.round(Number(body.amount));
     const current = car.highestBid || car.startingPrice;
@@ -3357,6 +3376,7 @@ async function api(req, res, pathname) {
   }
 
   if (req.method === "POST" && pathname === "/api/container/bid") {
+    if (levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const auction = containerAuctions.find((item) => item.id === body.containerId);
     if (!auction || auction.endAt <= Date.now()) return json(res, 404, { error: "Аукцион контейнера завершён" });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
@@ -3379,6 +3399,7 @@ async function api(req, res, pathname) {
     const amount = Math.round(Number(body.amount));
     if (!car || car.saleType === "auction") return json(res, 404, { error: "Торг доступен только в обычном объявлении" });
     if (car.sellerId === player.id) return json(res, 400, { error: "Нельзя торговаться с собой" });
+    if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (!Number.isFinite(amount) || amount < 1 || amount >= car.price) return json(res, 400, { error: "Предложение должно быть от 1 ₽ и ниже цены объявления" });
     if (amount > player.cash - reservedCash(player)) return json(res, 400, { error: "Свободных денег недостаточно: часть суммы зарезервирована в ставках" });
     for (const old of offers.values()) if (old.carId === car.id && old.buyerId === player.id && ["active", "counter"].includes(old.status)) old.status = "closed";
@@ -3426,6 +3447,7 @@ async function api(req, res, pathname) {
       if (offer.buyerType === "bot") completeSale(car, null, offer.amount);
       else {
         const buyer = players.get(offer.buyerId);
+        if (buyer && !canAccessCar(buyer, car)) return json(res, 403, { error: `Покупателю пока недоступна эта ценовая категория.` });
         if (!buyer || buyer.cash - reservedCash(buyer) < offer.amount || !completeSale(car, buyer, offer.amount)) return json(res, 400, { error: "У покупателя недостаточно свободных денег или места" });
       }
     } else return json(res, 400, { error: "Неизвестный ответ" });
@@ -3437,7 +3459,9 @@ async function api(req, res, pathname) {
     const offer = offers.get(body.offerId);
     if (!offer || offer.buyerId !== player.id || offer.status !== "counter") return json(res, 404, { error: "Встречное предложение недоступно" });
     const car = market.find((item) => item.id === offer.carId);
-    if (!car || player.cash - reservedCash(player) < offer.amount || !completeSale(car, player, offer.amount)) return json(res, 400, { error: "Не хватает свободных денег или места в гараже" });
+    if (!car) return json(res, 404, { error: "Автомобиль уже продан" });
+    if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
+    if (player.cash - reservedCash(player) < offer.amount || !completeSale(car, player, offer.amount)) return json(res, 400, { error: "Не хватает свободных денег или места в гараже" });
     broadcast();
     return json(res, 200, snapshot(player));
   }
