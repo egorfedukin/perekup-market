@@ -15,7 +15,7 @@ const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) 
 const NPC_ROTATION_COUNT = 10;
 const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
 const ASSET_INCOME_CYCLE_MS = process.env.PEREKUP_FAST_ASSETS === "1" ? 600 : 60000;
-const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk, federuk-new").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
+const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk-new").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
 const CONFIGURED_ADMIN_LOGIN = "federuk";
 const CONFIGURED_ADMIN_EMAIL = "fedukinegor@gmail.com";
 const FALLBACK_ADMIN_LOGIN = "marketadmin";
@@ -637,7 +637,8 @@ function addLedger(player, type, title, amount = 0, details = {}, at = Date.now(
 }
 
 function isAdmin(player) {
-  return Boolean(player && (player.adminGranted || ADMIN_NAMES.has(String(player.normalizedName || player.name).toLocaleLowerCase("ru-RU"))));
+  const normalized = String(player?.normalizedName || player?.name || "").toLocaleLowerCase("ru-RU");
+  return Boolean(player && (player.adminGranted || normalized === CONFIGURED_ADMIN_LOGIN || ADMIN_NAMES.has(normalized)));
 }
 
 function banMessage(player) {
@@ -2280,8 +2281,9 @@ async function api(req, res, pathname) {
     if ([...players.values()].some((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === normalized && (item.pinHash || item.passwordHash))) {
       return json(res, 409, { error: "Аккаунт с таким именем уже существует" });
     }
-    if ([...players.values()].some((item) => item.email === email)) return json(res, 409, { error: "Этот email уже зарегистрирован" });
+    if ([...players.values()].some((item) => String(item.email || "").trim().toLowerCase() === email)) return json(res, 409, { error: "Этот email уже зарегистрирован. На один email можно создать только один аккаунт." });
     const player = createPlayer(name, null, { email, password, emailVerified: false });
+    if (normalized === CONFIGURED_ADMIN_LOGIN) player.adminGranted = true;
     const verificationToken = id("verify_");
     emailVerifications.set(verificationToken, { playerId: player.id, expiresAt: Date.now() + 86400000 });
     try { await sendVerificationEmail(email, name, verificationToken); } catch (error) { emailVerifications.delete(verificationToken); return json(res, 503, { error: error.message }); }
@@ -2368,6 +2370,7 @@ async function api(req, res, pathname) {
     if (ADMIN_NAMES.has(name.toLocaleLowerCase("ru-RU"))) return json(res, 409, { error: "Этот логин зарезервирован" });
     const token = id("session_");
     const player = createPlayer(name);
+    if (name.toLocaleLowerCase("ru-RU") === CONFIGURED_ADMIN_LOGIN) player.adminGranted = true;
     players.set(player.id, player);
     sessions.set(token, player.id);
     broadcast();
