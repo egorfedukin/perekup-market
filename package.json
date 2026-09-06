@@ -9,6 +9,7 @@
     "start": "node server.js",
     "test": "node smoke-test.js",
     "test:persistence": "node persistence-test.js",
+    "test:gameplay": "node gameplay-test.js",
     "catalog:years": "node enrich-vehicle-years.js"
   }
 }

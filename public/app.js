@@ -373,9 +373,21 @@ function simpleInspectionChallenge({ title, task, mode }) {
 }
 
 function inspectionChallenge(category) {
-  if (category === "electrics") return simpleInspectionChallenge({ title: "Соедините проводку", task: "Проверка электрики", mode: "wires" });
-  if (category === "documents") return simpleInspectionChallenge({ title: "Сверьте VIN", task: "Проверка VIN", mode: "vin" });
-  return timingChallenge({ title: categoryNames[category] || "Осмотр узла", task: "Точный замер", rounds: 1 });
+  if (activeChallenge) return Promise.resolve(null);
+  const root = $("#skill-challenge");
+  return new Promise((resolve) => {
+    activeChallenge = { title: categoryNames[category] };
+    const finish = (value) => { root.hidden = true; root.innerHTML = ""; activeChallenge = null; resolve(value); };
+    const requirement = state.inspectionRequirements[category];
+    const base = (state.player.skills[requirement.skill] || 0) + (state.player.equipment[requirement.equipment] || 0);
+    root.innerHTML = `<div class="challenge-panel"><div class="challenge-head"><h2>${escapeHtml(categoryNames[category])}</h2><button class="icon-button" data-cancel aria-label="Отменить">×</button></div><div class="inspection-methods">${Object.entries(state.inspectionMethods || {}).map(([key, method]) => {
+      const confidence = Math.min(100, Math.round((base + method.depth) / 6 * 100));
+      return `<button class="secondary-button" data-method="${key}" ${state.player.availableCash < method.cost ? "disabled" : ""}><strong>${escapeHtml(method.name)}</strong><span>${method.cost ? money(method.cost) : "Бесплатно"}</span><small>Глубина ${Math.min(8, base + method.depth)}/8 · уверенность ${confidence}%</small></button>`;
+    }).join("")}</div></div>`;
+    root.hidden = false;
+    root.querySelector("[data-cancel]").onclick = () => finish(null);
+    root.querySelectorAll("[data-method]").forEach((button) => { button.onclick = () => finish(button.dataset.method); });
+  });
 }
 
 function showClothingReward(reward) {
@@ -523,7 +535,10 @@ function renderMarket() {
   $("#market-kpi-deals").textContent = number(belowMarket);
   $("#market-kpi-auctions").textContent = number(state.market.filter((car) => car.saleType === "auction").length);
   $("#market-kpi-models").textContent = number(new Set(regularMarket.map((car) => car.model)).size);
-  const activeContract = (state.player.contracts || []).find((contract) => contract.status === "active");
+  const career = state.player.career;
+  const goalNames = { deals: "Завершённые сделки", profit: "Результат торговли", reputation: "Репутация" };
+  if (career) $("#career-progress").innerHTML = `<div class="career-heading"><strong>${escapeHtml(career.stage)}</strong><span>${career.next ? `Следующий этап: ${escapeHtml(career.next)}` : "Карьера автодилера построена"}</span></div><div class="career-goals">${career.goals.map((goal) => `<div><span>${goalNames[goal.key]}</span><strong>${goal.key === "profit" ? compactMoney(goal.current) : number(goal.current)} / ${goal.key === "profit" ? compactMoney(goal.target) : number(goal.target)}</strong><progress max="100" value="${goal.percent}" aria-label="${goalNames[goal.key]}"></progress></div>`).join("")}</div>`;
+  const activeContract = (state.player.contracts || []).find((contract) => contract.status === "active" && contract.expiresAt > Date.now());
   if ($("#career-mission")) $("#career-mission").innerHTML = activeContract ? `<div><p class="eyebrow">Ваш текущий контракт</p><strong>${escapeHtml(activeContract.title)}</strong><span>${escapeHtml(activeContract.description)}</span></div><b>Награда ${money(activeContract.reward)}</b>` : `<div><p class="eyebrow">Следующий шаг</p><strong>Найдите свою первую выгодную сделку</strong><span>Сравните цену, риск и будущего покупателя перед покупкой.</span></div>`;
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
@@ -632,9 +647,11 @@ function renderGarage() {
       : plates.length
         ? `<select id="car-plate-${car.id}" aria-label="Номер для ${escapeHtml(car.model)}">${plates.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="${registration.registered ? "attach" : "register"}" data-car-id="${car.id}">${registration.registered ? "Установить номер" : "Поставить на учёт · 8 500 ₽"}</button>`
         : `<button class="secondary-button" data-garage-mode="plates">Сначала получить номер</button>`;
+    const result = (car.saleEstimate?.expectedNpcPrice || 0) - car.invested;
+    const phase = open.length ? "Нужен ремонт" : (car.inspection?.confidence || 0) < 100 ? "Нужен осмотр" : "Готова к продаже";
     return `<article class="garage-car">
       ${carArt(car)}
-      <div class="garage-main"><h3>${escapeHtml(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p></div>
+      <div class="garage-main"><span class="garage-phase">${phase}</span><h3>${escapeHtml(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p><small>Прогноз продажи ${money(car.saleEstimate?.expectedNpcPrice || 0)}</small><strong class="${result >= 0 ? "profit-positive" : "profit-negative"}">${result >= 0 ? "+" : ""}${money(result)}</strong></div>
       <div class="garage-status">
         <div class="status-line"><span>Состояние</span><strong>${car.condition}%</strong></div>
         <div class="status-bar"><i style="width:${car.condition}%"></i></div>
@@ -647,7 +664,7 @@ function renderGarage() {
       </div>
     </article>`;
   }).join("");
-  const garageSignature = JSON.stringify(garage.map((car) => ({ id: car.id, model: car.model, year: car.year, mileage: car.mileage, invested: car.invested, condition: car.condition, inspection: car.inspection, defects: car.defects, photoUrl: car.photoUrl, registration: car.registration }))) + `|${Boolean(state.player.group)}`;
+const garageSignature = JSON.stringify(garage.map((car) => ({ id: car.id, model: car.model, year: car.year, mileage: car.mileage, invested: car.invested, condition: car.condition, inspection: car.inspection, defects: car.defects, photoUrl: car.photoUrl, registration: car.registration, saleEstimate: car.saleEstimate }))) + `|${Boolean(state.player.group)}`;
   if (renderSignatures.garage !== garageSignature) {
     $("#garage-grid").innerHTML = garageMarkup;
     renderSignatures.garage = garageSignature;
@@ -1310,7 +1327,7 @@ function marketModal(car) {
       <div><span>Предложения</span><strong>${car.offerCount || 0}</strong></div>
     </div>
     <p class="description">«${escapeHtml(car.description)}»</p>
-    <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || score > record.bestScore; return `<button class="inspection-button" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}<br>${state.skillInfo[req.skill].name} ${state.player.skills[req.skill]}/5 · ${state.equipmentInfo[req.equipment].name} ${state.player.equipment[req.equipment]}/3</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
+    <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || Math.min(8, score + 4) > record.bestScore; return `<button class="inspection-button" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}<br>${state.skillInfo[req.skill].name} ${state.player.skills[req.skill]}/5 · ${state.equipmentInfo[req.equipment].name} ${state.player.equipment[req.equipment]}/3</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
     ${auction ? `<div class="auction-status"><strong>${car.highestBid ? `Текущая ставка ${money(car.highestBid)}` : `Стартовая цена ${money(car.startingPrice)}`}</strong><span>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)} · ` : ""}До завершения <b class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</b></span></div>` : ""}
     ${stats ? `<div class="market-comparison">
       <div><span>Индекс рынка</span><strong>${money(stats.marketPrice)} <b class="market-trend ${stats.trend > 0 ? "up" : stats.trend < 0 ? "down" : ""}">${stats.trend > 0 ? "+" : ""}${stats.trend}%</b></strong></div>
@@ -1331,10 +1348,10 @@ function inspectionButton(car, category) {
   const equipmentLevel = state.player.equipment[requirement.equipment];
   const score = skillLevel + equipmentLevel;
   const record = car.inspectionRecords?.[category];
-  const canInspect = !car.serviceDiagnosed && (!record || score > record.bestScore);
+  const canInspect = !car.serviceDiagnosed && (!record || Math.min(8, score + 4) > record.bestScore);
   const status = car.serviceDiagnosed ? "заключение сервиса" : record ? canInspect ? `можно углубить · было ${record.confidence}%` : `уверенность ${record.confidence}%` : "не проверено";
   return `<button class="inspection-button" data-check="${category}" data-car-id="${car.id}" ${canInspect ? "" : "disabled"}>
-    <strong>${categoryNames[category]} <em class="free-action">Бесплатно</em></strong><small>${status}<br>${state.skillInfo[requirement.skill].name} ${skillLevel}/5 · ${state.equipmentInfo[requirement.equipment].name} ${equipmentLevel}/3</small>
+    <strong>${categoryNames[category]}</strong><small>${status}<br>${state.skillInfo[requirement.skill].name} ${skillLevel}/5 · ${state.equipmentInfo[requirement.equipment].name} ${equipmentLevel}/3</small>
   </button>`;
 }
 
@@ -1345,9 +1362,11 @@ function defectRow(car, defect) {
   const skillCurrent = state.player.skills[defect.repairSkill] || 0;
   const equipmentCurrent = state.player.equipment[defect.repairEquipment] || 0;
   const compatibleParts = (state.player.partInventory || []).filter((part) => part.partKey === defect.partKey && part.compatibleModel === car.model);
+  const plans = !defect.repaired ? `<div class="repair-plan-grid">${(defect.servicePlans || []).map((plan) => `<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop" data-repair-plan="${plan.key}" ${state.player.availableCash < plan.total ? "disabled" : ""}><strong>${escapeHtml(plan.name)}</strong><span>${money(plan.total)}</span><small>Работа ${money(plan.labor)} · детали ${money(plan.partPrice)}</small><small>Надёжность до ${plan.reliability}%</small></button>`).join("")}</div>` : "";
   return `<div class="defect-row ${defect.repaired ? "repaired" : ""}">
     <strong>${escapeHtml(defect.name)} <span class="severity">${severityNames[defect.severity]}</span><small class="defect-detail">${escapeHtml(defect.symptom)}<br>Риск: ${escapeHtml(defect.consequence)}${defect.selfRepairable ? `<br>Готовность: ${skillName} ${skillCurrent}/5 · ${equipmentName} ${equipmentCurrent}/3` : "<br>Только специализированный сервис"}</small></strong>
-    ${defect.repaired ? "<span>Устранено</span>" : `<div class="repair-actions">${defect.partRequired ? `<div class="repair-part-status"><strong>${escapeHtml(defect.partName)}</strong><small>${escapeHtml(defect.partKey)} · ${compatibleParts.length ? `на складе ${compatibleParts.length}` : "нужно купить"}</small></div>` : ""}${compatibleParts.length ? `<select data-part-select="${car.id}:${defect.code}">${compatibleParts.map((part) => `<option value="${part.id}">${escapeHtml(part.brand)} · ${partQualityName(part)} · ресурс ${part.conditionPct}%</option>`).join("")}</select>` : defect.partRequired ? `<button class="part-order-button" data-open-parts-center>Подобрать деталь</button>` : ""}<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop">${compatibleParts.length ? "Сервис, работа" : "Сервис под ключ"} · ${money(compatibleParts.length ? defect.serviceLaborCost : defect.serviceRepairCost || defect.repair)}</button><button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="assisted" ${defect.selfRepairable && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>Мастер с вашей деталью · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>Самостоятельно · ${money(defect.selfRepairCost)}</button>${!canSelf && defect.selfRepairable ? `<button class="repair-readiness" data-open-development>Для самостоятельного ремонта: ${escapeHtml(skillName)} ${skillCurrent}/${defect.repairSkillLevel} · ${escapeHtml(equipmentName)} ${equipmentCurrent}/${defect.repairEquipmentLevel} · прокачать</button>` : ""}</div>`}
+    ${defect.repaired ? `<span>${escapeHtml(defect.repairQuality || "Устранено")} · надёжность ${defect.repairReliability || "—"}%</span>` : `<div class="repair-actions">${defect.partRequired ? `<div class="repair-part-status"><strong>${escapeHtml(defect.partName)}</strong><small>${escapeHtml(defect.partKey)} · ${compatibleParts.length ? `на складе ${compatibleParts.length}` : "нужно купить"}</small></div>` : ""}${compatibleParts.length ? `<select data-part-select="${car.id}:${defect.code}">${compatibleParts.map((part) => `<option value="${part.id}">${escapeHtml(part.brand)} · ${partQualityName(part)} · ресурс ${part.conditionPct}%</option>`).join("")}</select>` : defect.partRequired ? `<button class="part-order-button" data-open-parts-center>Подобрать деталь</button>` : ""}<button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="workshop">${compatibleParts.length ? "Сервис, работа" : "Сервис под ключ"} · ${money(compatibleParts.length ? defect.serviceLaborCost : defect.serviceRepairCost || defect.repair)}</button><button class="secondary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="assisted" ${defect.selfRepairable && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>Мастер с вашей деталью · ${money(defect.assistedRepairCost)}</button><button class="primary-button" data-repair="${car.id}" data-defect="${defect.code}" data-repair-mode="self" ${canSelf && (!defect.partRequired || compatibleParts.length) ? "" : "disabled"}>Самостоятельно · ${money(defect.selfRepairCost)}</button>${!canSelf && defect.selfRepairable ? `<button class="repair-readiness" data-open-development>Для самостоятельного ремонта: ${escapeHtml(skillName)} ${skillCurrent}/${defect.repairSkillLevel} · ${escapeHtml(equipmentName)} ${equipmentCurrent}/${defect.repairEquipmentLevel} · прокачать</button>` : ""}</div>`}
+    ${plans}
   </div>`;
 }
 
@@ -1357,6 +1376,7 @@ function garageModal(car) {
   return `${carArt(car, "modal-car-art")}<div class="modal-body">
     <p class="eyebrow">Самостоятельный осмотр</p><h2 id="modal-title">${escapeHtml(car.model)}</h2>
     <p class="modal-subtitle">Состояние ${car.condition}% · вложено ${money(car.invested)}</p>
+    <div class="deal-summary"><div><span>Вложено</span><strong>${money(car.invested)}</strong></div><div><span>Оценка продажи сейчас</span><strong>${money(car.saleEstimate?.expectedNpcPrice || 0)}</strong></div><div><span>Прогноз результата</span><strong class="${(car.saleEstimate?.expectedNpcPrice || 0) >= car.invested ? 'profit-positive' : 'profit-negative'}">${money((car.saleEstimate?.expectedNpcPrice || 0) - car.invested)}</strong></div><div><span>Подтверждённых проблем</span><strong>${open.length}</strong></div></div>
     ${!car.serviceDiagnosed ? `<div class="service-diagnostic"><div><strong>Полная диагностика в сервисе · необязательно</strong><span>Уже найденные ниже неисправности можно ремонтировать сразу. Сервис нужен только чтобы раскрыть остальные проблемы и получить заключение для продажи.</span></div><button class="danger-button" data-service-diagnostic="${car.id}">${money(car.serviceDiagnosticCost)}</button></div>` : `<div class="inspection-summary"><strong>Диагностика сервиса завершена.</strong> Все неисправности известны, заключение увеличивает ликвидность машины.</div>`}
     <div class="inspection-actions">${state.inspectionCategories.map((category) => inspectionButton(car, category)).join("")}</div>
     <section class="upgrade-section"><div class="workshop-heading"><div><p class="eyebrow">Тюнинг своими силами или через ателье</p><h3>Улучшения автомобиля</h3></div><span>Выбирайте профиль спроса, а не просто бонус к цене</span></div><div class="upgrade-options">${(car.upgradeOptions || []).map((upgrade) => { const price = upgrade.canUse ? upgrade.cost : upgrade.serviceCost; const profiles = { comfort: "Комфорт", utility: "Практичность", sport: "Спорт", classic: "Классика" }; const buyers = { endBuyer: "частный клиент", budget: "бюджетный покупатель", specialist: "специалист", dealer: "дилер", collector: "коллекционер" }; const demand = (upgrade.demand || []).map((item) => buyers[item] || item).join(", "); return `<article class="car-upgrade ${upgrade.installed ? "installed" : ""}"><div><strong>${escapeHtml(upgrade.name)}</strong><small>${escapeHtml(upgrade.description)}</small><small class="upgrade-profile">Профиль: ${escapeHtml(profiles[upgrade.profile] || upgrade.profile || "Подготовка")}</small><small>Лучший спрос: ${escapeHtml(demand || "рынок")} · ценность +${money(upgrade.value)}</small></div>${upgrade.installed ? `<b>Установлено</b>` : `<button class="primary-button" data-car-upgrade="${car.id}" data-upgrade="${upgrade.key}" ${state.player.cash >= price ? "" : "disabled"}>${upgrade.canUse ? "Установить самому" : "Заказать в ателье"} · ${money(price)}</button>`}</article>`; }).join("")}</div></section>
@@ -1625,7 +1645,7 @@ document.addEventListener("click", async (event) => {
       interactionScore = await timingChallenge({ title: defect?.name || "Самостоятельный ремонт", task: "Практика ремонта", rounds: 2, mode: "repair", actions: repairChallengeFor(defect) });
       if (interactionScore === null) return;
     }
-    return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, interactionScore, partId: document.querySelector(`[data-part-select="${repair.dataset.repair}:${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? `Ремонт завершен · точность ${interactionScore}%` : repair.dataset.repairMode === "assisted" ? "Деталь установлена вместе с мастером" : "Сервис завершил ремонт");
+    return perform("/api/repair", { carId: repair.dataset.repair, defect: repair.dataset.defect, mode: repair.dataset.repairMode, plan: repair.dataset.repairPlan, interactionScore, partId: document.querySelector(`[data-part-select="${repair.dataset.repair}:${repair.dataset.defect}"]`)?.value || null }, repair.dataset.repairMode === "self" ? `Ремонт завершен · точность ${interactionScore}%` : repair.dataset.repairMode === "assisted" ? "Деталь установлена вместе с мастером" : "Сервис завершил ремонт");
   }
   const serviceDiagnostic = event.target.closest("[data-service-diagnostic]");
   if (serviceDiagnostic) return perform("/api/service-diagnostic", { carId: serviceDiagnostic.dataset.serviceDiagnostic }, "Сервис обнаружил все неисправности");
@@ -1634,7 +1654,7 @@ document.addEventListener("click", async (event) => {
     try {
       const interactionScore = await inspectionChallenge(check.dataset.check);
       if (interactionScore === null) return;
-      const data = await request("/api/check", { method: "POST", body: JSON.stringify({ carId: check.dataset.carId, category: check.dataset.check, interactionScore }) });
+      const data = await request("/api/check", { method: "POST", body: JSON.stringify({ carId: check.dataset.carId, category: check.dataset.check, method: interactionScore }) });
       lastCheckResult = { ...data.checkResult, carId: check.dataset.carId }; state = data; render();
       showToast(data.checkResult.found.length ? `Обнаружено неисправностей: ${data.checkResult.found.length}` : "Явных неисправностей не обнаружено");
     } catch (error) { showToast(error.message, true); }
@@ -1645,7 +1665,7 @@ document.addEventListener("click", async (event) => {
     try {
       const interactionScore = await inspectionChallenge(marketCheck.dataset.marketCheck);
       if (interactionScore === null) return;
-      const data = await request("/api/market-check", { method: "POST", body: JSON.stringify({ carId: marketCheck.dataset.carId, category: marketCheck.dataset.marketCheck, interactionScore }) });
+      const data = await request("/api/market-check", { method: "POST", body: JSON.stringify({ carId: marketCheck.dataset.carId, category: marketCheck.dataset.marketCheck, method: interactionScore }) });
       state = data; render();
       const updatedCar = state.market.find((item) => item.id === marketCheck.dataset.carId);
       if (updatedCar) openModal(marketModal(updatedCar), updatedCar.id, "market");

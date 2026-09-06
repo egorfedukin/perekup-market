@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
   <link rel="dns-prefetch" href="//images.unsplash.com">
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
-  <link rel="stylesheet" href="styles.css?v=iphone-nav-4">
+  <link rel="stylesheet" href="styles.css?v=gameplay-2">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -84,8 +84,7 @@
         <button class="tab active" data-view="market">Купить <span id="market-count" class="badge">0</span></button>
         <button class="tab" data-view="garage">Мои авто <span id="garage-count" class="badge">0/4</span></button>
         <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
-        <button class="tab" data-view="assets">Недвижимость</button>
-        <button class="tab desktop-collection-tab" data-view="assets" data-asset-mode="owned">Моя недвижимость</button>
+        <button class="tab" data-view="deals">Сделки</button>
         <button class="tab more-sections-tab" data-mobile-menu aria-expanded="false">Ещё</button>
       </nav>
       <div class="wallet">
@@ -101,6 +100,7 @@
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
       <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
       <button data-view="assets" data-asset-mode="owned"><span>Моя недвижимость</span><small>Ваши объекты и доход</small></button>
+      <button data-view="assets" data-asset-mode="all"><span>Купить недвижимость</span><small>Объекты и инфраструктура</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
@@ -118,7 +118,7 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Объявления обновляются в реальном времени</p>
-          <h2>Автомобильный рынок</h2>
+          <h2>Рынок автомобилей</h2>
           </div>
           <div class="market-pulse"><i></i><span id="online-label">Рынок онлайн</span><b id="rotation-label">Новый завоз через 00:45</b></div>
         </div>
@@ -128,6 +128,7 @@
           <div><span>Аукционы</span><strong id="market-kpi-auctions">0</strong></div>
           <div><span>Моделей в продаже</span><strong id="market-kpi-models">0</strong></div>
         </div>
+        <section id="career-progress" class="career-progress" aria-label="Карьера"></section>
         <section id="career-mission" class="career-mission" aria-label="Текущая цель"></section>
         <aside id="ad-market" class="ad-slot ad-slot-market" aria-label="Реклама" hidden></aside>
         <div class="market-quick-filters" aria-label="Быстрые фильтры">
@@ -433,6 +434,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/about.html" target="_blank">Об игре</a> · <a href="/requisites.html" target="_blank">Реквизиты</a> · <a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=iphone-nav-5"></script>
+  <script src="app.js?v=gameplay-2"></script>
 </body>
 </html>

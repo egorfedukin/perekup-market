@@ -2682,6 +2682,12 @@ body:has(#join-screen:not([hidden])) {
 .achievement-card small { color: var(--muted); font-size: 9px; font-weight: 700; }
 .property-role { display: inline-flex; width: fit-content; margin: 2px 0 8px; padding: 4px 7px; border: 1px solid #c6d7ec; border-radius: 3px; background: #f1f6fc; color: #315c8a; font-size: 9px; font-weight: 800; }
 .upgrade-profile { color: #315c8a !important; font-weight: 800; }
+.inspection-methods, .repair-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.repair-plan-grid { grid-column: 1 / -1; width: 100%; }
+.inspection-methods button, .repair-plan-grid button { min-width: 0; display: grid; gap: 8px; padding: 16px; text-align: left; white-space: normal; }
+.inspection-methods small, .repair-plan-grid small { font-size: 12px; line-height: 1.5; color: #53616e; }
+.inspection-methods strong, .repair-plan-grid strong { font-size: 14px; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .inspection-methods, .repair-plan-grid { grid-template-columns: 1fr; } }
 .skill-path-card { display: grid; gap: 4px; padding: 14px; border: 1px solid #c6d7ec; border-radius: var(--radius-m); background: #f4f8fd; }
 .skill-path-card > span, .skill-path-card > small { color: #53708d; font-size: 9px; text-transform: uppercase; font-weight: 800; }
 .skill-path-card > strong { font-size: 15px; }
@@ -2691,5 +2697,36 @@ body:has(#join-screen:not([hidden])) {
 .career-mission strong { font-size: 15px; }
 .career-mission span { color: var(--muted); font-size: 10px; }
 .career-mission > b { flex: 0 0 auto; color: #315c8a; font-size: 12px; }
+#market-view .market-dashboard { display: flex; gap: 24px; margin: 0; background: transparent; border: 0; }
+#market-view .market-dashboard > div { padding: 0; border: 0; box-shadow: none; background: transparent; }
+#market-view .market-dashboard strong { font-size: 19px; }
+#market-view .career-mission { border: 0; border-left: 3px solid #2864da; border-radius: 0; background: transparent; padding: 8px 16px; }
+#market-view .market-filters { padding: 12px 0; border: 0; box-shadow: none; background: transparent; }
+#market-view .market-filters input, #market-view .market-filters select { background: white; }
+#market-view .section-heading { margin-bottom: 18px; }
+.car-card .car-info { padding: 16px; }
+.car-card .car-info h3 { font-size: 19px; overflow-wrap: anywhere; }
+.car-card .car-meta { font-size: 12px; }
+.car-card .car-price-row strong { font-size: 23px; }
+.car-card .market-tag { display: none; }
+.car-card .car-art { aspect-ratio: 16 / 10; }
+.deal-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 16px 0; border-top: 1px solid #dce2e8; border-bottom: 1px solid #dce2e8; margin: 16px 0; }
+.deal-summary div { display: grid; gap: 5px; min-width: 130px; }
+.deal-summary span { font-size: 12px; color: #53616e; }
+.deal-summary strong { font-size: 18px; }
+.career-progress { margin: 20px 0; padding: 16px 0; border-block: 1px solid #dce2e8; }
+.career-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.career-heading > strong { font-size: 19px; }
+.career-heading > span, .career-goals span { color: #53616e; font-size: 12px; }
+.career-goals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+.career-goals > div { display: grid; gap: 6px; min-width: 0; }
+.career-goals strong { font-size: 14px; }
+.career-goals progress { width: 100%; height: 6px; accent-color: #2864da; }
+.garage-phase { font-size: 11px; font-weight: 700; color: #315c8a; }
+.garage-main > small, .garage-main > strong { display: block; margin-top: 5px; }
+@media (max-width: 520px) { .career-heading { flex-direction: column; } .career-goals { grid-template-columns: 1fr; gap: 12px; } }
+.repair-plan-grid button { border-color: #ced8e2; background: #fff; color: #19242d; }
+.repair-plan-grid button:hover { border-color: #2864da; background: #f1f6ff; }
+@media (max-width: 760px) { #market-view .market-dashboard { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; } #market-view .market-dashboard span { font-size: 9px; } }
 @media (max-width: 520px) { .career-mission { align-items: start; flex-direction: column; gap: 8px; } }
 @media (max-width: 760px) { .achievement-grid { grid-template-columns: 1fr; } }
