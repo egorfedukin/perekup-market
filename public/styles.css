@@ -2037,6 +2037,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Photos are the only vehicle visual. Never render the legacy CSS silhouette. */
 .photo-credit, .car-year { display: none !important; }
+
+/* The registration screen must keep its dark background through mobile overscroll. */
+html:has(#join-screen:not([hidden])),
+body:has(#join-screen:not([hidden])) {
+  min-height: 100%;
+  background: var(--dark) !important;
+}
+body:has(#join-screen:not([hidden])) {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+#join-screen:not([hidden]) {
+  min-height: 100dvh;
+}
 .car-art::before,
 .car-art::after,
 .car-art .car-window,
