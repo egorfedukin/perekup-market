@@ -2089,14 +2089,17 @@ function evaluateBots(car) {
   for (const bot of candidates) {
     if (car.price > bot.budget) continue;
     const detected = car.defects.filter((defect) => !defect.repaired && defect.skill + defect.equipmentLevel <= bot.skill + 2);
-    const ceiling = botAuctionCeiling(car, bot);
+    const estimate = saleEstimate(car);
+    const preparationBonus = car.repairs.length || car.serviceDiagnosed || (car.inspectionRecords && Object.keys(car.inspectionRecords).length >= 3) ? 1.08 : 1.03;
+    const sensibleFloor = Math.round(car.invested * preparationBonus / 1000) * 1000;
+    const ceiling = Math.max(botAuctionCeiling(car, bot), sensibleFloor);
     if (ceiling < 1 || car.price > ceiling * 1.35) continue;
-    if (car.price <= ceiling * 0.96 && Math.random() < (car.repairs.length ? 0.72 : 0.48)) {
+    if (car.price <= ceiling * 0.99 && Math.random() < (car.repairs.length || car.serviceDiagnosed ? 0.78 : 0.58)) {
       completeSale(car, null, car.price);
       broadcast();
       return;
     }
-    const amount = clamp(Math.round(Math.min(car.price * 0.96, ceiling)), 1, car.price - 1);
+    const amount = clamp(Math.round(Math.max(sensibleFloor, Math.min(car.price * 0.97, ceiling)) / 1000) * 1000, 1, car.price - 1);
     if (amount >= car.price) continue;
     const issue = detected.sort((a, b) => b.impact - a.impact)[0];
     const reason = lie && issue
