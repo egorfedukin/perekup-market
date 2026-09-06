@@ -372,7 +372,8 @@
         </div>
         <nav class="workspace-switcher" aria-label="Разделы личного кабинета">
           <button class="active" type="button" data-profile-mode="overview">Обзор <span>Аккаунт и быстрые действия</span></button>
-          <button type="button" data-profile-mode="progress">Прогресс <span>Навыки и оборудование</span></button>
+          <button type="button" data-profile-mode="progress">Развитие <span>Специализации и оборудование</span></button>
+          <button type="button" data-profile-mode="achievements">Достижения <span>Цели и награды</span></button>
           <button type="button" data-profile-mode="history">История <span>Доходы и расходы</span></button>
         </nav>
         <section id="profile-overview-panel" class="workspace-panel">
@@ -397,6 +398,10 @@
           <section><p class="eyebrow">Что вы умеете</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
           <section><p class="eyebrow">Что есть в мастерской</p><h3>Оборудование</h3><div id="profile-equipment" class="profile-list"></div></section>
         </div>
+        </section>
+        <section id="profile-achievements-panel" class="workspace-panel" hidden>
+          <div class="workshop-heading"><div><p class="eyebrow">Ваш стиль игры</p><h3>Достижения</h3></div><span id="achievement-summary">0 открыто</span></div>
+          <div id="profile-achievements" class="achievement-grid"></div>
         </section>
         <section id="profile-history-panel" class="workspace-panel" hidden>
         <section class="deal-history-panel"><div class="workshop-heading"><div><p class="eyebrow">Покупки, продажи и расходы</p><h3>История операций</h3></div><span id="ledger-summary">Последние события</span></div><div id="deal-history" class="deal-history"></div></section>

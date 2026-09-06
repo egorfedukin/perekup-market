@@ -334,6 +334,40 @@ const skillInfo = {
   riskManagement: { name: "Риск-менеджер", description: "Даёт более точную оценку волатильных криптоактивов", maxLevel: 5 }
 };
 
+const skillPaths = {
+  diagnostics: { title: "Диагностика", summary: "Находите риски до покупки и экономьте на полной проверке.", unlocks: ["Больше точных проверок", "Скрытые симптомы", "Бесплатный базовый тест"] },
+  mechanics: { title: "Механика", summary: "Ремонтируйте машины самостоятельно и повышайте надёжность.", unlocks: ["Дешевле ремонт", "Сложные узлы", "Гарантия на работу"] },
+  bodywork: { title: "Кузов и тюнинг", summary: "Восстанавливайте внешний вид и собирайте профиль машины.", unlocks: ["Кузовные работы", "Городской пакет", "Редкий тюнинг"] },
+  appraisal: { title: "Оценка и документы", summary: "Понимайте реальную цену, историю и юридические риски.", unlocks: ["Точный индекс", "Проверка VIN", "Коллекционные заказы"] },
+  sales: { title: "Переговоры", summary: "Находите подходящего клиента и защищайте маржу сделки.", unlocks: ["Встречные предложения", "Постоянные клиенты", "Премиальные продажи"] }
+};
+
+const achievementCatalog = [
+  { key: "first_purchase", title: "Первый гараж", description: "Купите первый автомобиль.", icon: "01", rewardXp: 40, test: (p) => p.stats.purchases >= 1 },
+  { key: "first_sale", title: "Сделка состоялась", description: "Продайте первый автомобиль.", icon: "02", rewardXp: 60, test: (p) => p.deals >= 1 },
+  { key: "profit_100k", title: "Первая серьёзная маржа", description: "Получите 100 000 ₽ прибыли на сделках.", icon: "₽", rewardXp: 90, test: (p) => p.profit >= 100000 },
+  { key: "self_repair_10", title: "Своими руками", description: "Выполните 10 самостоятельных ремонтов.", icon: "М", rewardXp: 120, test: (p) => p.stats.selfRepairs >= 10 },
+  { key: "perfect_inspection", title: "Вижу насквозь", description: "Проведите точную диагностику с результатом 100%.", icon: "D", rewardXp: 100, test: (p) => p.stats.perfectInspections >= 1 },
+  { key: "tuner", title: "Свой почерк", description: "Установите 5 улучшений на автомобили.", icon: "T", rewardXp: 100, test: (p) => p.stats.upgrades >= 5 },
+  { key: "reputation_75", title: "Мне доверяют", description: "Достигните 75 репутации.", icon: "★", rewardXp: 140, test: (p) => (p.reputation?.score || 0) >= 75 },
+  { key: "auction_winner", title: "Последняя ставка", description: "Выиграйте первый автомобильный аукцион.", icon: "A", rewardXp: 100, test: (p) => p.stats.auctionsWon >= 1 },
+  { key: "million_profit", title: "Автомобильный бизнес", description: "Заработайте 1 000 000 ₽ прибыли.", icon: "1M", rewardXp: 250, test: (p) => p.profit >= 1000000 }
+];
+
+function syncAchievements(player) {
+  player.achievements ||= { unlocked: [], claimed: [] };
+  const unlocked = new Set(player.achievements.unlocked);
+  for (const achievement of achievementCatalog) {
+    if (unlocked.has(achievement.key) || !achievement.test(player)) continue;
+    unlocked.add(achievement.key);
+    player.achievements.unlocked.push(achievement.key);
+    player.xp = (player.xp || 0) + achievement.rewardXp;
+    player.notifications ||= [];
+    player.notifications.push({ id: id("notice_"), type: "achievement", title: `Достижение: ${achievement.title}`, text: `${achievement.description} +${achievement.rewardXp} XP`, at: Date.now(), read: false });
+    if (player.notifications.length > 80) player.notifications.splice(0, player.notifications.length - 80);
+  }
+}
+
 const equipmentInfo = {
   diagnosticKit: { name: "Диагностический комплекс", description: "Сканер, эндоскоп и измерительные приборы", prices: [0, 28000, 82000, 175000] },
   workshop: { name: "Механическая мастерская", description: "Подъёмник, инструмент и динамоключ", prices: [0, 42000, 128000, 265000] },
@@ -401,11 +435,11 @@ const defectPartCatalog = {
 };
 
 const upgradeCatalog = [
-  { key: "detailing", name: "Профессиональный детейлинг", description: "Глубокая очистка салона, полировка кузова и фото-подготовка.", skill: "bodywork", equipment: "bodyStation", skillLevel: 1, equipmentLevel: 1, cost: 22000, value: 36000, condition: 4 },
-  { key: "maintenance", name: "Большое ТО", description: "Масла, фильтры и регламентные расходники с записью в историю.", skill: "mechanics", equipment: "workshop", skillLevel: 1, equipmentLevel: 1, cost: 34000, value: 52000, condition: 6 },
-  { key: "suspension", name: "Настройка ходовой", description: "Развал-схождение и настройка подвески для уверенного хода.", skill: "mechanics", equipment: "workshop", skillLevel: 2, equipmentLevel: 2, cost: 76000, value: 112000, condition: 8 },
-  { key: "electronics", name: "Профилактика электроники", description: "Проверка блоков, контактов и обновление сервисной истории.", skill: "electrics", equipment: "electricalBench", skillLevel: 2, equipmentLevel: 2, cost: 68000, value: 104000, condition: 5 },
-  { key: "restoration", name: "Предпродажная реставрация", description: "Комплексная подготовка редкого автомобиля с подтверждёнными работами.", skill: "appraisal", equipment: "bodyStation", skillLevel: 3, equipmentLevel: 3, cost: 165000, value: 255000, condition: 10 }
+  { key: "detailing", name: "Профессиональный детейлинг", profile: "comfort", demand: ["endBuyer", "budget"], description: "Глубокая очистка салона, полировка кузова и фото-подготовка.", skill: "bodywork", equipment: "bodyStation", skillLevel: 1, equipmentLevel: 1, cost: 22000, value: 36000, condition: 4 },
+  { key: "maintenance", name: "Большое ТО", profile: "utility", demand: ["endBuyer", "dealer", "budget"], description: "Масла, фильтры и регламентные расходники с записью в историю.", skill: "mechanics", equipment: "workshop", skillLevel: 1, equipmentLevel: 1, cost: 34000, value: 52000, condition: 6 },
+  { key: "suspension", name: "Настройка ходовой", profile: "sport", demand: ["specialist", "dealer"], description: "Развал-схождение и настройка подвески для уверенного хода.", skill: "mechanics", equipment: "workshop", skillLevel: 2, equipmentLevel: 2, cost: 76000, value: 112000, condition: 8 },
+  { key: "electronics", name: "Профилактика электроники", profile: "comfort", demand: ["endBuyer", "specialist"], description: "Проверка блоков, контактов и обновление сервисной истории.", skill: "electrics", equipment: "electricalBench", skillLevel: 2, equipmentLevel: 2, cost: 68000, value: 104000, condition: 5 },
+  { key: "restoration", name: "Предпродажная реставрация", profile: "classic", demand: ["collector", "specialist"], description: "Комплексная подготовка редкого автомобиля с подтверждёнными работами.", skill: "appraisal", equipment: "bodyStation", skillLevel: 3, equipmentLevel: 3, cost: 165000, value: 255000, condition: 10 }
 ];
 
 const employeeCandidates = [
@@ -435,10 +469,10 @@ const assetCatalog = [
   { key: "studio", type: "property", category: "residential", name: "Студия у университета", description: "Небольшая квартира с устойчивым спросом на аренду.", basePrice: 4200000, income: 42000, liquidity: 91, risk: 1, skill: "propertyAppraisal" },
   { key: "apartment", type: "property", category: "residential", name: "Двухкомнатная квартира", description: "Жилой район, косметический ремонт и долгосрочный арендатор.", basePrice: 7800000, income: 68000, liquidity: 83, risk: 2, skill: "propertyAppraisal" },
   { key: "country_house", type: "property", category: "residential", name: "Загородный дом", description: "Дом с участком, сезонная аренда даёт повышенную доходность.", basePrice: 14500000, income: 128000, liquidity: 57, risk: 3, skill: "propertyAppraisal" },
-  { key: "garage_block", type: "property", category: "commercial", name: "Блок из шести гаражей", description: "Полностью заняты арендаторами, минимальные расходы на содержание.", basePrice: 6100000, income: 74000, liquidity: 78, risk: 1, skill: "propertyManagement" },
-  { key: "office", type: "property", category: "commercial", name: "Офисное помещение", description: "Первый этаж бизнес-центра, договор аренды ещё на два года.", basePrice: 18500000, income: 195000, liquidity: 64, risk: 2, skill: "propertyManagement" },
-  { key: "warehouse", type: "property", category: "commercial", name: "Тёплый склад", description: "Промышленная зона, удобный подъезд и стабильный арендатор.", basePrice: 32000000, income: 365000, liquidity: 59, risk: 3, skill: "propertyManagement" },
-  { key: "retail", type: "property", category: "commercial", name: "Торговое помещение", description: "Угловой вход на первой линии, высокий трафик и дорогая эксплуатация.", basePrice: 68000000, income: 790000, liquidity: 52, risk: 4, skill: "propertyManagement" },
+  { key: "garage_block", type: "property", category: "commercial", propertyRole: "workshop", roleName: "Гаражный блок", description: "Полностью заняты арендаторами и подходит для первых ремонтных постов.", basePrice: 6100000, income: 74000, liquidity: 78, risk: 1, skill: "propertyManagement", carBonus: 0.025 },
+  { key: "office", type: "property", category: "commercial", propertyRole: "showroom", roleName: "Шоурум", description: "Первый этаж бизнес-центра с витриной для подготовленных автомобилей.", basePrice: 18500000, income: 195000, liquidity: 64, risk: 2, skill: "propertyManagement", carBonus: 0.06 },
+  { key: "warehouse", type: "property", category: "commercial", propertyRole: "parts", roleName: "Склад запчастей", description: "Тёплый склад с удобным подъездом и запасом под ремонтные сделки.", basePrice: 32000000, income: 365000, liquidity: 59, risk: 3, skill: "propertyManagement", carBonus: 0.04 },
+  { key: "retail", type: "property", category: "commercial", propertyRole: "premium_showroom", roleName: "Премиальный салон", description: "Первая линия и дорогая эксплуатация, зато сюда приходят коллекционеры.", basePrice: 68000000, income: 790000, liquidity: 52, risk: 4, skill: "propertyManagement", carBonus: 0.1 },
   { key: "crypton", type: "crypto", category: "crypto", symbol: "CRN", name: "Crypton", description: "Самый ликвидный цифровой актив игрового рынка.", basePrice: 285000, liquidity: 96, risk: 3, volatility: 0.035, skill: "riskManagement" },
   { key: "ethera", type: "crypto", category: "crypto", symbol: "ETHR", name: "Ethera", description: "Платформа игровых контрактов со средней волатильностью.", basePrice: 48000, liquidity: 90, risk: 3, volatility: 0.052, skill: "riskManagement" },
   { key: "solaris", type: "crypto", category: "crypto", symbol: "SLR", name: "Solaris", description: "Быстрый, но более рискованный цифровой актив.", basePrice: 7200, liquidity: 79, risk: 4, volatility: 0.075, skill: "riskManagement" },
@@ -594,8 +628,8 @@ function ensurePlayerDefaults(player) {
   player.equipment.historyTerminal ??= player.equipment.vinScanner || 0;
   for (const key of Object.keys(skillInfo)) player.skills[key] ??= 0;
   for (const key of Object.keys(equipmentInfo)) player.equipment[key] ??= 0;
-  player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0, partsSold: 0, partsBought: 0, upgrades: 0 };
-  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades", "assetsBought", "assetsSold"]) player.stats[key] ??= 0;
+  player.stats ||= { purchases: 0, inspections: 0, serviceDiagnostics: 0, selfRepairs: 0, assistedRepairs: 0, workshopRepairs: 0, auctionsWon: 0, bids: 0, partsSold: 0, partsBought: 0, upgrades: 0, perfectInspections: 0 };
+  for (const key of ["purchases", "inspections", "serviceDiagnostics", "selfRepairs", "assistedRepairs", "workshopRepairs", "auctionsWon", "bids", "partsSold", "partsBought", "upgrades", "assetsBought", "assetsSold", "perfectInspections"]) player.stats[key] ??= 0;
   player.chatState ||= { sentAt: [], lastNormalized: "", lastDuplicateAt: 0, violations: 0, mutedUntil: 0 };
   player.plateInventory ||= [];
   player.plateInventory = player.plateInventory.map(ensurePlate);
@@ -630,6 +664,8 @@ function ensurePlayerDefaults(player) {
   player.containerRewards ||= [];
   player.notifications ||= [];
   player.ledger ||= [];
+  player.achievements ||= { unlocked: [], claimed: [] };
+  syncAchievements(player);
   if (!player.contracts.length) player.contracts = generateContracts(player);
 }
 
@@ -1001,6 +1037,7 @@ function addXp(player, amount) {
   player.xp += amount;
   const newLevel = levelForXp(player.xp);
   if (newLevel > oldLevel) player.skillPoints += newLevel - oldLevel;
+  syncAchievements(player);
 }
 
 function currentValue(car) {
@@ -1059,12 +1096,15 @@ function saleEstimate(car, player = null) {
   const conditionAdjustment = clamp((car.condition - 65) * marketPrice * 0.0022, -marketPrice * 0.08, marketPrice * 0.08);
   const repairLiquidityPenalty = repaired.length ? Math.min(marketPrice * 0.035, repaired.length * 7000) : 0;
   const employeePremium = marketPrice * (groupEmployeeRating(employeePlayer, "sales") / 100) * 0.04 + marketPrice * (groupEmployeeRating(employeePlayer, "appraisal") / 100) * 0.025;
+  const ownedProperties = player?.ownedAssets?.filter((asset) => asset.type === "property") || [];
+  const propertyBonus = ownedProperties.reduce((sum, asset) => sum + Number(asset.carBonus || 0), 0);
+  const propertyPremium = Math.min(marketPrice * 0.16, marketPrice * propertyBonus);
   const installedPartsPremium = Math.min(marketPrice * 0.085, car.installedParts.reduce((sum, part) => {
     const qualityBonus = part.quality === "original" ? 1.35 : part.quality === "economy" ? 0.55 : part.quality === "restored" ? 0.7 : 1;
     return sum + part.estimatedValue * qualityBonus * (0.16 + part.reliability / 500);
   }, 0));
   const platePremium = car.plateIncluded && car.registration?.plate ? car.registration.plate.estimatedValue : 0;
-  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium + platePremium) / 1000) * 1000);
+  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium + platePremium + propertyPremium) / 1000) * 1000);
   const recommendedLow = Math.max(1, Math.round(expectedNpcPrice * 0.94 / 1000) * 1000);
   const recommendedHigh = Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000);
   const breakEven = Math.max(1, Math.ceil(car.invested * 1.02 / 1000) * 1000);
@@ -1073,7 +1113,7 @@ function saleEstimate(car, player = null) {
     expectedNpcPrice, recommendedLow, recommendedHigh, breakEven, invested: car.invested,
     unresolvedCount: unresolved.length, repairedCount: repaired.length,
     inspectionConfidence: inspection.confidence, inspectionLabel: inspection.label, upgradeValue: car.upgradeValue, upgradeCount: car.upgrades.length,
-    employeePremium: Math.round(employeePremium), installedPartsPremium: Math.round(installedPartsPremium), platePremium: Math.round(platePremium)
+    employeePremium: Math.round(employeePremium), installedPartsPremium: Math.round(installedPartsPremium), platePremium: Math.round(platePremium), propertyPremium: Math.round(propertyPremium)
   };
 }
 
@@ -1446,6 +1486,7 @@ function publicGroupView(group, viewer) {
 }
 
 function playerView(player) {
+  syncAchievements(player);
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
@@ -1453,7 +1494,7 @@ function playerView(player) {
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     marketMaxPrice: maxVehiclePriceForLevel(levelForXp(player.xp)), auctionUnlockLevel: AUCTION_UNLOCK_LEVEL, auctionUnlocked: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL,
-    skillPoints: player.skillPoints, skills: player.skills, equipment: player.equipment, stats: player.stats,
+    skillPoints: player.skillPoints, skills: player.skills, skillPaths, equipment: player.equipment, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory, plateInventory: player.plateInventory,
@@ -1465,6 +1506,7 @@ function playerView(player) {
     outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
     containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
     notifications: player.notifications.slice(-20).reverse(), unreadNotifications: player.notifications.filter((item) => !item.read).length,
+    achievements: { unlocked: player.achievements.unlocked, catalog: achievementCatalog.map(({ test, ...item }) => ({ ...item, unlocked: player.achievements.unlocked.includes(item.key) })) },
     activities: { ...player.activities, catalog: activityCatalog },
     ledger: player.ledger.slice(-100).reverse()
   };
@@ -2187,7 +2229,15 @@ function botAuctionCeiling(car, bot) {
   const collectorMatch = bot.type === "collector" && ["classic", "coupe", "roadster", "premium"].includes(car.className) ? 0.1 : bot.type === "collector" ? -0.12 : 0;
   const budgetPenalty = bot.type === "budget" && car.price > bot.budget * 0.8 ? 0.06 : 0;
   const dealerMargin = bot.type === "dealer" ? 0.08 : 0;
-  const multiplier = bot.risk + repairBonus + collectorMatch - liePenalty - uncertaintyPenalty - budgetPenalty - dealerMargin;
+  const tuningBonus = car.upgrades.reduce((sum, key) => {
+    const upgrade = upgradeCatalog.find((item) => item.key === key);
+    if (!upgrade) return sum;
+    if (upgrade.demand?.includes(bot.type)) return sum + 0.035;
+    if (bot.type === "collector" && upgrade.profile === "sport") return sum - 0.012;
+    if (bot.type === "budget" && upgrade.profile === "sport") return sum - 0.045;
+    return sum;
+  }, 0);
+  const multiplier = bot.risk + repairBonus + collectorMatch + tuningBonus - liePenalty - uncertaintyPenalty - budgetPenalty - dealerMargin;
   return Math.min(bot.budget, Math.max(1, Math.round(estimate.expectedNpcPrice * multiplier / 1000) * 1000));
 }
 
@@ -3028,6 +3078,7 @@ async function api(req, res, pathname) {
     const confidence = Math.min(100, Math.round(baseScore / 6 * 85 + interactionScore * 0.15));
     car.inspectionRecords[category] = { bestScore: baseScore, attempts: (previous?.attempts || 0) + 1, confidence, foundCodes: found.map((defect) => defect.code), interactionScore };
     car.checkedCategories = Object.keys(car.inspectionRecords);
+    if (interactionScore >= 95) player.stats.perfectInspections += 1;
     addXp(player, 20 + newFound.length * 15 + (interactionScore >= 80 ? 8 : 0));
     if (cost) addLedger(player, "inspection", `Осмотр: ${car.model} · ${category}`, -cost, { carId: car.id, score: interactionScore, category: "Гараж" });
     broadcast();
@@ -3056,6 +3107,7 @@ async function api(req, res, pathname) {
     for (const defect of found) if (!car.publicDiscovered.includes(defect.code)) car.publicDiscovered.push(defect.code);
     const confidence = Math.min(100, Math.round(baseScore / 6 * 85 + interactionScore * 0.15));
     car.publicInspectionRecords[category] = { bestScore: baseScore, confidence, inspector: player.name, at: Date.now(), interactionScore };
+    if (interactionScore >= 95) player.stats.perfectInspections += 1;
     addXp(player, 12 + newFound.length * 10 + (interactionScore >= 80 ? 6 : 0));
     if (cost) addLedger(player, "inspection", `Предпродажный осмотр: ${car.model}`, -cost, { carId: car.id, score: interactionScore, category: "Рынок" });
     broadcast();

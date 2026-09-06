@@ -2670,3 +2670,20 @@ body:has(#join-screen:not([hidden])) {
   .admin-profile-controls [data-admin-access] { grid-column: auto; width: 100%; }
 }
 
+.achievement-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.achievement-card { min-width: 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 11px; align-items: start; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-m); background: #fff; }
+.achievement-card.locked { opacity: .58; filter: saturate(.45); }
+.achievement-card.unlocked { border-color: #b7cfbd; background: #f5fbf5; }
+.achievement-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-family: var(--font-mono); font-size: 11px; font-weight: 900; }
+.achievement-card.unlocked .achievement-icon { background: var(--green); }
+.achievement-card strong, .achievement-card p, .achievement-card small { display: block; }
+.achievement-card strong { font-size: 13px; }
+.achievement-card p { min-height: 32px; margin: 5px 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.achievement-card small { color: var(--muted); font-size: 9px; font-weight: 700; }
+.property-role { display: inline-flex; width: fit-content; margin: 2px 0 8px; padding: 4px 7px; border: 1px solid #c6d7ec; border-radius: 3px; background: #f1f6fc; color: #315c8a; font-size: 9px; font-weight: 800; }
+.upgrade-profile { color: #315c8a !important; font-weight: 800; }
+.skill-path-card { display: grid; gap: 4px; padding: 14px; border: 1px solid #c6d7ec; border-radius: var(--radius-m); background: #f4f8fd; }
+.skill-path-card > span, .skill-path-card > small { color: #53708d; font-size: 9px; text-transform: uppercase; font-weight: 800; }
+.skill-path-card > strong { font-size: 15px; }
+.skill-path-card > p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+@media (max-width: 760px) { .achievement-grid { grid-template-columns: 1fr; } }
