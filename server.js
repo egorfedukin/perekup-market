@@ -1089,7 +1089,8 @@ function saleEstimate(car, player = null) {
   const repaired = car.defects.filter((defect) => defect.repaired);
   const inspection = inspectionSummary(car);
   const repairValue = repaired.reduce((sum, defect) => sum + defect.impact, 0);
-  const repairPremium = Math.min(marketPrice * 0.055, repairValue * 0.08);
+  const repairQualityFactor = repaired.reduce((sum, defect) => sum + ({ "Восстановление": 1.2, "Стандартный ремонт": 0.85, "Быстрый ремонт": 0.35 }[defect.repairQuality] || 0.7), 0);
+  const repairPremium = Math.min(marketPrice * 0.09, repairValue * 0.055 + marketPrice * repairQualityFactor * 0.006);
   const documentationPremium = car.serviceDiagnosed ? marketPrice * 0.045 : inspection.confidence >= 70 ? marketPrice * 0.018 : 0;
   const restoredPremium = repaired.length && !unresolved.length ? marketPrice * 0.07 : 0;
   const upgradePremium = Math.min(marketPrice * 0.11, car.upgradeValue * 0.22);
@@ -1281,7 +1282,7 @@ function publicDefect(defect, car = null) {
     consequence: defect.consequence, severity: defect.severity, skill: defect.skill,
     partName: partSpec?.name || null, partKey: partSpec?.sku || null, partRequired: Boolean(partSpec), partComponent: partSpec?.component || null,
     equipment: defect.equipment, equipmentLevel: defect.equipmentLevel,
-    repair: serviceRepairCost, repaired: defect.repaired,
+    repair: serviceRepairCost, repaired: defect.repaired, repairQuality: defect.repairQuality || null, repairReliability: defect.repairReliability || null,
     selfRepairable,
     serviceRepairCost, serviceLaborCost: laborBase,
     assistedRepairCost: Math.max(500, Math.round(laborBase * 0.58 / 500) * 500),
@@ -1556,6 +1557,8 @@ function snapshot(player) {
     player: player ? playerView(player) : null,
     market: market.filter((car) => canAccessCar(player, car) && (car.saleType !== "auction" || levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL || car.sellerId === player.id || car.participantIds?.includes(player.id))).map((car) => publicCar(car, car.sellerId === player?.id, player)),
     skillInfo,
+    skillPaths,
+    npcProfiles: bots.map(({ id, name, type, skill, budget, repairPremium }) => ({ id, name, type, skill, budget, repairPremium })),
     equipmentInfo,
     inspectionCategories: inspectionCategories(),
     inspectionRequirements,
@@ -3184,6 +3187,9 @@ async function api(req, res, pathname) {
     const interactionScore = clamp(Math.round(Number(body.interactionScore) || 0), 0, 100);
     player.cash -= totalCashCost;
     car.invested += totalCashCost + (suppliedPartCost ? 0 : installedPart?.purchasePrice || 0);
+    const repairScore = selfRepair ? interactionScore : assistedRepair ? 78 : 88;
+    defect.repairQuality = repairScore >= 92 ? "Восстановление" : repairScore >= 72 ? "Стандартный ремонт" : "Быстрый ремонт";
+    defect.repairReliability = clamp(Math.round(repairScore * (installedPart ? (0.72 + installedPart.reliability / 350) : 1)), 45, 100);
     defect.repaired = true;
     const partConditionFactor = installedPart ? 0.55 + installedPart.reliability / 200 : 1;
     const interactionBonus = selfRepair && interactionScore >= 85 ? 2 : selfRepair && interactionScore >= 65 ? 1 : 0;
