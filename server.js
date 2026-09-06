@@ -530,7 +530,10 @@ function schedulePersist() {
 
 function loadState() {
   const row = db.prepare("SELECT payload FROM game_state WHERE id = 1").get();
-  if (!row) return false;
+  if (!row) {
+    console.warn(`STATE_EMPTY: database has no saved row at ${path.join(DATA_DIR, "game.db")}`);
+    return false;
+  }
   try {
     const saved = JSON.parse(row.payload);
     loadedVehiclePricingVersion = Number(saved.vehiclePricingVersion || 0);
@@ -555,7 +558,8 @@ function loadState() {
   containerAuctions.push(...(saved.containerAuctions || []));
   for (const [playerId, craft] of (saved.clothingCrafts || [])) clothingCrafts.set(playerId, craft);
   clothingMarket.push(...(saved.clothingMarket || [])); itemContainerAuctions.push(...(saved.itemContainerAuctions || [])); Object.assign(cryptoHistory, saved.cryptoHistory || {});
-    return market.length > 0;
+    console.log(`STATE_LOADED: ${players.size} players, ${market.length} market cars from ${path.join(DATA_DIR, "game.db")}`);
+    return true;
   } catch (error) {
     console.error("Failed to load saved game:", error.message);
     return false;
