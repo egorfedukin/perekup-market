@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Рынок. — бесплатный многопользовательский симулятор торговли автомобилями в браузере. Покупайте, ремонтируйте и продавайте машины, участвуйте в торгах и развивайте гараж.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="Команда Рынок.">
+  <link rel="canonical" href="https://perekup-market.ru/">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Рынок.">
+  <meta property="og:title" content="Рынок. — многопользовательский симулятор торговли">
+  <meta property="og:description" content="Покупайте, ремонтируйте и продавайте автомобили на едином живом рынке, участвуйте в торгах и развивайте гараж.">
+  <meta property="og:url" content="https://perekup-market.ru/">
+  <meta property="og:image" content="https://perekup-market.ru/garage-scene.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Рынок. — симулятор торговли">
+  <meta name="twitter:description" content="Браузерная игра о покупке, ремонте и продаже автомобилей, торгах и развитии гаража.">
+  <link rel="icon" href="/garage-scene.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Рынок. — бесплатная игра о торговле автомобилями</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Рынок.","url":"https://perekup-market.ru/","description":"Бесплатный многопользовательский браузерный симулятор торговли автомобилями с торгами, ремонтами и гаражом.","applicationCategory":"Game","operatingSystem":"Web browser","inLanguage":"ru","playMode":"MultiPlayer","isAccessibleForFree":true,"genre":["Simulation","Strategy","Trading"]}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+  <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
+  <link rel="dns-prefetch" href="//images.unsplash.com">
+  <link rel="dns-prefetch" href="//commons.wikimedia.org">
+  <link rel="stylesheet" href="styles.css?v=iphone-nav-4">
+</head>
+<body>
+  <div id="join-screen" class="join-screen">
+    <div class="join-visual" aria-hidden="true">
+      <img src="registration-hero.png" alt="">
+      <div class="join-brand">РЫНОК<span>.</span></div>
+    </div>
+    <main class="join-panel">
+      <p class="eyebrow">Мультиплеерная биржа активов</p>
+      <h1 id="auth-title">Создай аккаунт.<br>Начни торговать.</h1>
+      <p class="join-copy">Один рынок для всех игроков. Покупай, ремонтируй и продавай автомобили, участвуй в торгах, развивай гараж и получай доход от недвижимости.</p>
+      <form id="join-form">
+        <div class="auth-switch" role="tablist" aria-label="Способ входа">
+          <button type="button" class="auth-switch-button active" data-auth-mode="register" role="tab" aria-selected="true">Регистрация</button>
+          <button type="button" class="auth-switch-button" data-auth-mode="login" role="tab" aria-selected="false">Вход</button>
+        </div>
+        <div class="auth-fields">
+          <label for="player-name">Логин<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
+          <label for="player-email" class="registration-only">Email для подтверждения<input id="player-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" pattern="[A-Za-z0-9!@#$%^&amp;*()_+\-=\[\]{};':&quot;\\|,.&lt;&gt;/?`~]{8,72}" autocomplete="current-password" placeholder="Английские буквы, цифры, символы" required></label>
+        </div>
+        <div class="auth-actions">
+          <button id="auth-submit" type="submit" data-auth-action="register">Создать аккаунт <span aria-hidden="true">→</span></button>
+        </div>
+        <p id="join-error" class="form-error" role="alert"></p>
+        <p class="auth-hint">При регистрации на email придёт ссылка подтверждения.</p>
+        <button type="button" class="forgot-link" data-auth-mode="recovery">Забыли логин или пароль?</button>
+      </form>
+      <form id="recovery-form" class="recovery-form" hidden>
+        <label for="recovery-email">Email регистрации<input id="recovery-email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+        <button id="recovery-submit" type="submit">Отправить письмо восстановления <span aria-hidden="true">→</span></button>
+        <p id="recovery-message" class="form-error" role="alert"></p>
+        <button type="button" class="forgot-link" data-auth-mode="login">Вернуться ко входу</button>
+      </form>
+      <div class="join-stats">
+        <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>
+        <div><strong>Расширяемый гараж</strong><span>места добавляются без верхнего лимита</span></div>
+        <div><strong>навсегда</strong><span>сохранение прогресса</span></div>
+      </div>
+      <nav class="public-links" aria-label="Информация о проекте">
+        <a href="/about.html">Об игре</a>
+        <a href="/requisites.html">Реквизиты</a>
+        <a href="/terms.html">Условия</a>
+        <a href="/privacy.html">Конфиденциальность</a>
+      </nav>
+    </main>
+  </div>
+
+  <div id="game" class="game" hidden>
+    <header class="topbar">
+      <a class="logo" href="#market" data-view="market" aria-label="Рынок, главная">Рынок<span>.</span></a>
+      <nav class="tabs" aria-label="Разделы игры">
+        <button class="tab active" data-view="market">Купить <span id="market-count" class="badge">0</span></button>
+        <button class="tab" data-view="garage">Мои авто <span id="garage-count" class="badge">0/4</span></button>
+        <button class="tab" data-view="auctions">Торги <span id="auction-count" class="badge">0</span></button>
+        <button class="tab" data-view="assets">Недвижимость</button>
+        <button class="tab desktop-collection-tab" data-view="assets" data-asset-mode="owned">Моя недвижимость</button>
+        <button class="tab more-sections-tab" data-mobile-menu aria-expanded="false">Ещё</button>
+      </nav>
+      <div class="wallet">
+        <span>Баланс</span>
+        <strong id="cash">0 ₽</strong>
+        <strong id="cash-compact" class="cash-compact">0 ₽</strong>
+      </div>
+      <button id="profile-button" class="profile-button" title="Открыть профиль"><span id="avatar">В</span><span><b id="profile-name">Игрок</b><small id="profile-level">1 уровень</small></span></button>
+      <button id="chat-shortcut" class="chat-shortcut" data-view="chat" title="Личные сообщения" aria-label="Личные сообщения"><i aria-hidden="true"></i><span id="chat-count" class="badge" hidden>0</span></button>
+      <button id="section-menu-button" class="section-menu-button" type="button" aria-label="Открыть разделы" aria-expanded="false"><i></i><i></i><i></i></button>
+    </header>
+    <button id="utility-menu-backdrop" class="utility-menu-backdrop" type="button" data-close-section-menu aria-label="Закрыть меню" hidden></button>
+    <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
+      <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
+      <button data-view="assets" data-asset-mode="owned"><span>Моя недвижимость</span><small>Ваши объекты и доход</small></button>
+      <span class="utility-group-label">Работа</span>
+      <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
+      <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
+      <span class="utility-group-label">Сообщество</span>
+      <button data-view="chat"><span>Сообщения</span><small>Личные диалоги и общий чат</small></button>
+      <button data-view="rating"><span>Рейтинг</span><small>Таблица лидеров</small></button>
+      <span class="utility-spacer"></span>
+      <button data-view="store"><span>Пополнить</span><small>Игровой баланс</small></button>
+      <button data-view="profile"><span>Личный кабинет</span><small>Прогресс и история</small></button>
+      <button id="admin-tab" data-view="admin" hidden><span>Управление</span><small>Игроки и модерация</small></button>
+    </nav>
+
+    <main class="content">
+      <section id="market-view" class="view active-view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Объявления обновляются в реальном времени</p>
+          <h2>Автомобильный рынок</h2>
+          </div>
+          <div class="market-pulse"><i></i><span id="online-label">Рынок онлайн</span><b id="rotation-label">Новый завоз через 00:45</b></div>
+        </div>
+        <div class="market-dashboard" aria-label="Сводка рынка">
+          <div><span>Активные лоты</span><strong id="market-kpi-listings">0</strong></div>
+          <div><span>Ниже рынка</span><strong id="market-kpi-deals">0</strong></div>
+          <div><span>Аукционы</span><strong id="market-kpi-auctions">0</strong></div>
+          <div><span>Моделей в продаже</span><strong id="market-kpi-models">0</strong></div>
+        </div>
+        <aside id="ad-market" class="ad-slot ad-slot-market" aria-label="Реклама" hidden></aside>
+        <div class="market-quick-filters" aria-label="Быстрые фильтры">
+          <button type="button" class="quick-filter active" data-market-preset="all">Все лоты</button>
+          <button type="button" class="quick-filter" data-market-preset="deals">Выгодные</button>
+          <button type="button" class="quick-filter" data-market-preset="auctions">Аукционы</button>
+          <button type="button" class="quick-filter" data-market-preset="budget">До 300 000 ₽</button>
+          <button type="button" class="quick-filter" data-market-preset="luxury">Редкие и люкс</button>
+          <button type="button" class="quick-filter" data-market-preset="fresh">Свежий завоз</button>
+          <button type="button" class="quick-filter" data-market-preset="mine">Мои лоты</button>
+        </div>
+        <button id="mobile-filter-toggle" class="secondary-button mobile-filter-toggle" type="button" aria-expanded="false">Фильтры и сортировка</button>
+        <form id="market-filters" class="market-filters">
+          <label class="market-search">Поиск<input id="market-search" name="query" type="search" maxlength="60" placeholder="Модель или продавец"></label>
+          <label>Цена от<input id="price-min" name="min" type="number" min="1" step="1" placeholder="1 ₽"></label>
+          <label>Цена до<input id="price-max" name="max" type="number" min="1" step="1" placeholder="5 000 000 ₽"></label>
+          <label>Класс<select id="class-filter" name="className"><option value="all">Все классы</option></select></label>
+          <label>Состояние<select id="condition-filter" name="condition"><option value="all">Любое</option><option value="good">Хорошее · 72%+</option><option value="medium">Есть нюансы · 52–71%</option><option value="low">Требует ремонта · до 51%</option></select></label>
+          <label>Относительно рынка<select id="price-band-filter" name="priceBand"><option value="all">Любая цена</option><option value="below">Ниже рынка</option><option value="fair">В рынке</option><option value="above">Выше рынка</option></select></label>
+          <label>Сортировка<select id="market-sort" name="sort"><option value="new">Сначала новые</option><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option></select></label>
+          <button class="primary-button" type="submit">Применить</button>
+          <button class="secondary-button" type="reset">Сбросить</button>
+          <span id="filter-result" class="filter-result"></span>
+        </form>
+        <div class="market-cars-label"><div><p class="eyebrow">Лоты ниже индекса и свежий завоз</p><h3>Автомобили на торгах</h3></div><span>Нажмите на карточку для подробностей</span></div>
+        <div id="market-grid" class="car-grid"></div>
+        <div id="market-load-more-wrap" class="market-load-more" hidden><button id="market-load-more" class="secondary-button" type="button">Показать ещё</button><span id="market-load-more-label"></span></div>
+        <section class="activity-board" aria-labelledby="activity-board-title">
+          <div class="activity-board-head"><div><p class="eyebrow">Короткие задания с наградой</p><h3 id="activity-board-title">Доска сделок</h3></div><span id="activity-streak">Сегодня: 0/4</span></div>
+          <div id="activity-grid" class="activity-grid"></div>
+        </section>
+        <details class="market-index">
+          <summary class="market-index-head"><div><p class="eyebrow">Цены на основе объявлений и завершённых сделок</p><h3>Подробный индекс рынка</h3></div><span>Открыть статистику по моделям</span></summary>
+          <div class="market-stats-head"><span>Модель</span><span>Продают сейчас</span><span>Индекс рынка</span><span>Нормальный диапазон</span></div>
+          <div id="market-stats-list" class="market-stats-list"></div>
+        </details>
+      </section>
+
+      <section id="garage-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Диагностика, ремонт и подготовка</p>
+            <h2>Мой автопарк</h2>
+          </div>
+          <div class="garage-value"><span>Вложено в авто</span><strong id="garage-value">0 ₽</strong></div>
+        </div>
+        <nav class="workspace-switcher" aria-label="Разделы гаража">
+          <button class="active" type="button" data-garage-mode="cars">Автомобили <span id="garage-workspace-count">0/4</span></button>
+          <button type="button" data-garage-mode="development">Развитие <span>Навыки и инструменты</span></button>
+          <button type="button" data-garage-mode="plates">Учёт и номера <span id="garage-plate-count">0 номеров</span></button>
+        </nav>
+        <section id="garage-cars-panel" class="workspace-panel">
+          <div class="garage-cars-heading"><div><p class="eyebrow">Ваши автомобили</p><h3>Машины в работе</h3></div><span>Осмотр, ремонт и продажа доступны в карточке</span></div>
+          <div id="garage-grid" class="garage-list"></div>
+          <div id="empty-garage" class="empty-state" hidden><div class="empty-icon">P</div><h3>В гараже пока пусто</h3><p>Выбери первую машину на общем рынке. Начинать лучше с недорогих вариантов.</p><button data-go-market>Открыть рынок</button></div>
+          <div class="garage-management">
+            <div><span>Вместимость</span><strong id="garage-capacity">4 места</strong><button class="secondary-button" data-expand-garage>Добавить место</button></div>
+            <div><span>Центр запчастей</span><strong id="part-stock-count">0 деталей</strong><button class="secondary-button" data-view="parts">Открыть</button></div>
+            <div><span>Карьерный прогресс</span><strong id="training-count">0 заданий</strong><button class="secondary-button" data-garage-mode="development">Перейти</button></div>
+          </div>
+        </section>
+        <section id="garage-development-panel" class="workspace-panel" hidden>
+        <div class="progress-strip">
+          <div class="level-block"><span>Уровень <b id="level-number">1</b></span><strong id="xp-label">0 / 150 XP</strong></div>
+          <div class="xp-track"><i id="xp-progress"></i></div>
+          <div class="skill-points">Очки навыков: <strong id="skill-points">0</strong></div>
+        </div>
+        <details class="garage-workshop" open>
+          <summary><div><p class="eyebrow">Развитие, инструменты и детали</p><h3>Мастерская и склад</h3></div><span>Открыть рабочую зону</span></summary>
+          <div class="training-strip"><div><strong>Практика оценщика</strong><span>Повторяемое задание: +75 XP, +7 000 ₽, каждое четвёртое даёт очко навыка</span></div><button class="primary-button" data-training>Выполнить задание</button></div>
+          <aside id="ad-garage" class="ad-slot ad-slot-garage" aria-label="Реклама" hidden></aside>
+        <div class="workshop-grid">
+          <section class="workshop-section">
+            <div class="workshop-heading"><div><p class="eyebrow">Диагностика и самостоятельный ремонт</p><h3>Навыки и профессии</h3></div></div>
+            <div id="skills-grid" class="upgrade-grid"></div>
+          </section>
+          <section class="workshop-section">
+            <div class="workshop-heading"><div><p class="eyebrow">Оснащение для осмотра и установки деталей</p><h3>Оборудование</h3></div></div>
+            <div id="equipment-grid" class="upgrade-grid"></div>
+          </section>
+        </div>
+        </details>
+        </section>
+        <section id="garage-plates-panel" class="workspace-panel" hidden>
+          <div class="plate-dashboard"><div><span>В коллекции</span><strong id="plate-inventory-count">0</strong></div><div><span>Установлено</span><strong id="plate-installed-count">0</strong></div><div><span>На бирже</span><strong id="plate-market-count">0</strong></div><button class="primary-button" data-issue-plate>Получить случайный номер · 12 000 ₽</button></div>
+          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Ваши свободные номера</p><h3>Моя коллекция</h3></div><span>Установите номер на автомобиль или выставьте его на биржу</span></div><div id="plate-inventory" class="plate-grid"></div></section>
+          <section class="plate-section"><div class="parts-panel-heading"><div><p class="eyebrow">Уникальные комбинации игроков и площадки</p><h3>Биржа номеров</h3></div><span>Комиссия с продажи игрока — 5%</span></div><form id="plate-filters" class="plate-filters"><input id="plate-query" type="search" placeholder="Например, А777АА 77 или A777AA" aria-label="Поиск по номеру, региону или продавцу"><select id="plate-rarity" aria-label="Редкость номера"><option value="all">Любая редкость</option><option value="common">Обычные</option><option value="rare">Зеркальные</option><option value="premium">Три одинаковые</option><option value="legendary">Коллекционные</option></select></form><div id="plate-market" class="plate-grid"></div></section>
+        </section>
+      </section>
+
+      <section id="parts-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Подбор, установка и торговля без универсальных комплектов</p><h2>Центр запчастей</h2></div><div class="market-pulse"><i></i><span>Каждая деталь привязана к модели и поломке</span></div></div>
+        <div id="parts-summary" class="parts-summary"></div>
+        <div class="parts-mode-controls" role="tablist" aria-label="Разделы центра запчастей"><button class="active" data-parts-mode="needs">Нужно для ремонта <span id="parts-needs-count">0</span></button><button data-parts-mode="stock">Мой склад <span id="parts-stock-tab-count">0</span></button><button data-parts-mode="market">Биржа <span id="parts-market-count">0</span></button></div>
+        <section id="parts-needs-panel" class="parts-hub-panel"><div class="parts-panel-heading"><div><p class="eyebrow">Все автомобили вашего гаража</p><h3>Подбор по ремонту</h3></div><span>Сначала найдите поломку, затем система подберёт точную деталь</span></div><div id="parts-car-switcher" class="parts-car-switcher" aria-label="Автомобили для подбора деталей"></div><div id="parts-needs-list" class="parts-needs-list"></div></section>
+        <section id="parts-stock-panel" class="parts-hub-panel" hidden><div class="parts-panel-heading"><div><p class="eyebrow">Купленные и снятые с автомобилей детали</p><h3>Мой склад</h3></div><span>Ресурс и надёжность влияют на цену автомобиля после установки</span></div><div id="parts-inventory-list" class="parts-inventory-grid"></div></section>
+        <section id="parts-market-panel-view" class="parts-hub-panel" hidden><div class="parts-panel-heading"><div><p class="eyebrow">Предложения разборок, магазинов и игроков</p><h3>Биржа деталей</h3></div><span>Спрос зависит от совместимости, качества и цены</span></div><div class="parts-filters"><select id="parts-filter-component" aria-label="Узел детали"><option value="all">Все узлы</option><option value="engine">Двигатель</option><option value="chassis">Ходовая</option><option value="body">Кузов</option><option value="electrics">Электрика</option><option value="tires">Шины</option></select><select id="parts-filter-quality" aria-label="Качество детали"><option value="all">Любое качество</option><option value="economy">Бюджет</option><option value="analog">Надёжный аналог</option><option value="original">Оригинал</option><option value="restored">Восстановленная</option></select><input id="parts-filter-query" type="search" placeholder="Модель, деталь или артикул" aria-label="Поиск деталей"></div><div id="parts-market-trends" class="parts-market-trends"></div><div id="parts-market-list" class="parts-exchange-list"></div></section>
+      </section>
+
+      <section id="deals-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Предложения по вашим объявлениям</p>
+            <h2>Сделки и переговоры</h2>
+          </div>
+        </div>
+        <div class="deals-columns">
+          <section class="deals-section">
+            <h3>Предложения вам</h3>
+            <div id="incoming-offers" class="offers-list"></div>
+          </section>
+          <section class="deals-section">
+            <h3>Ваши предложения</h3>
+            <div id="outgoing-offers" class="offers-list"></div>
+          </section>
+        </div>
+        <section class="contracts-section">
+          <div class="workshop-heading"><div><p class="eyebrow">Дополнительный заработок и репутация</p><h3>Контракты</h3></div><div id="reputation-badge" class="reputation-badge">Репутация 50</div></div>
+          <div id="contracts-list" class="contracts-list"></div>
+        </section>
+      </section>
+
+      <section id="chat-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Общий канал игроков</p><h2>Сообщество</h2></div>
+          <div class="market-pulse"><i></i><span>Модерация включена</span></div>
+        </div>
+        <nav class="workspace-switcher chat-switcher" aria-label="Режимы общения"><button class="active" type="button" data-chat-mode="public">Общий чат <span>Видят все игроки</span></button><button type="button" data-chat-mode="direct">Личные сообщения <span id="direct-unread-label">Нет новых</span></button></nav>
+        <section id="public-chat-panel" class="workspace-panel chat-shell">
+          <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" name="message" minlength="1" maxlength="200" autocomplete="off" placeholder="Сообщение игрокам" required>
+            <button class="primary-button" type="submit">Отправить</button>
+          </form>
+        </section>
+        <section id="direct-chat-panel" class="workspace-panel direct-shell" hidden>
+          <aside class="direct-sidebar"><div class="direct-sidebar-head"><strong>Диалоги</strong><span>Только начатые переписки</span></div><div id="direct-users" class="direct-users"></div></aside>
+          <div class="direct-conversation"><header id="direct-head"><strong>Выберите игрока</strong><span>Диалог откроется здесь</span></header><div id="direct-messages" class="chat-messages direct-messages" aria-live="polite"></div><form id="direct-form" class="chat-form" hidden><input id="direct-input" name="message" minlength="1" maxlength="200" autocomplete="off" placeholder="Личное сообщение" required><button class="primary-button" type="submit">Отправить</button></form></div>
+        </section>
+      </section>
+
+      <section id="rating-view" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Результаты активных игроков за всё время</p>
+            <h2>Рейтинг игроков</h2>
+          </div>
+          <div class="my-profit"><span id="my-rank">Ваше место</span><strong id="my-profit">0 ₽</strong></div>
+        </div>
+        <div id="leader-podium" class="leader-podium"></div>
+        <div class="leaderboard">
+          <div class="leader-head"><span>Игрок</span><span>Сделки</span><span>Чистая прибыль</span></div>
+          <div id="leader-list"></div>
+        </div>
+      </section>
+
+      <section id="team-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Совместная касса, роли и работа сотрудников</p><h2>Командный бизнес</h2></div></div>
+        <section class="group-panel"><div class="workshop-heading"><div><p class="eyebrow">Группа и общий гараж</p><h3>Штаб команды</h3></div></div><div id="group-content"></div><div id="group-business" class="group-business"></div><div id="group-jobs" class="group-jobs"></div><div id="group-members" class="group-members"></div><div id="group-garage" class="group-garage"></div><div id="group-employees" class="group-employees"></div><div id="group-activity" class="group-activity"></div></section>
+        <section class="npc-panel"><div class="workshop-heading"><div><p class="eyebrow">Специалисты выполняют задачи за счет группы</p><h3>Персонал</h3></div></div><div id="team-npc-note" class="inspection-summary">Наймите диагноста или механика, внесите автомобиль в общий гараж и отправьте его на обслуживание.</div></section>
+      </section>
+
+      <section id="assets-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Объекты, арендаторы и обязательные платежи</p><h2>Недвижимость</h2></div><div class="market-pulse"><i></i><span>Арендный рынок онлайн</span></div></div>
+        <div id="asset-summary" class="parts-summary asset-summary"></div>
+        <div class="asset-mode-controls" hidden><button data-asset-mode="property"></button></div>
+        <section id="clothing-workshop" hidden><span id="clothing-craft-status"></span><strong id="clothing-craft-timer"></strong><button data-clothing-craft></button><button data-clothing-claim hidden></button></section>
+        <section id="clothing-inventory-panel" hidden><div id="clothing-inventory-stats"></div><div id="clothing-inventory"></div></section>
+        <section id="property-income-panel" class="property-income-panel"><div><p class="eyebrow">Арендный поток</p><h3>Доход недвижимости</h3><span id="property-income-explanation">Начисляется отдельно по каждому объекту</span></div><div><span>К получению</span><strong id="property-income-value">0 ₽</strong><small id="property-income-rate">0 ₽ в минуту</small></div><button class="primary-button" data-asset-income disabled>Получить доход</button></section>
+        <form id="asset-filters" class="market-filters asset-filters" hidden>
+          <input name="type" type="hidden" value="all">
+          <label>Категория<select name="category"><option value="all">Все активы</option><option value="collectibles">Коллекции</option><option value="residential">Жилая недвижимость</option><option value="commercial">Коммерческая недвижимость</option></select></label>
+          <label>Цена от<input name="min" type="number" min="1" step="10000" placeholder="10 000 ₽"></label>
+          <label>Цена до<input name="max" type="number" min="1" step="10000" placeholder="100 000 000 ₽"></label>
+          <label>Сортировка<select name="sort"><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option><option value="income">По доходности</option></select></label>
+          <button class="primary-button" type="submit">Применить</button><button class="secondary-button" type="reset">Сбросить</button><span id="asset-filter-result" class="filter-result"></span>
+        </form>
+        <div id="property-market-heading" class="asset-section-head"><div><p class="eyebrow">Жилая и коммерческая недвижимость</p><h3>Объекты на продажу</h3></div><span>Сравнивайте цену, доходность, состояние и ликвидность</span></div>
+        <div id="asset-market-grid" class="asset-grid"></div>
+        <div id="asset-load-more-wrap" class="market-load-more" hidden><button id="asset-load-more" class="secondary-button" type="button">Показать ещё</button><span id="asset-load-more-label"></span></div>
+        <div id="property-owned-heading" class="asset-section-head"><div><p class="eyebrow">Ваши объекты</p><h3>Управление недвижимостью</h3></div><span>Арендаторы, налоги и техническое состояние</span></div>
+        <div id="owned-assets" class="owned-assets"></div>
+      </section>
+
+      <section id="exchange-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Ликвидные активы и рыночный риск</p><h2>Биржа активов</h2></div><div class="market-pulse"><i></i><span>Котировки обновляются в реальном времени</span></div></div>
+        <div id="exchange-summary" class="parts-summary asset-summary"></div>
+        <section id="crypto-terminal" class="crypto-terminal"><div id="crypto-quote-tabs" class="crypto-quote-tabs"></div><div class="crypto-chart-panel"><div id="crypto-chart-head"></div><div id="crypto-chart" class="market-chart"></div></div><form id="crypto-trade" class="crypto-trade"><input name="key" type="hidden"><label>Сумма операции<input name="rubles" type="number" min="100" step="100" value="10000"></label><button class="primary-button" name="action" value="buy">Купить</button><button class="secondary-button" name="action" value="sell">Продать</button></form></section>
+        <div class="asset-section-head"><div><p class="eyebrow">Криптовалюта, коллекции и оборудование</p><h3>Доступные позиции</h3></div><span>Недвижимость и одежда вынесены в отдельные разделы</span></div>
+        <div id="exchange-market" class="asset-grid"></div>
+        <div class="asset-section-head"><div><p class="eyebrow">Ваши инвестиции</p><h3>Портфель биржи</h3></div><span>Текущая оценка и быстрая продажа</span></div>
+        <div id="exchange-owned" class="owned-assets"></div>
+      </section>
+
+      <section id="wardrobe-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Личная коллекция и мастерская</p><h2>Гардероб</h2></div></div>
+        <section class="clothing-workshop"><div><p class="eyebrow">Стартовая мастерская</p><h3>Сшить случайную вещь</h3><span id="wardrobe-craft-status">Материалы стоят 1 200 ₽ · готовность 30–120 секунд</span></div><div class="clothing-craft-actions"><strong id="wardrobe-craft-timer"></strong><button class="primary-button" data-clothing-craft>Сшить вещь</button><button class="secondary-button" data-clothing-claim hidden>Забрать вещь</button></div></section>
+        <section class="clothing-inventory-panel"><div class="asset-section-head"><div><p class="eyebrow">Коллекция игрока</p><h3>Мои вещи</h3></div><span>Редкость влияет на ценность и шанс выпадения</span></div><div id="wardrobe-stats" class="clothing-inventory-stats"></div><div id="wardrobe-inventory" class="clothing-inventory"></div></section>
+        <section><div class="asset-section-head"><div><p class="eyebrow">Торговля между игроками</p><h3>Рынок вещей</h3></div><span>Комиссия продавца 5%</span></div><div id="clothing-market" class="clothing-market"></div></section>
+        <section><div class="asset-section-head"><div><p class="eyebrow">Закрытые лоты</p><h3>Контейнеры с вещами</h3></div><span>Редкость известна, содержимое откроется победителю</span></div><div id="item-container-grid" class="item-container-grid"></div></section>
+      </section>
+
+      <section id="business-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Личные предприятия и операционная прибыль</p><h2>Бизнес</h2></div><div class="market-pulse"><i></i><span>Расчёт каждые 60 секунд</span></div></div>
+        <div id="business-summary" class="parts-summary asset-summary"></div>
+        <section class="business-owned-section"><div class="asset-section-head"><div><p class="eyebrow">Ваши предприятия</p><h3>Управление</h3></div><span>Нанимайте сотрудников и повышайте уровень</span></div><div id="owned-businesses" class="business-grid"></div></section>
+        <section class="business-market-section"><div class="asset-section-head"><div><p class="eyebrow">Готовые предприятия</p><h3>Купить бизнес</h3></div><span>Доход зависит от штата, уровня и репутации</span></div><div id="business-market" class="business-grid"></div></section>
+      </section>
+
+      <section id="auctions-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Ставки обновляются в реальном времени</p><h2>Торги</h2></div><div class="market-pulse"><i></i><span>Автомобили и закрытые боксы</span></div></div>
+        <nav class="auction-workspace-tabs" role="tablist" aria-label="Виды торгов">
+          <button class="active" type="button" data-auction-mode="cars" role="tab" aria-selected="true"><span>Автомобили</span><b id="auction-cars-count">0</b><small>Открытые лоты</small></button>
+          <button type="button" data-auction-mode="containers" role="tab" aria-selected="false"><span>Контейнеры</span><b id="auction-containers-count">0</b><small>Закрытые боксы</small></button>
+          <button type="button" data-auction-mode="mine" role="tab" aria-selected="false"><span>Мои ставки</span><b id="auction-mine-count">0</b><small>Лоты под контролем</small></button>
+        </nav>
+        <details id="auction-notification-panel" class="auction-notification-panel" hidden><summary><span>События торгов</span><b id="auction-notification-summary">0 уведомлений</b></summary><div id="auction-notifications" class="auction-notifications"></div></details>
+        <section id="auction-cars-panel" class="auction-section"><div class="auction-section-head"><div><p class="eyebrow">Состояние раскрыто до ставки</p><h3 id="auction-cars-title">Автомобильные лоты</h3></div><span>Нажмите на фото для осмотра и истории</span></div><details class="auction-filter-panel"><summary><span>Фильтры и сортировка</span><b>Настроить выдачу</b></summary><form id="auction-filters" class="auction-filters"><select name="condition" aria-label="Состояние"><option value="all">Любое состояние</option><option value="good">Хорошее · 72%+</option><option value="medium">Есть нюансы · 52–71%</option><option value="low">Требует ремонта</option></select><select name="seller" aria-label="Продавец"><option value="all">Все продавцы</option><option value="npc">Торговые площадки</option><option value="player">Частные продавцы</option></select><input name="max" type="number" min="1" step="1" placeholder="Максимальная ставка"><select name="sort" aria-label="Сортировка"><option value="ending">Сначала завершающиеся</option><option value="price">Сначала дешевле</option><option value="condition">Сначала лучшее состояние</option></select><button class="secondary-button" type="submit">Применить</button><button class="secondary-button" type="reset">Сбросить</button><span id="auction-filter-result"></span></form></details><div id="auction-car-grid" class="auction-car-grid"></div></section>
+        <section id="auction-containers-panel" class="auction-section container-auction-section" hidden><div class="auction-section-head"><div><p class="eyebrow">Содержимое откроется победителю</p><h3 id="auction-containers-title">Контейнерные аукционы</h3></div><span>Диапазон стоимости известен заранее</span></div>
+        <details class="container-guide-panel"><summary><span>Какие бывают контейнеры</span><b>Показать диапазоны</b></summary><div class="container-guide"><div><strong>Забытый бокс</strong><span>Проекты от 10 000 ₽</span></div><div><strong>Гаражная находка</strong><span>Первый оборот</span></div><div><strong>Дилерский склад</strong><span>Средний сегмент</span></div><div><strong>Трековый ангар</strong><span>Спортивные машины</span></div><div><strong>Коллекционный бокс</strong><span>Редкие автомобили</span></div></div></details>
+        <div id="container-grid" class="container-grid"></div>
+        </section>
+      </section>
+
+      <section id="store-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Поддержка проекта и новые сделки</p><h2>Поддержать «Рынок»</h2></div><div class="market-pulse"><i></i><span id="store-status">Безопасная оплата</span></div></div>
+        <div class="store-intro"><div><strong>Помогите развивать автомобильный рынок</strong><p>Игровой капитал пригодится для диагностики, ремонта, торгов, номеров и покупки недвижимости. Выберите любой удобный пакет.</p></div><span>Разовый платёж · подписки нет · от 20 ₽</span></div>
+        <div id="store-packages" class="store-packages"></div>
+        <div class="store-notice"><strong>Важно</strong><p>Покупка пополняет только игровой баланс и не влияет на рейтинг прибыли. Игровые рубли нельзя вывести или обменять обратно на реальные деньги. Совершая платёж, вы принимаете <a href="/terms.html" target="_blank">условия покупки</a>.</p></div>
+      </section>
+
+      <section id="admin-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Управление проектом</p><h2>Админский кабинет</h2></div><button class="secondary-button" data-admin-refresh>Обновить</button></div>
+        <div id="admin-economy" class="profile-stats"></div>
+        <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Сообщения, отмеченные игроками</p><h3>Жалобы чата</h3></div></div><div id="admin-reports" class="admin-reports"></div></section>
+        <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Баланс и состояние аккаунтов</p><h3>Игроки</h3></div></div><div id="admin-players" class="admin-players"></div></section>
+      </section>
+
+      <section id="profile-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Аккаунт и прогресс</p><h2>Личный кабинет</h2></div>
+          <button class="secondary-button" data-logout>Выйти из аккаунта</button>
+        </div>
+        <nav class="workspace-switcher" aria-label="Разделы личного кабинета">
+          <button class="active" type="button" data-profile-mode="overview">Обзор <span>Аккаунт и быстрые действия</span></button>
+          <button type="button" data-profile-mode="progress">Прогресс <span>Навыки и оборудование</span></button>
+          <button type="button" data-profile-mode="history">История <span>Доходы и расходы</span></button>
+        </nav>
+        <section id="profile-overview-panel" class="workspace-panel">
+          <div class="profile-hero">
+          <div class="profile-monogram" id="profile-monogram">P</div>
+          <div class="profile-identity"><p class="eyebrow">Профиль игрока</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p><div class="profile-level-track"><i id="profile-xp-bar"></i></div><small id="profile-xp-label">0 XP до следующего уровня</small></div>
+          <div class="profile-capital"><span>Общий баланс</span><strong id="profile-cash">0 ₽</strong></div>
+          <div class="profile-reputation"><span>Репутация</span><strong id="profile-reputation">50/100</strong></div>
+          </div>
+          <form id="profile-edit-form" class="profile-edit-form"><div><p class="eyebrow">Настройки профиля</p><h3>Как вас видят игроки</h3></div><label>Ник и логин<input id="profile-edit-name" maxlength="20" minlength="2" autocomplete="off" required><small>После смены входите по новому нику</small></label><label>Аватар<input id="profile-edit-avatar" maxlength="4" placeholder="🚗" aria-describedby="profile-avatar-hint"><small id="profile-avatar-hint">Один эмодзи или до двух символов</small></label><button class="primary-button" type="submit">Сохранить профиль</button><p id="profile-edit-message" class="form-error" role="alert"></p></form>
+        <nav class="profile-shortcuts" aria-label="Быстрые действия">
+          <button data-view="garage"><strong>Мои автомобили</strong><span>Осмотр, ремонт и продажа</span></button>
+          <button data-view="deals"><strong>Предложения</strong><span>Ответить покупателям и продавцам</span></button>
+          <button data-open-development><strong>Развитие</strong><span>Навыки, практика и оборудование</span></button>
+          <button data-view="team"><strong>Команда</strong><span>Общий бизнес и сотрудники</span></button>
+        </nav>
+        <div id="profile-stats" class="profile-stats"></div>
+        <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Независимая браузерная игра</h3><p>«Рынок» — симулятор торговли автомобилями с торгами, ремонтами, гаражом и пассивной недвижимостью. Экономика общая для всех игроков, прогресс хранится на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Проект на GitHub</a></section>
+        </section>
+        <section id="profile-progress-panel" class="workspace-panel" hidden>
+        <div class="profile-columns">
+          <section><p class="eyebrow">Что вы умеете</p><h3>Навыки</h3><div id="profile-skills" class="profile-list"></div></section>
+          <section><p class="eyebrow">Что есть в мастерской</p><h3>Оборудование</h3><div id="profile-equipment" class="profile-list"></div></section>
+        </div>
+        </section>
+        <section id="profile-history-panel" class="workspace-panel" hidden>
+        <section class="deal-history-panel"><div class="workshop-heading"><div><p class="eyebrow">Покупки, продажи и расходы</p><h3>История операций</h3></div><span id="ledger-summary">Последние события</span></div><div id="deal-history" class="deal-history"></div></section>
+        </section>
+      </section>
+    </main>
+
+    <div id="car-modal" class="modal" hidden>
+      <button class="modal-backdrop" data-close-modal aria-label="Закрыть окно"></button>
+      <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="icon-button close-button" data-close-modal title="Закрыть" aria-label="Закрыть">×</button>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+
+    <div id="player-modal" class="modal player-modal" hidden>
+      <button class="modal-backdrop" data-close-player-modal aria-label="Закрыть профиль"></button>
+      <section class="modal-panel player-profile-panel" role="dialog" aria-modal="true" aria-labelledby="player-profile-title">
+        <button class="icon-button close-button" data-close-player-modal title="Закрыть" aria-label="Закрыть">×</button>
+        <div id="player-profile-content"></div>
+      </section>
+    </div>
+    <div id="property-modal" class="modal" hidden><button class="modal-backdrop" data-close-property-modal aria-label="Закрыть окно"></button><section class="modal-panel property-detail-panel" role="dialog" aria-modal="true"><button class="icon-button close-button" data-close-property-modal title="Закрыть" aria-label="Закрыть">×</button><div id="property-modal-content"></div></section></div>
+    <div id="plate-result-modal" class="modal" hidden><button class="modal-backdrop" data-close-plate-result aria-label="Закрыть окно"></button><section class="modal-panel plate-result-panel" role="dialog" aria-modal="true" aria-labelledby="plate-result-title"><button class="icon-button close-button" data-close-plate-result title="Закрыть" aria-label="Закрыть">×</button><div id="plate-result-content"></div></section></div>
+
+    <div id="toast" class="toast" role="status"></div>
+    <div id="skill-challenge" class="skill-challenge" hidden></div>
+    <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/about.html" target="_blank">Об игре</a> · <a href="/requisites.html" target="_blank">Реквизиты</a> · <a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
+  </div>
+  <script src="/runtime-config.js"></script>
+  <script src="app.js?v=iphone-nav-5"></script>
+</body>
+</html>

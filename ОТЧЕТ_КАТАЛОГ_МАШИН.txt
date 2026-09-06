@@ -1,0 +1,158 @@
+﻿ЛОКАЛЬНЫЙ КАТАЛОГ МАШИН
+
+Принято: 2101
+Отклонено из-за нераспознаваемого имени: 148
+Контейнер cheap: 88
+Контейнер middle: 1871
+Контейнер performance: 41
+Контейнер premium: 101
+
+НЕРАСПОЗНАННЫЕ ФАЙЛЫ
+19257.webp
+19258.webp
+19261.webp
+19263.webp
+aitoseresm5.webp
+aitoseresm7.webp
+amberavtoa5.webp
+atomatom.webp
+aurusarsenal.webp
+auruskomendant.webp
+aurussenat.webp
+aurussenatlimousine.webp
+belgee s50.webp
+belgee x50 plus.webp
+belgee x50.webp
+belgee x70.webp
+belgees50.webp
+belgeex50 plus.webp
+belgeex50.webp
+belgeex70.webp
+bestuneb70.webp
+bestunet90.webp
+daf33.webp
+daf600.webp
+daf66.webp
+dfsk500.webp
+dfskix5.webp
+dfskix7.webp
+esteoexlantix et8.webp
+esteomx.webp
+esteov27.webp
+exlantix es.webp
+exlantix et.webp
+exlantixes.webp
+exlantixet.webp
+forthingt5 evo.webp
+forthingt5.webp
+forthingthunder.webp
+forthingyacht.webp
+gac aion v.webp
+gac gn8.webp
+gac gs4.webp
+gac gs5.webp
+gac gs8.webp
+gac m8.webp
+gacaion v.webp
+gacempow.webp
+gacgn8.webp
+gacgs3.webp
+gacgs4.webp
+gacgs5.webp
+gacgs8.webp
+gacm8.webp
+gacs7.webp
+gactrumpchigm8.webp
+huanghain7.webp
+jaguarc x75.webp
+jaguarepace.webp
+jaguarftype.webp
+jaguari pace.webp
+jaguarxf.webp
+jaguarxj.webp
+jaguarxj220.webp
+jaguarxj42.webp
+jaguarxjr15.webp
+jaguarxjs.webp
+jaguarxk.webp
+jaguarxk120.webp
+jelandj6.webp
+jelandj7.webp
+jettava3.webp
+jettava7.webp
+jettavs5.webp
+jettavs7.webp
+jmc vigus.webp
+jmcbaodian.webp
+jmcvigus.webp
+kaiyi e5.webp
+kaiyie5.webp
+kaiyix3 pro.webp
+kaiyix3.webp
+kaiyix7.webp
+kgm korando.webp
+kgm rexton.webp
+kgm tivoli.webp
+kgm torres.webp
+kgmactyon.webp
+kgmkorando.webp
+kgmrexton.webp
+kgmtivoli.webp
+kgmtorres.webp
+knewstar001.webp
+livans6 pro.webp
+livanx3 pro.webp
+livanx6 pro.webp
+lixiangi8.webp
+lixiangl7.webp
+lixiangl9.webp
+mheroi.webp
+ora03.webp
+oraballet cat.webp
+orahaomao.webp
+otingpaladin.webp
+otingpalasso.webp
+rox01.webp
+roxadamas.webp
+senat900.webp
+skmm7 van.webp
+skmm7.webp
+skywellet5.webp
+skywellht i.webp
+solarishc.webp
+solarishs.webp
+solariskrs.webp
+solariskrx.webp
+sollersargo.webp
+sollersatlant.webp
+sollerss9.webp
+sollerssf1 minivan.webp
+sollerssf1.webp
+sollerssf5.webp
+sollerssf7.webp
+sollerssp7.webp
+sollersst6.webp
+sollersst8.webp
+sollersst9.webp
+swmg01.webp
+swmg01f.webp
+swmg05 pro.webp
+umo5.webp
+umo8.webp
+uni k.webp
+uni s.webp
+uni t.webp
+uni v.webp
+venuciad50.webp
+venuciad60 plus.webp
+venuciar50.webp
+venuciat70.webp
+vgvu70.webp
+vgvu75.webp
+wey05.webp
+wey07.webp
+wey80.webp
+xcitexcross7.webp
+xcitexcross8.webp
+yangwangu8.webp
+yangwangu9.webp

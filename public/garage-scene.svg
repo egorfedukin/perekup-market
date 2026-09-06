@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="Автомобиль в гараже">
+  <rect width="1200" height="900" fill="#20221f"/>
+  <path d="M0 600h1200v300H0z" fill="#151614"/>
+  <path d="M0 600h1200M0 735h1200M165 600l-95 300M435 600l-35 300M765 600l35 300M1035 600l95 300" stroke="#333630" stroke-width="5"/>
+  <path d="M58 70h1084v470H58z" fill="#292c28" stroke="#393d37" stroke-width="10"/>
+  <path d="M70 210h1060M70 350h1060M335 80v450M600 80v450M865 80v450" stroke="#343833" stroke-width="7"/>
+  <g opacity=".5"><path d="M110 25h290l-80 170H30z" fill="#f4d178"/><path d="M800 25h290l80 170H880z" fill="#f4d178"/></g>
+  <ellipse cx="605" cy="724" rx="430" ry="72" fill="#090a09" opacity=".7"/>
+  <g transform="translate(120 355)">
+    <path d="M120 252c24-91 57-151 126-168 173-43 387-46 532 2 58 19 90 78 116 166l56 23v134H56V287z" fill="#c84d38"/>
+    <path d="M260 99c77-33 357-36 477 4l73 133H188z" fill="#1c2528"/>
+    <path d="M296 111l-69 111h243V99c-69 0-129 3-174 12zM501 99v123h266l-59-108c-51-10-124-15-207-15z" fill="#8da5aa" opacity=".65"/>
+    <path d="M76 286h850v101H76z" fill="#b53f30"/>
+    <path d="M392 278h217v64H392z" fill="#262925"/>
+    <path d="M417 292h166v32H417z" fill="#e4e0cd"/>
+    <path d="M94 277h147v78H77zM759 277h167l-18 78H759z" fill="#f1d07a"/>
+    <circle cx="212" cy="401" r="78" fill="#111210"/><circle cx="212" cy="401" r="43" fill="#74766f"/><circle cx="794" cy="401" r="78" fill="#111210"/><circle cx="794" cy="401" r="43" fill="#74766f"/>
+  </g>
+  <text x="64" y="850" fill="#f2eee4" opacity=".14" font-family="Arial" font-size="122" font-weight="900">ТОРГ У КАПОТА</text>
+</svg>
