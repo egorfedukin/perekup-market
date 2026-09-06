@@ -1468,7 +1468,7 @@ function leaderboardView(viewer) {
   const isActive = (candidate) => candidate.deals > 0 || candidate.profit !== 0 || candidate.xp > 0
     || candidate.stats?.purchases > 0 || candidate.stats?.bids > 0 || candidate.stats?.inspections > 0
     || candidate.stats?.assetsBought > 0 || candidate.training?.completed > 0;
-  const participants = [...players.values()].filter((candidate) => isActive(candidate) || candidate.id === viewer?.id)
+  const participants = [...players.values()].filter((candidate) => !banMessage(candidate))
     .sort((a, b) => b.profit - a.profit || b.deals - a.deals || b.xp - a.xp || a.name.localeCompare(b.name, "ru"));
   const rows = participants.map((candidate, index) => ({
     id: candidate.id, name: candidate.name, profit: candidate.profit, deals: candidate.deals,
@@ -2296,8 +2296,9 @@ async function api(req, res, pathname) {
     if (!record || record.expiresAt < Date.now()) return json(res, 400, { error: "Ссылка недействительна или устарела" });
     const player = players.get(record.playerId);
     if (!player) return json(res, 404, { error: "Аккаунт не найден" });
-    player.emailVerified = true; emailVerifications.delete(verificationToken); persistState();
-    return json(res, 200, { ok: true });
+    player.emailVerified = true; emailVerifications.delete(verificationToken);
+    const token = id("session_"); sessions.set(token, player.id); persistState();
+    return json(res, 200, { ok: true, token, ...snapshot(player) });
   }
 
   if (req.method === "POST" && pathname === "/api/request-password-reset") {

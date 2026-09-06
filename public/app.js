@@ -149,8 +149,6 @@ function hydrateCarPhotos(root = document) {
       if (!photo) { image.hidden = true; art?.classList.add("photo-failed"); return; }
       image.onload = () => {
         art?.classList.add("photo-loaded");
-        const credit = art?.querySelector(".photo-credit");
-        if (credit) { credit.href = photo.source; credit.textContent = photo.license || "Wikimedia Commons"; credit.hidden = false; }
       };
       image.onerror = () => { image.hidden = true; art?.classList.add("photo-failed"); };
       image.src = optimizedPhotoUrl(photo.url);
@@ -220,8 +218,7 @@ function carArt(car, extraClass = "") {
   return `<div class="car-art vehicle-${escapeHtml(car.className)} ${extraClass} ${ready ? "photo-loaded" : unavailable ? "photo-failed" : ""}" style="--car-color:${escapeHtml(car.color)}">
     <img class="car-photo" data-car-photo="${escapeHtml(query)}" data-photo-url="${escapeHtml(car.photoUrl || "")}" data-photo-source="${escapeHtml(car.photoSource || "")}" ${unavailable ? 'data-photo-loading="true"' : ""} ${ready ? `src="${escapeHtml(optimizedPhotoUrl(cached.url))}"` : ""} ${unavailable ? "hidden" : ""} alt="${escapeHtml(car.model)}, ${car.year}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
     <span class="photo-placeholder"><b>${escapeHtml(car.make || car.model.split(" ")[0])}</b><small>Фото модели не найдено</small></span>
-    <a class="photo-credit" data-photo-source href="${ready ? escapeHtml(cached.source) : "#"}" target="_blank" rel="noopener noreferrer" ${ready ? "" : "hidden"}>${ready ? escapeHtml(cached.license || "Wikimedia Commons") : "Wikimedia Commons"}</a>
-    <span class="car-year">${car.year}</span><span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${plate ? `<span class="car-plate"><strong>${escapeHtml(plateMain)}</strong><span><em>${escapeHtml(plateRegion)}</em><small>RUS<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></small></span></span>` : ""}
+    <span class="seller-label">${escapeHtml(car.seller || "Гараж")}</span>${plate ? `<span class="car-plate"><strong>${escapeHtml(plateMain)}</strong><span><em>${escapeHtml(plateRegion)}</em><small>RUS<i class="russian-flag" aria-label="Флаг России"><b></b><b></b><b></b></i></small></span></span>` : ""}
   </div>`;
 }
 
@@ -1454,7 +1451,7 @@ function setAuthMode(mode) {
   $("#auth-submit").innerHTML = registration ? "Создать аккаунт <span aria-hidden=\"true\">→</span>" : "Войти <span aria-hidden=\"true\">→</span>";
   $("#player-email").required = registration;
   $("#player-email").closest("label").hidden = !registration;
-  $(".auth-hint").textContent = registration ? "После регистрации на email придёт ссылка подтверждения." : "Введите логин и пароль, указанные при регистрации.";
+  $(".auth-hint").textContent = registration ? "После регистрации мы отправим письмо со ссылкой подтверждения. Если письмо не пришло, проверьте папку «Спам» и правильность адреса." : "Введите логин и пароль, указанные при регистрации.";
   document.querySelectorAll("[data-auth-mode]").forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
 }
 document.addEventListener("click", (event) => { const switchButton = event.target.closest("[data-auth-mode]"); if (switchButton) setAuthMode(switchButton.dataset.authMode); });
@@ -1463,7 +1460,7 @@ setAuthMode("register");
 $("#join-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; button.disabled = true; $("#join-error").textContent = "";
   const action = authMode;
-  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Подтвердите адрес и войдите.`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
+  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Откройте ссылку в письме; если его нет, проверьте папку «Спам».`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
   catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
 });
 $("#recovery-form").addEventListener("submit", async (event) => {

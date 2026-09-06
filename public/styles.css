@@ -1787,7 +1787,7 @@ h1, h2, h3, h4, .logo, .profile-monogram { font-family: Arial, Helvetica, sans-s
 }
 
 html { background: var(--paper); }
-body { color: var(--ink); background: var(--paper); font-family: var(--font-body); line-height: 1.45; }
+body { min-height: 100%; color: var(--ink); background: var(--paper); font-family: var(--font-body); line-height: 1.45; overflow-x: hidden; }
 button, input, select, textarea { font-family: inherit; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(224,160,39,.35); outline-offset: 2px; }
@@ -1973,6 +1973,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @media (max-width: 760px) {
+  html:has(#join-screen:not([hidden])) { background: var(--dark); }
   .join-screen { display: block; min-height: 100dvh; background: var(--dark); }
   .join-visual { min-height: 96px; height: 96px; background: var(--dark); }
   .join-visual img { display: none; }
@@ -2015,6 +2016,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .timing-track { height: 72px; margin-top: 24px; }
   .challenge-action { height: 58px; }
   .reward-hero .reward-car-art { height: auto; min-height: 0; aspect-ratio: 16 / 9; }
+}
+
+@media (max-width: 760px) {
+  .tabs > .tab { align-items: center; justify-content: center; text-align: center; }
+  .tabs > .tab span { width: 100%; text-align: center; }
+  .tabs > .tab .badge { align-self: center; }
 }
 
 @media (max-width: 430px) {
