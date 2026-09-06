@@ -2224,6 +2224,7 @@ function censorChatText(value) {
 }
 
 function moderateChat(player, rawText) {
+  player.chatState ||= { sentAt: [], lastNormalized: "", lastDuplicateAt: 0, violations: 0, mutedUntil: 0 };
   const text = normalizeChatText(rawText);
   const now = Date.now();
   const chat = player.chatState;

@@ -2034,6 +2034,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 /* Photos are the only vehicle visual. Never render the legacy CSS silhouette. */
+.photo-credit, .car-year { display: none !important; }
 .car-art::before,
 .car-art::after,
 .car-art .car-window,
