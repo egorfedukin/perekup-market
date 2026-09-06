@@ -2686,4 +2686,10 @@ body:has(#join-screen:not([hidden])) {
 .skill-path-card > span, .skill-path-card > small { color: #53708d; font-size: 9px; text-transform: uppercase; font-weight: 800; }
 .skill-path-card > strong { font-size: 15px; }
 .skill-path-card > p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.career-mission { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 14px 0 18px; padding: 15px 17px; border: 1px solid #c6d7ec; border-left: 4px solid #315c8a; border-radius: var(--radius-m); background: #f4f8fd; }
+.career-mission div { min-width: 0; display: grid; gap: 3px; }
+.career-mission strong { font-size: 15px; }
+.career-mission span { color: var(--muted); font-size: 10px; }
+.career-mission > b { flex: 0 0 auto; color: #315c8a; font-size: 12px; }
+@media (max-width: 520px) { .career-mission { align-items: start; flex-direction: column; gap: 8px; } }
 @media (max-width: 760px) { .achievement-grid { grid-template-columns: 1fr; } }

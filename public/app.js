@@ -523,6 +523,8 @@ function renderMarket() {
   $("#market-kpi-deals").textContent = number(belowMarket);
   $("#market-kpi-auctions").textContent = number(state.market.filter((car) => car.saleType === "auction").length);
   $("#market-kpi-models").textContent = number(new Set(regularMarket.map((car) => car.model)).size);
+  const activeContract = (state.player.contracts || []).find((contract) => contract.status === "active");
+  if ($("#career-mission")) $("#career-mission").innerHTML = activeContract ? `<div><p class="eyebrow">Ваш текущий контракт</p><strong>${escapeHtml(activeContract.title)}</strong><span>${escapeHtml(activeContract.description)}</span></div><b>Награда ${money(activeContract.reward)}</b>` : `<div><p class="eyebrow">Следующий шаг</p><strong>Найдите свою первую выгодную сделку</strong><span>Сравните цену, риск и будущего покупателя перед покупкой.</span></div>`;
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
   const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><strong>Доступ до ${money(state.player.marketMaxPrice)}</strong><span>Новые ценовые уровни открываются с ростом опыта. Покупка и успешная продажа автомобиля дают XP.</span></div>` : "";
