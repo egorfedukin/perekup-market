@@ -103,6 +103,7 @@ async function run() {
     const fixture = saved.players.find(([, player]) => player.id === state.player.id)[1];
     fixture.cash = 10000000; fixture.skillPoints = 20;
     const npcLot = structuredClone(fixture.garage[0]);
+    npcLot.defects.forEach(defect => { defect.repaired = true; });
     Object.assign(npcLot, { id: "qa_npc_lot", sellerId: fixture.id, ownerId: null, seller: fixture.name, saleType: "fixed", price: 500000, description: "Осмотр выполнен, состояние отражено в истории" });
     saved.market.push(npcLot);
     saved.offers.push(["qa_npc_offer", { id: "qa_npc_offer", carId: npcLot.id, sellerId: fixture.id, buyerId: "bot_igor", buyerName: "Игорь с сервиса", buyerType: "bot", amount: 10000, status: "active", attempts: 0 }]);

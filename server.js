@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const { cosmetics, stylePackages, profileAppearance, ownsCosmetic, paymentMatches, grantPurchase } = require("./cosmetics");
 const { acquisitionPrice, buyerPrice } = require("./economy");
 const { vehicleRule, vehicleName } = require("./vehicle-rules");
+const { randomInspectionSkills, npcFaults, saleBlockReason } = require('./trade-rules');
 const { createInspection, gradeInspection } = require("./inspection");
 const inspectionSessions = new Map();
 const { prerequisites, requiredSkillLevel, workplaceBenefits, npcProfile, npcFit, negotiate } = require("./progression");
@@ -425,6 +426,13 @@ const bots = [
   { id: "bot_lux", name: "Премиум Коллекшн", type: "collector", skill: 5, risk: 1.06, budget: 350000000, repairPremium: 0.18 },
   { id: "bot_museum", name: "Частный автомобильный музей", type: "collector", skill: 5, risk: 1.11, budget: 2000000000, repairPremium: 0.22 }
 ];
+
+db.exec('CREATE TABLE IF NOT EXISTS npc_skills (id TEXT PRIMARY KEY, payload TEXT NOT NULL)');
+for (const bot of bots) {
+  const saved = db.prepare('SELECT payload FROM npc_skills WHERE id = ?').get(bot.id);
+  bot.inspectionSkills = saved ? JSON.parse(saved.payload) : randomInspectionSkills();
+  if (!saved) db.prepare('INSERT INTO npc_skills (id, payload) VALUES (?, ?)').run(bot.id, JSON.stringify(bot.inspectionSkills));
+}
 
 const partComponents = {
   engine: "Двигатель и навесное", chassis: "Ходовая и трансмиссия", body: "Кузовная деталь",
@@ -1383,6 +1391,7 @@ function publicCar(car, ownerView = false, viewer = null) {
   ]);
   const result = {
     id: car.id, make: car.make, photoQuery: car.photoQuery, photoUrl: car.photoUrl, photoSource: car.photoSource, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
+    saleBlocked: Boolean(saleBlockReason(car)), saleBlockReason: saleBlockReason(car),
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
     condition: car.condition, description: car.description, repairs: car.repairs,
     registration: { registered: Boolean(car.registration.registered), plate: car.registration.plate ? { ...car.registration.plate } : null },
@@ -1396,6 +1405,7 @@ function publicCar(car, ownerView = false, viewer = null) {
     viewerParticipated: Boolean(viewer && car.participantIds.includes(viewer.id))
   };
   result.publicInspectionRecords = car.publicInspectionRecords || {};
+  result.citableDefects = viewer ? car.defects.filter(defect => !defect.repaired && car.buyerFindings?.[viewer.id]?.includes(defect.code)).map(defect => ({ code: defect.code, name: defect.name })) : [];
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
   if (ownerView || (viewer && car.ownerId === viewer.id)) {
     result.defects = car.defects.filter((defect) => visibleCodes.has(defect.code)).map((defect) => publicDefect(defect, car));
@@ -1440,7 +1450,7 @@ function playerPartNeeds(player) {
 function offerView(offer) {
   const car = market.find((item) => item.id === offer.carId);
   const bot = bots.find(item => item.id === offer.buyerId);
-  return { ...offer, profile: bot ? npcProfile(bot) : null, relationship: bot ? players.get(offer.sellerId)?.npcRelations?.[bot.id] || 0 : null, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
+  return { ...offer, saleBlocked: car ? Boolean(saleBlockReason(car)) : false, profile: bot ? { ...npcProfile(bot), inspectionSkills: bot.inspectionSkills } : null, relationship: bot ? players.get(offer.sellerId)?.npcRelations?.[bot.id] || 0 : null, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
 }
 
 function assetResaleValue(asset, player) {
@@ -1974,6 +1984,13 @@ function restock() {
 }
 
 function configureNpcAuction(car) {
+  // Public auctions disclose every defect, so NPC sellers prepare these lots first.
+  for (const defect of car.defects) {
+    if (defect.repaired) continue;
+    defect.repaired = true; defect.repairQuality = 'Стандартный ремонт'; defect.repairReliability = 88;
+    car.repairs.push(defect.name);
+    car.condition = Math.min(95, car.condition + defect.severity * 4);
+  }
   const estimate = saleEstimate(car);
   const startFactor = 0.62 + Math.random() * 0.16;
   car.saleType = "auction";
@@ -2167,6 +2184,7 @@ async function readBody(req) {
 }
 
 function completeSale(car, buyer, amount) {
+  if (saleBlockReason(car)) return false;
   const marketIndex = market.findIndex((item) => item.id === car.id);
   if (marketIndex < 0) return false;
   if (buyer && (buyer.cash < amount || buyer.garage.length >= buyer.garageCapacity)) return false;
@@ -2231,8 +2249,29 @@ function completeSale(car, buyer, amount) {
   return true;
 }
 
+function inspectForNpc(car, bot) {
+  const found = npcFaults(car, bot);
+  if (!found.length) return false;
+  car.publicDiscovered ||= [];
+  car.discovered ||= [];
+  const fresh = found.filter(defect => !car.publicDiscovered.includes(defect.code));
+  for (const defect of found) {
+    if (!car.publicDiscovered.includes(defect.code)) car.publicDiscovered.push(defect.code);
+    if (!car.discovered.includes(defect.code)) car.discovered.push(defect.code);
+  }
+  if (fresh.length) {
+    const text = `${bot.name} отказался от покупки: ${fresh.map(defect => defect.name).join(', ')}. Требуется ремонт.`;
+    car.history.push({ type: 'inspection', text, at: Date.now() });
+    const owner = players.get(car.sellerId);
+    if (owner) owner.notifications.push({ id: id('notice_'), type: 'repair-required', title: 'Покупатель нашёл неисправность', text, carId: car.id, createdAt: Date.now(), read: false });
+    for (const offer of offers.values()) if (offer.carId === car.id && offer.buyerType === 'bot' && ['active', 'counter'].includes(offer.status)) offer.status = 'rejected';
+  }
+  return true;
+}
+
 function evaluateBots(car) {
   if (!market.some((item) => item.id === car.id) || !car.sellerId) return;
+  if (saleBlockReason(car)) return;
   const lie = /вложений не требует|идеал|без проблем/i.test(car.description) && car.defects.some((defect) => !defect.repaired);
   const contacted = new Set([...offers.values()].filter(offer => offer.carId === car.id && (["active", "counter"].includes(offer.status) || offer.status === "rejected" && Date.now() - (offer.lastOfferAt || offer.createdAt) < 120000)).map(offer => offer.buyerId));
   const types = new Set();
@@ -2242,7 +2281,8 @@ function evaluateBots(car) {
   }).slice(0, 3);
   for (const bot of candidates) {
     if (bot.budget < car.price * .65) continue;
-    const detected = car.defects.filter((defect) => !defect.repaired && defect.skill + defect.equipmentLevel <= bot.skill + 2);
+    if (inspectForNpc(car, bot)) break;
+    const detected = npcFaults(car, bot);
     const ceiling = botAuctionCeiling(car, bot);
     if (ceiling < 1) continue;
     const amount = clamp(Math.round(Math.min(car.price * 0.97, ceiling) / 1000) * 1000, 1, car.price - 1);
@@ -2281,6 +2321,9 @@ function finalizeAuctions() {
   const expired = market.filter((car) => car.saleType === "auction" && car.auctionEnd <= Date.now());
   if (!expired.length) return;
   for (const car of expired) {
+    if (saleBlockReason(car)) {
+      car.highestBid = 0; car.highestBidderId = null; car.highestBidderType = null; car.highestBidderName = null;
+    }
     if (car.highestBidderType === "bot" && car.highestBid > 0) {
       completeSale(car, null, car.highestBid);
       continue;
@@ -2319,9 +2362,10 @@ function finalizeAuctions() {
 setInterval(finalizeAuctions, 1000).unref();
 
 function botAuctionCeiling(car, bot) {
+  if (saleBlockReason(car)) return 0;
   const estimate = saleEstimate(car);
   const unresolved = car.defects.filter(defect => !defect.repaired);
-  const unknownCount = unresolved.filter(defect => defect.skill + defect.equipmentLevel > bot.skill + 2).length;
+  const unknownCount = unresolved.filter(defect => !npcFaults(car, bot).includes(defect)).length;
   const seller = players.get(car.sellerId);
   const classic = new Date().getFullYear() - car.year >= 25 || ["classic", "coupe", "roadster", "premium"].includes(car.className);
   const price = buyerPrice({ value: estimate.expectedNpcPrice, fit: npcFit(car, bot, upgradeCatalog).multiplier, type: bot.type, unknownCount, lied: /идеал|без проблем|вложений не требует/i.test(car.description) && unresolved.length > 0, relationship: seller?.npcRelations?.[bot.id] || 0, repaired: car.repairs.length > 0, classic });
@@ -2333,6 +2377,7 @@ function runAuctionBots() {
   const now = Date.now();
   const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > now + 1500);
   for (const car of active) {
+    if (saleBlockReason(car)) continue;
     const humanInterest = car.participantIds.length > 0;
     const idleFor = now - (car.lastPlayerBidAt || car.listedAt || now);
     const npcCooldown = car.lastNpcBidAt ? now - car.lastNpcBidAt : Infinity;
@@ -3154,6 +3199,7 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/buy") {
     const car = market.find((item) => item.id === body.carId);
     if (!car) return json(res, 404, { error: "Лот уже продан или снят с рынка. Обновите список автомобилей." });
+    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
     if (car.sellerId === player.id) return json(res, 400, { error: "Это ваше объявление" });
     if (car.saleType === "auction") return json(res, 400, { error: "Эту машину можно купить только через ставку" });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
@@ -3238,6 +3284,10 @@ async function api(req, res, pathname) {
     const found = matching.filter((defect) => score >= defect.skill + defect.equipmentLevel);
     const newFound = found.filter((defect) => !car.publicDiscovered.includes(defect.code));
     for (const defect of found) if (!car.publicDiscovered.includes(defect.code)) car.publicDiscovered.push(defect.code);
+    car.buyerFindings ||= {};
+    car.buyerFindings[player.id] = [...new Set([...(car.buyerFindings[player.id] || []), ...found.map(defect => defect.code)])];
+    for (const defect of found) if (!car.discovered.includes(defect.code)) car.discovered.push(defect.code);
+    if (found.length) for (const offer of offers.values()) if (offer.carId === car.id && offer.buyerType === 'bot') offer.status = 'rejected';
     const confidence = Math.min(100, Math.round(score / 6 * 100));
     car.publicInspectionRecords[category] = { bestScore: score, confidence, inspector: player.name, at: Date.now(), interactionScore };
     if (interactionScore === 100) player.stats.perfectInspections += 1;
@@ -3456,6 +3506,8 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
+    const block = saleBlockReason({ ...car, saleType });
+    if (block) return json(res, 409, { error: block });
     if (saleType === "auction" && levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const includePlate = body.includePlate === true && Boolean(car.registration?.registered && car.registration?.plate);
     car.plateIncluded = includePlate;
@@ -3510,7 +3562,8 @@ async function api(req, res, pathname) {
     if (index < 0) return json(res, 404, { error: "Ваше объявление не найдено" });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "В гараже нет места" });
     const car = market[index];
-    if (car.saleType === "auction" && car.highestBidderId) return json(res, 400, { error: "Нельзя снять аукцион после первой ставки" });
+    if (car.saleType === "auction" && car.highestBidderId && !saleBlockReason(car)) return json(res, 400, { error: "Нельзя снять аукцион после первой ставки" });
+    car.highestBid = 0; car.highestBidderId = null; car.highestBidderType = null;
     market.splice(index, 1);
     car.plateIncluded = false;
     player.garage.push(car);
@@ -3538,6 +3591,7 @@ async function api(req, res, pathname) {
     if (levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const car = market.find((item) => item.id === body.carId && item.saleType === "auction");
     if (!car || car.auctionEnd <= Date.now()) return json(res, 404, { error: "Аукцион уже завершён" });
+    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
     if (car.sellerId === player.id) return json(res, 400, { error: "Нельзя делать ставки на свою машину" });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
@@ -3590,8 +3644,10 @@ async function api(req, res, pathname) {
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (!Number.isFinite(amount) || amount < 1 || amount >= car.price) return json(res, 400, { error: "Предложение должно быть от 1 ₽ и ниже цены объявления" });
     if (amount > player.cash - reservedCash(player)) return json(res, 400, { error: "Свободных денег недостаточно: часть суммы зарезервирована в ставках" });
+    const cited = body.defectCode ? car.defects.find(defect => defect.code === body.defectCode && !defect.repaired && car.buyerFindings?.[player.id]?.includes(defect.code)) : null;
+    if (body.defectCode && !cited) return json(res, 400, { error: 'Можно сослаться только на неисправность, подтверждённую вашим осмотром' });
     for (const old of offers.values()) if (old.carId === car.id && old.buyerId === player.id && ["active", "counter"].includes(old.status)) old.status = "closed";
-    if (!car.sellerId) {
+    if (!car.sellerId && !saleBlockReason(car)) {
       const estimate = saleEstimate(car);
       const sellerFloor = Math.max(1, Math.round(Math.min(car.price * 0.94, estimate.expectedNpcPrice * 0.97) / 1000) * 1000);
       const negotiationFloor = Math.max(1, Math.round(sellerFloor * 0.86 / 1000) * 1000);
@@ -3606,7 +3662,7 @@ async function api(req, res, pathname) {
       offers.set(offer.id, offer);
       broadcast(); return json(res, 200, snapshot(player));
     }
-    const offer = { id: id("offer_"), carId: car.id, sellerId: car.sellerId, buyerId: player.id, buyerName: player.name, buyerType: "player", amount, status: "active", reason: "Предложение другого игрока", createdAt: Date.now() };
+    const offer = { id: id("offer_"), carId: car.id, sellerId: car.sellerId, buyerId: player.id, buyerName: player.name, buyerType: "player", amount, status: "active", defectCode: cited?.code || null, sellerName: car.seller, reason: cited ? `Прошу скидку: ${cited.name}. Готов купить после устранения неисправности.` : 'Предложение другого игрока', createdAt: Date.now() };
     offers.set(offer.id, offer);
     broadcast();
     return json(res, 200, snapshot(player));
@@ -3617,6 +3673,11 @@ async function api(req, res, pathname) {
     if (!offer || offer.sellerId !== player.id || !["active", "counter"].includes(offer.status)) return json(res, 404, { error: "Предложение уже недоступно" });
     const car = market.find((item) => item.id === offer.carId);
     if (!car) return json(res, 404, { error: "Автомобиль уже продан" });
+    if (body.action !== 'reject' && saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
+    if (body.action !== 'reject' && offer.buyerType === 'bot') {
+      const bot = bots.find(item => item.id === offer.buyerId);
+      if (bot && inspectForNpc(car, bot)) { broadcast(); persistState(); return json(res, 409, { error: saleBlockReason(car) }); }
+    }
     if (body.action === "reject") offer.status = "rejected";
     else if (body.action === "counter") {
       const amount = Math.round(Number(body.amount));
@@ -3661,6 +3722,7 @@ async function api(req, res, pathname) {
     if (!offer || offer.buyerId !== player.id || offer.status !== "counter") return json(res, 404, { error: "Встречное предложение недоступно" });
     const car = market.find((item) => item.id === offer.carId);
     if (!car) return json(res, 404, { error: "Автомобиль уже продан" });
+    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.cash - reservedCash(player) < offer.amount || !completeSale(car, player, offer.amount)) return json(res, 400, { error: "Не хватает свободных денег или места в гараже" });
     broadcast();

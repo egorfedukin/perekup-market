@@ -164,6 +164,14 @@ async function run() {
   const missingArt = await page.locator('.cosmetic-option img').evaluateAll(images => images.filter(image => !image.complete || image.naturalWidth === 0).length);
   assert.equal(missingArt, 0, "Profile artwork loads locally");
   assert.equal(await page.locator(".activity-board").count(), 0);
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${join.token}` };
+  const diagnostic = await fetch(`${base}/api/service-diagnostic`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ carId: car.id }) });
+  assert.equal(diagnostic.status, 200);
+  const diagnosed = await diagnostic.json();
+  for (const defect of diagnosed.player.garage.find(item => item.id === car.id).defects.filter(item => !item.repaired)) {
+    const repair = await fetch(`${base}/api/repair`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ carId: car.id, defect: defect.code, mode: 'workshop', plan: 'standard' }) });
+    assert.equal(repair.status, 200);
+  }
   const sale = await fetch(`${base}/api/list`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${join.token}` }, body: JSON.stringify({ carId: car.id, price: 150000, description: 'Состояние по осмотру, разумный торг.' }) });
   assert.equal(sale.status, 200);
   await page.goto(`${base}/#deals`);
@@ -178,6 +186,25 @@ async function run() {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   }
   assert.deepEqual(errors, []);
+  const latest = await (await fetch(`${base}/api/state`, { headers: authHeaders })).json();
+  const inspectedLot = latest.market.find(item => item.saleType === 'fixed' && !item.sellerId && item.price < 500000);
+  assert.ok(inspectedLot);
+  for (const category of ['engine', 'chassis', 'body', 'electrics', 'tires', 'documents']) {
+    const checked = await fetch(`${base}/api/market-check`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ carId: inspectedLot.id, category, method: 'instrumental' }) });
+    assert.equal(checked.status, 200);
+  }
+  await page.goto(`${base}/#market`);
+  await page.locator('#mobile-filter-toggle').click();
+  await page.locator('#market-search').fill(inspectedLot.model);
+  await page.locator('#market-filters [type="submit"]').click();
+  await page.locator(`[data-open-market="${inspectedLot.id}"]`).click();
+  await page.locator('#offer-form select[name="defectCode"]').waitFor();
+  assert.equal(await page.locator(`[data-buy="${inspectedLot.id}"]`).isDisabled(), true);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await page.locator('#offer-form').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(output, `${width}-defect-discount.png`) });
+  }
   if (process.env.RUN_SMOKE === "1") await new Promise((resolve, reject) => {
     const smoke = spawn(process.execPath, ["smoke-test.js"], { cwd: __dirname, env: { ...process.env, TEST_URL: base }, stdio: "inherit" });
     smoke.once("error", reject); smoke.once("exit", code => code === 0 ? resolve() : reject(Error(`Smoke test exit ${code}`)));

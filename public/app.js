@@ -701,7 +701,7 @@ function renderGarage() {
       </div>
       <div class="garage-actions">
         <button class="secondary-button" data-open-garage="${car.id}">Осмотр и ремонт</button>
-        <button class="primary-button" data-list-car="${car.id}">Выставить на рынок</button>
+        <button class="primary-button" data-list-car="${car.id}" ${car.saleBlocked ? 'disabled title="Сначала устраните известные неисправности"' : ""}>${car.saleBlocked ? "Сначала ремонт" : "Выставить на рынок"}</button>
         <details class="garage-more-actions" data-car-id="${car.id}" ${openMoreActions.has(car.id) ? "open" : ""}><summary>Другие действия</summary><div>${registrationControls}<button class="secondary-button" data-dismantle="${car.id}">Разобрать на детали</button>${state.player.group ? `<button class="secondary-button" data-group-deposit-car="${car.id}">Передать команде</button>` : ""}</div></details>
       </div>
     </article>`;
@@ -927,13 +927,15 @@ function offerCard(offer, incoming) {
   return `<article class="offer-card ${offer.buyerType === "bot" ? "bot" : ""}">
     <div class="offer-head"><div><strong>${escapeHtml(incoming ? offer.buyerName : offer.sellerName || "Продавец")}</strong><p class="offer-car">${vehicleLabel(car.model)} · цена ${money(car.price || offer.amount)}</p></div><span>${money(offer.amount)}</span></div>
     <p class="offer-reason">${escapeHtml(offer.reason)}</p>
+    ${offer.saleBlocked ? '<p class="trade-blocked">Продавец должен устранить неисправность перед продажей.</p>' : ''}
     ${offer.profile ? `<div class="npc-profile"><span>Бюджет <b>${money(offer.profile.budget)}</b></span><span>Интересы <b>${offer.profile.interests.map(key => ({ utility: "Практичность", comfort: "Комфорт", sport: "Спорт", classic: "Классика" }[key])).join(", ")}</b></span><span>Допустимый риск <b>${offer.profile.riskTolerance}/100</b></span><span>Попыток торга <b>${Math.max(0, offer.profile.patience - (offer.attempts || 0))}</b></span><span>Отношения <b>${offer.relationship > 0 ? "+" : ""}${offer.relationship}</b></span></div>` : ""}
     <div class="offer-actions">
+      ${offer.profile?.inspectionSkills ? `<details class="npc-inspection-skills"><summary>Навыки осмотра</summary><div>${Object.entries(offer.profile.inspectionSkills).map(([key, value]) => `<span>${categoryNames[key]} <b>${value}/8</b></span>`).join('')}</div></details>` : ''}
       ${incoming ? `
-        <button class="primary-button" data-offer-action="accept" data-offer-id="${offer.id}">Принять</button>
+        <button class="primary-button" ${offer.saleBlocked ? "disabled" : ""} data-offer-action="accept" data-offer-id="${offer.id}">Принять</button>
         <button class="secondary-button" data-offer-action="reject" data-offer-id="${offer.id}">Отказать</button>
-        <div class="counter-row"><input id="counter-${offer.id}" type="number" step="1" min="1" max="${Math.max(1, (car.price || offer.amount) - 1)}" placeholder="Встречная цена"><button class="secondary-button" data-offer-action="counter" data-offer-id="${offer.id}">Ответить</button></div>
-      ` : counter ? `<button class="primary-button" data-accept-counter="${offer.id}">Принять встречную цену</button>` : `<span class="condition mid">Ожидает ответа продавца</span>`}
+        <div class="counter-row"><input id="counter-${offer.id}" type="number" step="1" min="1" max="${Math.max(1, (car.price || offer.amount) - 1)}" placeholder="Встречная цена"><button class="secondary-button" ${offer.saleBlocked ? "disabled" : ""} data-offer-action="counter" data-offer-id="${offer.id}">Ответить</button></div>
+      ` : counter ? `<button class="primary-button" ${offer.saleBlocked ? "disabled" : ""} data-accept-counter="${offer.id}">Принять встречную цену</button>` : `<span class="condition mid">Ожидает ответа продавца</span>`}
     </div>
   </article>`;
 }
@@ -1413,6 +1415,7 @@ function marketModal(car) {
       <div><span>Предложения</span><strong>${car.offerCount || 0}</strong></div>
     </div>
     <p class="description">«${escapeHtml(car.description)}»</p>
+    ${car.saleBlocked ? `<p class="trade-blocked">${escapeHtml(car.saleBlockReason)}</p>` : ''}
     <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || Math.min(8, score + 6) > record.bestScore; return `<button class="inspection-button" title="Осмотр: ${state.skillInfo[req.skill].name}, ${state.equipmentInfo[req.equipment].name}" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
     ${auction ? `<div class="auction-status"><strong>${car.highestBid ? `Текущая ставка ${money(car.highestBid)}` : `Стартовая цена ${money(car.startingPrice)}`}</strong><span>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)} · ` : ""}До завершения <b class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</b></span></div>` : ""}
     ${stats ? `<div class="market-comparison">
@@ -1421,10 +1424,10 @@ function marketModal(car) {
       <div><span>Оценка цены</span><strong class="price-signal ${priceClass}">${priceLabel}</strong></div>
     </div>` : ""}
     <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
-    ${own ? `<form class="edit-listing-form" data-edit-listing="${car.id}"><label>Новая цена<input name="price" type="number" min="1" max="2000000000" value="${car.price}" required></label><button class="primary-button" type="submit">Сохранить цену</button></form><button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
+    ${own ? `<form class="edit-listing-form" data-edit-listing="${car.id}"><label>Новая цена<input name="price" type="number" min="1" max="2000000000" value="${car.price}" required></label><button class="primary-button" type="submit">Сохранить цену</button></form><button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount && !car.saleBlocked ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${car.saleBlocked || state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${car.saleBlocked ? "Продажа приостановлена: нужен ремонт" : state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
     </div>
     ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input id="modal-bid-${car.id}" name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
-    ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}"><input id="offer-amount-${car.id}" name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">Предложить цену</button></form>` : ""}
+    ${canOffer ? `<form id="offer-form" class="offer-form" data-car-id="${car.id}">${car.citableDefects?.length ? `<label>Причина скидки<select name="defectCode"><option value="">Своя цена без причины</option>${car.citableDefects.map(defect => `<option value="${escapeHtml(defect.code)}">${escapeHtml(defect.name)}</option>`).join("")}</select></label>` : ""}<input id="offer-amount-${car.id}" name="amount" type="number" min="1" max="${car.price - 1}" step="1" value="${Math.max(1, Math.round(car.price * .92))}" required><button class="secondary-button" type="submit">Предложить цену</button></form>` : ""}
   </div>`;
 }
 
@@ -1496,7 +1499,7 @@ function listModal(car) {
       ${car.registration?.plate ? `<label class="include-plate-option"><input type="checkbox" name="includePlate" value="true"><span><strong>Продать вместе с номером ${escapeHtml(car.registration.plate.number)}</strong><small>Автомобиль останется на учёте, а номер перейдёт покупателю. Добавьте стоимость номера к цене.</small></span></label>` : ""}
       <label class="auction-duration">Длительность аукциона<select name="durationSeconds"><option value="60">1 минута</option><option value="180">3 минуты</option><option value="300" selected>5 минут</option><option value="900">15 минут</option></select></label>
       <label>Текст объявления<input name="description" maxlength="120" value="${car.repairs.length ? "Обслужена, список работ в истории." : "На ходу, разумный торг у капота."}" required></label>
-      <button class="danger-button" type="submit">Опубликовать объявление</button>
+      <button class="danger-button" type="submit" ${car.saleBlocked ? 'disabled' : ''}>${car.saleBlocked ? 'Сначала устраните неисправности' : 'Опубликовать объявление'}</button>
     </form></div>`;
 }
 
@@ -1979,7 +1982,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.id === "offer-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);
-    if (await perform("/api/offer", { carId: form.dataset.carId, amount: data.get("amount") }, "Продавец рассмотрел вашу цену")) { const purchased = state.player.garage.some((car) => car.id === form.dataset.carId); closeModal(); setView(purchased ? "garage" : "deals"); }
+    if (await perform("/api/offer", { carId: form.dataset.carId, amount: data.get("amount"), defectCode: data.get("defectCode") || null }, "Продавец рассмотрел вашу цену")) { const purchased = state.player.garage.some((car) => car.id === form.dataset.carId); closeModal(); setView(purchased ? "garage" : "deals"); }
   }
   if (event.target.id === "bid-form") {
     event.preventDefault(); const form = event.target; const data = new FormData(form);

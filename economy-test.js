@@ -73,12 +73,12 @@ async function run() {
   for (let index = 0; index < eligible.length; index++) {
     const candidate = eligible[index];
     state = await request("/api/buy", { carId: candidate.id });
-    if (index % 2) {
+    {
       state = await request("/api/service-diagnostic", { carId: candidate.id });
       let car = state.player.garage.find(car => car.id === candidate.id);
       for (const defect of car.defects.filter(defect => !defect.repaired)) {
         const plan = defect.servicePlans.find(plan => plan.key === "standard");
-        if (plan.projectedProfit > 0) state = await request("/api/repair", { carId: candidate.id, defect: defect.code, mode: "workshop", plan: "standard" });
+        state = await request("/api/repair", { carId: candidate.id, defect: defect.code, mode: "workshop", plan: "standard" });
       }
     }
     const car = state.player.garage.find(car => car.id === candidate.id);
@@ -91,7 +91,7 @@ async function run() {
     }
     assert.ok(offers.length, "Buyer must make a concrete offer");
     state = await request("/api/offer/respond", { offerId: offers[0].id, action: "accept" });
-    results.push({ model: car.model, mode: index % 2 ? "inspection/preparation" : "quick turnover", cost: investment, sold: offers[0].amount, profit: offers[0].amount - investment });
+    results.push({ model: car.model, mode: "inspection/mandatory repair", cost: investment, sold: offers[0].amount, profit: offers[0].amount - investment });
   }
   assert.ok(results.filter(result => result.profit > 0).length >= 4, JSON.stringify(results));
   const expectedCash = state.player.cash;

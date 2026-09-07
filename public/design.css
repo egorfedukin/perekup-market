@@ -285,6 +285,13 @@ input::placeholder { color:#86928a; }
 }
 
 /* Focused working screens: readable controls and compact secondary actions. */
+.trade-blocked { padding:12px 16px; border-left:3px solid #be4948; background:#fff1ee; color:#763f38; font-size:13px; line-height:1.5; }
+.offer-form label { grid-column:1/-1; display:grid; gap:6px; font-size:13px; }
+.npc-inspection-skills { width:100%; font-size:12px; margin-bottom:8px; }
+.npc-inspection-skills summary { cursor:pointer; padding:8px 0; }
+.npc-inspection-skills > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:8px 0; }
+.npc-inspection-skills:not([open]) > div { display:none; }
+.npc-inspection-skills span { display:flex; justify-content:space-between; gap:6px; }
 .garage-more-actions:not([open]) > div { display:none; }
 .garage-more-actions > summary { display:flex; align-items:center; justify-content:space-between; border:0; min-height:38px; padding:8px 0; font-size:13px; }
 .garage-more-actions > summary::after { content:"+"; font-size:20px; }
