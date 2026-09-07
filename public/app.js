@@ -637,13 +637,13 @@ function renderProgression() {
   $("#xp-progress").style.width = `${progress}%`;
   $("#skill-points").textContent = player.skillPoints;
 
-  $("#skills-grid").innerHTML = Object.entries(state.skillInfo).map(([key, info]) => {
+  $("#skills-grid").innerHTML = Object.entries(state.skillInfo).sort(([a], [b]) => Number(Boolean(state.skillPrerequisites?.[a])) - Number(Boolean(state.skillPrerequisites?.[b]))).map(([key, info]) => {
     const level = player.skills[key];
     const maxLevel = info.maxLevel || 5;
     const parent = state.skillPrerequisites?.[key];
     const required = Math.min(3, Math.floor(level / 2) + 1);
     const locked = parent && player.skills[parent] < required;
-    return `<div class="upgrade-item">
+    return `<div class="upgrade-item ${locked ? "skill-locked" : ""}">
       <div class="upgrade-top"><strong>${escapeHtml(info.name)}</strong><span class="upgrade-level">${level}/${maxLevel}</span></div>
       <p>${escapeHtml(info.description)}</p>${parent ? `<small class="skill-prerequisite">${escapeHtml(state.skillInfo[parent].name)} ${required} → ${escapeHtml(info.name)}</small>` : '<small class="skill-prerequisite">Основной навык</small>'}<progress max="5" value="${level}" aria-label="Уровень навыка"></progress>
       <button data-skill="${key}" ${locked || level >= maxLevel || player.skillPoints < 1 ? "disabled" : ""}>${level >= maxLevel ? "Мастер" : locked ? "Нужен основной навык" : "Повысить · 1 очко"}</button>
@@ -834,7 +834,7 @@ function renderContainers() {
     const bidControl = leading
       ? '<div class="leading-bid-note"><strong>Ставка зафиксирована</strong><span>Пока вы лидируете, повышать её не нужно. Кнопка вернётся, если ставку перебьют.</span></div>'
       : `<form data-container-bid="${box.id}"><label><span>Ваша ставка</span><input name="amount" type="number" min="${minimum}" step="1000" value="${minimum}" inputmode="numeric" required></label><button class="primary-button" ${garageFull ? "disabled" : ""}>${garageFull ? "Нет места в гараже" : "Поставить"}</button></form>`;
-    return `<article class="container-card tier-${box.tier} ${box.viewerParticipated ? "player-lot" : ""} ${box.viewerParticipated && !leading ? "outbid-lot" : ""}" style="--box-color:${escapeHtml(box.color)}">${bidState ? `<div class="player-bid-status">${bidState}</div>` : ""}<div class="container-visual"><span>ЛОТ ${box.id.slice(-4).toUpperCase()}</span><i></i><b>?</b></div><div class="container-info"><p class="eyebrow">${escapeHtml(box.label || "Закрытый")} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>${escapeHtml(box.description || "Состав неизвестен до победы")}</span><small class="container-range">Возможная стоимость: ${money(box.minValue)}–${money(box.maxValue)}</small><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ${box.bidCount} ставок</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div>${bidControl}</div></article>`;
+    return `<article class="container-card tier-${box.tier} ${box.viewerParticipated ? "player-lot" : ""} ${box.viewerParticipated && !leading ? "outbid-lot" : ""}" style="--box-color:${escapeHtml(box.color)}">${bidState ? `<div class="player-bid-status">${bidState}</div>` : ""}<div class="container-visual"><span>ЛОТ ${box.id.slice(-4).toUpperCase()}</span><i></i><b>ЗАКРЫТЫЙ ЛОТ</b></div><div class="container-info"><p class="eyebrow">${escapeHtml(box.label || "Закрытый")} контейнер</p><h3>${escapeHtml(box.name)}</h3><span>${escapeHtml(box.description || "Состав неизвестен до победы")}</span><small class="container-range">Возможная стоимость: ${money(box.minValue)}–${money(box.maxValue)}</small><div class="container-bid-state"><strong>${money(current)}</strong><small>${box.highestBidderName ? `Лидирует ${escapeHtml(box.highestBidderName)}` : "Стартовая ставка"} · ${box.bidCount} ставок</small><time data-container-end="${box.endAt}">${auctionTime(box.endAt)}</time></div>${bidControl}</div></article>`;
   }).join("") || `<div class="auction-empty-state">${auctionMode === "mine" ? "У вас пока нет ставок на контейнеры." : "Активных контейнерных лотов сейчас нет."}</div>`;
   const containerSignature = `${auctionMode}|${garageFull}|${containers.map((box) => `${box.id}:${box.highestBid}:${box.bidCount}:${box.highestBidderId}:${box.viewerParticipated}`).join("|")}`;
   if (renderSignatures.containers !== containerSignature) {
@@ -1140,7 +1140,16 @@ function renderAssets() {
   const listings = state.assetMarket || [];
   const owned = state.player.ownedAssets || [];
   const categories = state.assetCategories || {};
-  const filtered = (assetMode === "owned" ? [] : listings.filter((asset) => asset.type === "property")).sort((a, b) => ((b.income || 0) / b.price) - ((a.income || 0) / a.price));
+  const filtered = (assetMode === "owned" ? [] : listings.filter(asset => asset.type === "property"
+    && (assetFilters.category === "all" || asset.category === assetFilters.category)
+    && (!assetFilters.min || asset.price >= assetFilters.min)
+    && (!assetFilters.max || asset.price <= assetFilters.max))).sort((a, b) => {
+      if (assetFilters.sort === "priceAsc") return a.price - b.price;
+      if (assetFilters.sort === "priceDesc") return b.price - a.price;
+      if (assetFilters.sort === "income") return (b.income || 0) - (a.income || 0);
+      return ((b.income || 0) / b.price) - ((a.income || 0) / a.price);
+    });
+  $("#property-income-panel").hidden = !collectionOnly;
   const propertyOwned = owned.filter((asset) => asset.type === "property");
   const portfolioValue = propertyOwned.reduce((sum, asset) => sum + asset.resaleValue, 0);
   const invested = propertyOwned.reduce((sum, asset) => sum + asset.purchasePrice, 0);
@@ -1399,11 +1408,11 @@ function marketModal(car) {
     <h2 id="modal-title">${escapeHtml(car.model)}</h2><p class="modal-subtitle">${car.year} год · ${number(car.mileage)} км${car.plateIncluded && car.registration?.plate ? ` · госномер ${escapeHtml(car.registration.plate.number)} входит в сделку` : ""}</p>
     <div class="inspection-grid">
       <div><span>Состояние</span><strong class="condition ${conditionClass}">${condition}</strong></div>
-      <div><span>Пробег</span><strong>${number(car.mileage)} км</strong></div>
+      <div><span>${auction ? "Текущая ставка" : "Цена продавца"}</span><strong>${money(auction ? car.highestBid || car.startingPrice : car.price)}</strong></div>
       <div><span>Предложения</span><strong>${car.offerCount || 0}</strong></div>
     </div>
     <p class="description">«${escapeHtml(car.description)}»</p>
-    <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || Math.min(8, score + 6) > record.bestScore; return `<button class="inspection-button" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}<br>${state.skillInfo[req.skill].name} ${state.player.skills[req.skill]}/5 · ${state.equipmentInfo[req.equipment].name} ${state.player.equipment[req.equipment]}/3</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
+    <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || Math.min(8, score + 6) > record.bestScore; return `<button class="inspection-button" title="Осмотр: ${state.skillInfo[req.skill].name}, ${state.equipmentInfo[req.equipment].name}" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
     ${auction ? `<div class="auction-status"><strong>${car.highestBid ? `Текущая ставка ${money(car.highestBid)}` : `Стартовая цена ${money(car.startingPrice)}`}</strong><span>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)} · ` : ""}До завершения <b class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</b></span></div>` : ""}
     ${stats ? `<div class="market-comparison">
       <div><span>Индекс рынка</span><strong>${money(stats.marketPrice)} <b class="market-trend ${stats.trend > 0 ? "up" : stats.trend < 0 ? "down" : ""}">${stats.trend > 0 ? "+" : ""}${stats.trend}%</b></strong></div>
@@ -1924,6 +1933,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (event.target.id === "asset-filters") {
     event.preventDefault(); const data = new FormData(event.target);
+    if (Number(data.get("min")) > Number(data.get("max")) && data.get("max")) { showToast("Цена от не должна быть больше цены до", true); return; }
     assetFilters = { type: assetMode, category: data.get("category") || "all", min: Number(data.get("min")) || null, max: Number(data.get("max")) || null, sort: data.get("sort") || "deal" };
     assetVisibleCount = 12;
     renderAssets(); return;

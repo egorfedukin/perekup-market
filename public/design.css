@@ -283,3 +283,113 @@ input::placeholder { color:#86928a; }
   .public-profile-head { flex-wrap:wrap; padding:22px; }
   .site-footer { margin-bottom:76px; width:calc(100% - 32px); }
 }
+
+/* Focused working screens: readable controls and compact secondary actions. */
+.garage-more-actions:not([open]) > div { display:none; }
+.garage-more-actions > summary { display:flex; align-items:center; justify-content:space-between; border:0; min-height:38px; padding:8px 0; font-size:13px; }
+.garage-more-actions > summary::after { content:"+"; font-size:20px; }
+.garage-more-actions[open] > summary::after { content:"−"; }
+.garage-actions { min-width:190px; }
+.garage-actions > button { min-height:42px; }
+.garage-main h3 { font-size:22px; }
+.garage-status { border-left:1px solid #e4e9e6; font-size:12px; line-height:1.6; }
+.garage-management { margin-top:16px; }
+.garage-management > div { background:transparent; }
+.modal-panel { width:min(860px,100%); }
+.modal-car-art { width:100%; height:260px; max-height:260px; }
+.modal-body { padding:28px 32px; }
+.modal-body .inspection-grid { border:0; border-block:1px solid #e1e7e3; border-radius:0; margin:20px 0; }
+.modal-body .inspection-grid > div { border:0; background:transparent; padding:14px 0; }
+.modal-body .description { border:0; padding:0; color:#56645d; font-size:14px; line-height:1.6; }
+.market-inspection { border-top:1px solid #dce3de; padding-top:20px; }
+.market-inspection .workshop-heading { align-items:center; gap:12px; }
+.inspection-actions { gap:8px; }
+.inspection-button { position:relative; min-height:78px; padding:14px 16px; border:1px solid #dce3de; background:#f6f8f7; border-radius:4px; text-align:left; }
+.inspection-button:hover:not(:disabled) { background:#eaf3ee; border-color:#80ad95; }
+.inspection-button strong { font-size:15px; }
+.inspection-button small { display:block; margin-top:6px; line-height:1.5; font-size:12px; }
+.utility-nav { width:320px; height:auto; bottom:auto; left:auto; align-content:start; grid-template-columns:minmax(0,1fr); padding:8px; gap:0; }
+.utility-nav > button { display:block; min-height:48px; padding:12px 14px; border:0; border-radius:3px; font-weight:500; }
+.utility-nav > button span { font-size:14px; }
+.utility-nav > button small,.utility-menu-head small { display:none; }
+.utility-nav .utility-menu-head { padding:4px 10px 10px; margin-bottom:6px; min-height:48px; }
+.utility-menu-head > button { min-width:32px; min-height:32px; border:0; font-size:22px; }
+.deals-columns { grid-template-columns:minmax(0,1fr); gap:28px; }
+.deals-section { padding:0; background:transparent; border:0; }
+.deals-section h3 { margin:0 0 16px; font-size:20px; }
+#incoming-offers,#outgoing-offers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+.offers-list .no-offers { grid-column:1/-1; text-align:left; border:0; border-left:2px solid #ccd9d1; padding:14px 18px; background:transparent; }
+.offer-card { padding:20px; margin:0; }
+.offer-head { align-items:start; gap:14px; }
+.offer-head > span { font-size:22px; white-space:nowrap; }
+.offer-car { font-size:12px; line-height:1.5; margin-top:6px; }
+.offer-reason { background:transparent; border-left:2px solid #b5cabc; padding:2px 0 2px 12px; font-size:13px; line-height:1.6; }
+.npc-profile { gap:14px; padding:14px 0; }
+.npc-profile span { font-size:11px; }
+.npc-profile b { font-size:13px; line-height:1.5; }
+.counter-row { width:100%; }
+.counter-row input { min-width:0; font-size:14px; }
+.container-card { border:1px solid #d9e2dc; border-top:0; border-radius:6px; background:#fff; }
+.container-visual { height:168px; background:#283b32 url('/profile-art/workshop.jpg') center/cover; }
+.container-visual::after { content:""; position:absolute; inset:0; background:#17251f44; }
+.container-visual i { z-index:1; width:64%; height:72%; border:5px solid #36413c; background:repeating-linear-gradient(0deg,#71837a 0px,#71837a 9px,#56695e 10px,#56695e 12px); box-shadow:0 5px 12px #14221b50; }
+.container-visual i::after { content:""; position:absolute; left:50%; height:100%; border-left:4px solid #394e41; }
+.container-visual b { font-size:11px; font-weight:600; z-index:3; padding:7px 10px; background:#17251f; border:1px solid #a1b7a9; color:#fff; }
+.container-info { padding:20px; }
+.container-info h3 { font-size:21px; margin:6px 0 10px; }
+.container-info > span { font-size:13px; line-height:1.5; }
+.container-range { font-size:12px; font-weight:500; line-height:1.6; white-space:normal; overflow-wrap:anywhere; }
+.container-bid-state strong { font-size:22px; }
+.container-bid-state small { font-size:12px; line-height:1.5; }
+.container-card form label > span { font-size:12px; }
+.profile-edit-form { border:0; border-radius:0; background:transparent; padding:20px 0; max-width:760px; grid-template-columns:minmax(0,1fr) 140px; gap:16px; }
+.profile-edit-form > div { display:none; }
+.profile-edit-form label { font-size:13px; font-weight:500; }
+.profile-edit-form label small { font-size:12px; line-height:1.5; }
+.profile-edit-form button { grid-column:1/-1; justify-self:start; }
+.profile-shortcuts { display:none; }
+#profile-journey { padding:24px 0; border-color:#dce3de; }
+#profile-journey p { line-height:1.6; font-size:14px; }
+#profile-journey .career-goals { gap:24px; margin:20px 0; }
+#profile-journey .career-goals label { font-size:13px; line-height:1.5; }
+#profile-journey progress,.upgrade-item progress { height:6px; border:0; border-radius:3px; overflow:hidden; accent-color:#19815b; background:#e2e9e4; }
+progress::-webkit-progress-bar { background:#e2e9e4; }
+progress::-webkit-progress-value { background:#19815b; }
+.asset-summary { border:0; margin:0 0 18px; }
+.asset-summary > div { background:transparent; padding:10px 16px; border:0; border-left:1px solid #dce3de; }
+.asset-filters { grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.asset-filters label { font-size:12px; }
+.asset-filters input,.asset-filters select { background:white; }
+#garage-development-panel .workshop-grid { grid-template-columns:minmax(0,1fr); gap:32px; }
+.workshop-section { padding:0; border:0; background:transparent; }
+.upgrade-grid { grid-template-columns:repeat(3,minmax(0,1fr)); border:0; gap:14px; }
+.upgrade-item { display:flex; flex-direction:column; gap:10px; padding:18px; border:1px solid #dce3de; background:white; border-radius:4px; }
+.upgrade-top strong { font-size:15px; }
+.upgrade-level { font-size:12px; padding:3px 6px; }
+.upgrade-item p { font-size:13px; line-height:1.6; margin:0; min-height:42px; }
+.skill-prerequisite { font-size:12px; line-height:1.5; color:#617267; }
+.upgrade-item progress { margin-top:auto; }
+.upgrade-item button { font-size:13px; min-height:40px; margin-top:4px; }
+.upgrade-item.skill-locked { background:#f5f7f6; }
+.upgrade-item button:disabled { background:#e7ece9; color:#69796f; opacity:1; border-color:transparent; }
+@media(max-width:900px) {
+  .upgrade-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #incoming-offers,#outgoing-offers { grid-template-columns:minmax(0,1fr); }
+  .asset-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:600px) {
+  .modal-body { padding:20px; }
+  .modal-car-art { height:200px; max-height:200px; }
+  .modal-body .inspection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .modal-body .inspection-grid > div:nth-child(3) { display:none; }
+  .market-inspection .workshop-heading { display:block; }
+  .inspection-actions { grid-template-columns:minmax(0,1fr); }
+  .inspection-button { min-height:72px; }
+  .utility-nav { width:min(320px,calc(100% - 24px)); }
+  .upgrade-grid { grid-template-columns:minmax(0,1fr); }
+  .profile-edit-form { grid-template-columns:minmax(0,1fr); }
+  .profile-edit-form button { width:auto; }
+  .offer-card { padding:16px; }
+  .offer-head > span { font-size:19px; }
+  .garage-status { border-left:0; }
+}

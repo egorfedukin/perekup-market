@@ -29,7 +29,7 @@
   <link rel="dns-prefetch" href="//images.unsplash.com">
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
   <link rel="stylesheet" href="styles.css?v=gameplay-2">
-  <link rel="stylesheet" href="design.css?v=market-3">
+  <link rel="stylesheet" href="design.css?v=refinement-4">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -296,8 +296,8 @@
         <form id="asset-filters" class="market-filters asset-filters" hidden>
           <input name="type" type="hidden" value="all">
           <label>Категория<select name="category"><option value="all">Все активы</option><option value="collectibles">Коллекции</option><option value="residential">Жилая недвижимость</option><option value="commercial">Коммерческая недвижимость</option></select></label>
-          <label>Цена от<input name="min" type="number" min="1" step="10000" placeholder="10 000 ₽"></label>
-          <label>Цена до<input name="max" type="number" min="1" step="10000" placeholder="100 000 000 ₽"></label>
+          <label>Цена от<input name="min" type="number" min="1" step="1" placeholder="Любая" inputmode="numeric"></label>
+          <label>Цена до<input name="max" type="number" min="1" step="1" placeholder="Любая" inputmode="numeric"></label>
           <label>Сортировка<select name="sort"><option value="deal">Сначала выгодные</option><option value="priceAsc">Сначала дешевле</option><option value="priceDesc">Сначала дороже</option><option value="income">По доходности</option></select></label>
           <button class="primary-button" type="submit">Применить</button><button class="secondary-button" type="reset">Сбросить</button><span id="asset-filter-result" class="filter-result"></span>
         </form>
@@ -433,6 +433,6 @@
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/about.html" target="_blank">Об игре</a> · <a href="/requisites.html" target="_blank">Реквизиты</a> · <a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
   <script src="/runtime-config.js"></script>
-  <script src="app.js?v=market-3"></script>
+  <script src="app.js?v=refinement-4"></script>
 </body>
 </html>

@@ -11,13 +11,29 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), "market-browser-"));
 const output = process.env.QA_OUTPUT || path.join(__dirname, "work", "qa");
 fs.mkdirSync(output, { recursive: true });
 let server, browser;
-async function run() {
+async function startServer() {
   server = spawn(process.execPath, ["server.js"], { cwd: __dirname, env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: directory }, stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(Error("Server timeout")), 15000); server.once("error", reject); server.stdout.on("data", data => { if (String(data).includes("Perekup Market")) { clearTimeout(timer); resolve(); } }); });
+}
+async function run() {
+  await startServer();
   const join = await (await fetch(`${base}/api/join`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: `Browser${Date.now().toString().slice(-7)}` }) })).json();
   const car = join.market.filter(item => item.saleType !== "auction" && item.price < 400000).sort((a, b) => a.price - b.price)[0];
   assert.ok(car);
-  await fetch(`${base}/api/buy`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${join.token}` }, body: JSON.stringify({ carId: car.id }) });
+  const purchase = await fetch(`${base}/api/buy`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${join.token}` }, body: JSON.stringify({ carId: car.id }) });
+  assert.equal(purchase.status, 200, await purchase.text());
+  const savedProfile = await fetch(`${base}/api/profile/appearance`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${join.token}` }, body: JSON.stringify({ cosmeticId: 'workshop' }) });
+  assert.equal(savedProfile.status, 200);
+  // Unlock auction screens in the isolated test database only.
+  await new Promise(resolve => setTimeout(resolve, 450));
+  await new Promise(resolve => { server.once('exit', resolve); server.kill(); });
+  const { DatabaseSync } = require('node:sqlite');
+  const fixtureDb = new DatabaseSync(path.join(directory, 'game.db'));
+  const fixtureState = JSON.parse(fixtureDb.prepare('SELECT payload FROM game_state WHERE id = 1').get().payload);
+  fixtureState.players.find(([id]) => id === join.player.id)[1].xp = 600;
+  fixtureDb.prepare('UPDATE game_state SET payload = ? WHERE id = 1').run(JSON.stringify(fixtureState));
+  fixtureDb.close();
+  await startServer();
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];
@@ -87,6 +103,17 @@ async function run() {
     assert.equal(await page.locator('#asset-market-grid').isVisible(), false);
     await page.locator('.asset-mode-controls [data-asset-mode="all"]').click();
     assert.equal(await page.locator('#asset-market-grid').isVisible(), true);
+    const propertyState = await (await fetch(`${base}/api/state`, { headers: { Authorization: `Bearer ${join.token}` } })).json();
+    await page.locator('#asset-filters [name="min"]').fill('4575757');
+    await page.locator('#asset-filters [name="max"]').fill('25000000');
+    await page.locator('#asset-filters [name="category"]').selectOption('commercial');
+    await page.locator('#asset-filters [name="sort"]').selectOption('priceAsc');
+    assert.equal(await page.locator('#asset-filters').evaluate(form => form.checkValidity()), true, 'Any whole-ruble price is valid');
+    await page.locator('#asset-filters [type="submit"]').click();
+    const expectedProperties = propertyState.assetMarket.filter(item => item.type === 'property' && item.category === 'commercial' && item.price >= 4575757 && item.price <= 25000000).sort((a, b) => a.price - b.price).slice(0, 12).map(item => item.id);
+    assert.deepEqual(await page.locator('#asset-market-grid [data-open-property]').evaluateAll(items => items.map(item => item.dataset.openProperty)), expectedProperties, 'Property filters and sorting affect results');
+    await page.screenshot({ path: path.join(output, `${width}-property-filter.png`) });
+    await page.locator('#asset-filters [type="reset"]').click();
     await page.locator('.tabs [data-view="market"]').click();
     assert.equal(await page.locator('#market-filters').isVisible(), false);
     await page.locator('#mobile-filter-toggle').click();
@@ -101,6 +128,33 @@ async function run() {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
       assert.equal(overflow, false, `${view} overflows at ${width}px`);
       await page.screenshot({ path: path.join(output, `${width}-${view}.png`) });
+      if (view === 'garage') {
+        const more = page.locator('.garage-more-actions').first();
+        assert.equal(await more.locator('div').isVisible(), false, 'Secondary garage actions start hidden');
+        await more.locator('summary').click();
+        assert.equal(await more.locator('div').isVisible(), true);
+        await more.locator('summary').click();
+      }
+      if (view === 'auctions') {
+        await page.locator('[data-auction-mode="containers"]').click();
+        await page.locator('.container-card').first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(output, `${width}-containers.png`) });
+      }
+      if (view === 'market') {
+        await page.locator('#market-grid [data-open-market]').first().click();
+        await page.screenshot({ path: path.join(output, `${width}-market-inspection.png`) });
+        await page.keyboard.press('Escape');
+      }
+      if (view === 'profile') {
+        await page.locator('.profile-edit-details summary').click();
+        await page.locator('#profile-edit-form').scrollIntoViewIfNeeded();
+        await page.screenshot({ path: path.join(output, `${width}-profile-edit.png`) });
+        await page.locator('[data-mobile-menu]').click();
+        const menuBounds = await page.locator('#utility-nav').boundingBox();
+        assert.ok(menuBounds.height < 500, 'Menu remains compact');
+        await page.screenshot({ path: path.join(output, `${width}-menu.png`) });
+        await page.locator('#utility-nav [data-close-section-menu]').click();
+      }
     }
   }
   await page.goto(`${base}/#profile`);
@@ -110,6 +164,15 @@ async function run() {
   const missingArt = await page.locator('.cosmetic-option img').evaluateAll(images => images.filter(image => !image.complete || image.naturalWidth === 0).length);
   assert.equal(missingArt, 0, "Profile artwork loads locally");
   assert.equal(await page.locator(".activity-board").count(), 0);
+  const sale = await fetch(`${base}/api/list`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${join.token}` }, body: JSON.stringify({ carId: car.id, price: 150000, description: 'Состояние по осмотру, разумный торг.' }) });
+  assert.equal(sale.status, 200);
+  await page.goto(`${base}/#deals`);
+  await page.locator('#incoming-offers .offer-card').first().waitFor({ state: 'visible', timeout: 15000 });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await page.screenshot({ path: path.join(output, `${width}-npc-offers.png`) });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  }
   assert.deepEqual(errors, []);
   if (process.env.RUN_SMOKE === "1") await new Promise((resolve, reject) => {
     const smoke = spawn(process.execPath, ["smoke-test.js"], { cwd: __dirname, env: { ...process.env, TEST_URL: base }, stdio: "inherit" });
