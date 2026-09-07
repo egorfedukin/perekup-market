@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { cosmetics, stylePackages, profileAppearance, ownsCosmetic, paymentMatches, grantPurchase } = require("./cosmetics");
 const { acquisitionPrice, buyerPrice } = require("./economy");
+const { vehicleRule, vehicleName } = require("./vehicle-rules");
 const { createInspection, gradeInspection } = require("./inspection");
 const inspectionSessions = new Map();
 const { prerequisites, requiredSkillLevel, workplaceBenefits, npcProfile, npcFit, negotiate } = require("./progression");
@@ -122,7 +123,7 @@ const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "T
 const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
 const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
 const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
-const VEHICLE_PRICING_VERSION = 6;
+const VEHICLE_PRICING_VERSION = 7;
 const MAX_VEHICLE_VALUE = 2000000000;
 
 function parseVehicleCatalog() {
@@ -211,7 +212,7 @@ const collectibleValueFloors = {
 };
 
 function domesticMarketProfile(model) {
-  const value = model.toLowerCase().replace(/[^a-zа-яё0-9]+/giu, " ").trim();
+  const value = vehicleName(model).toLowerCase().replace(/[^a-zа-яё0-9]+/giu, " ").trim();
   const exact = {
     "moskvich 408": [1964, 1975, 180000], "moskvich 410": [1957, 1961, 260000], "moskvich 412": [1967, 2001, 190000],
     "moskvich 430": [1958, 1963, 220000], "moskvich 433": [1966, 1973, 210000], "moskvich 434": [1968, 1975, 220000],
@@ -241,6 +242,7 @@ function domesticMarketProfile(model) {
 }
 
 function vehicleProfile(entry) {
+  const rule = vehicleRule(entry.model);
   const domesticProfile = domesticMarketProfile(entry.model);
   const unit = stableVehicleUnit(entry.model, "price");
   const className = vehicleClass(entry.model, entry.make);
@@ -251,16 +253,16 @@ function vehicleProfile(entry) {
   if (className === "van") currentBase *= 1.08;
   if (/\b(360|600|700|800|1000|1100|1200|1300|1400|1500|1600)\b/.test(entry.model) && !premiumMakes.has(entry.make) && !exoticMakes.has(entry.make)) currentBase *= 0.78;
   if (/\b(flagship|turbo|performance|super|continental|phantom|veyron|chiron|aventador|murciélago|911|gallardo|corvette)\b/i.test(entry.model)) currentBase *= 1.32;
-  currentBase = domesticProfile?.marketAnchor || entry.referencePrice || modelPriceOverrides[entry.model] || currentBase;
-  currentBase = Math.round(Math.max(500000, Math.min(MAX_VEHICLE_VALUE, currentBase)) / 10000) * 10000;
+  currentBase = rule.referencePrice || domesticProfile?.marketAnchor || modelPriceOverrides[entry.model] || entry.referencePrice || currentBase;
+  currentBase = Math.round(Math.max(60000, Math.min(MAX_VEHICLE_VALUE, currentBase)) / 10000) * 10000;
   const classicHint = /\b(type|hp|cv|litre|zeppelin|phantom i|phantom ii|silver ghost)\b/i.test(entry.model)
     || /^(?:Ferrari (?:2\d\d|3\d\d|4(?:0\d|12)|5(?:0\d|12)|6(?:12))|Lamborghini (?:350|400|Countach|Miura)|Toyota 2000GT)\b/i.test(entry.model);
   const modernHint = /\b(ev|electric|électrique|e-tron|ioniq|model [3sxy]|polestar|rivian|lucid)\b/i.test(entry.model) || ["BYD", "Genesis"].includes(entry.make);
-  const knownYears = domesticProfile || vehicleProductionYears[entry.model];
+  const knownYears = rule.startYear ? rule : domesticProfile || vehicleProductionYears[entry.model];
   const inferredStartYear = classicHint ? 1950 + Math.floor(stableVehicleUnit(entry.model, "year") * 28) : modernHint ? 2012 + Math.floor(stableVehicleUnit(entry.model, "year") * 10) : 1988 + Math.floor(stableVehicleUnit(entry.model, "year") * 27);
   const startYear = knownYears?.startYear || inferredStartYear;
   const endYear = knownYears?.endYear || Math.min(2026, startYear + 8 + Math.floor(stableVehicleUnit(entry.model, "span") * 15));
-  return { ...entry, className, startYear, endYear, currentBase, marketAnchor: domesticProfile?.marketAnchor || null };
+  return { ...entry, collectible: rule.collectible ?? entry.collectible, className, startYear, endYear, currentBase, marketAnchor: domesticProfile ? rule.referencePrice || domesticProfile.marketAnchor : null };
 }
 
 const vehicleModels = parseVehicleCatalog().map(vehicleProfile);
@@ -753,6 +755,19 @@ function ensureCarDefaults(car) {
   car.checkedCategories = Object.keys(car.inspectionRecords);
   car.serviceDiagnosed ??= false;
   car.history ||= [{ type: "acquired", text: "Автомобиль поступил на рынок", at: Date.now() }];
+  if (car.catalogRevision !== VEHICLE_PRICING_VERSION && car.cleanValue > 0 && car.year) {
+    const rule = vehicleRule(car.model);
+    const protectedAuction = car.saleType === "auction" && ((car.participantIds || []).length || car.highestBidderType === "player");
+    if (rule.startYear && !protectedAuction) {
+      const previousYear = car.year;
+      car.year = Math.max(rule.startYear, Math.min(rule.endYear, car.year));
+      const variants = catalog.filter(item => item.model === car.model);
+      const reference = variants.reduce((best, item) => !best || Math.abs(item.year - car.year) < Math.abs(best.year - car.year) ? item : best, null);
+      if (reference) car.cleanValue = Math.round(reference.base * (1 - Math.min(0.4, Math.max(0, car.mileage || 0) / 850000)) / 1000) * 1000;
+      if (previousYear !== car.year) car.history.push({ type: "catalog", text: `Уточнён год выпуска: ${previousYear} → ${car.year}. Затраты на покупку и работы сохранены.`, at: Date.now() });
+    }
+    if (!protectedAuction) car.catalogRevision = VEHICLE_PRICING_VERSION;
+  }
   car.installedParts ||= [];
   car.installedParts.forEach((part, index) => migratePart(part, index, car.model));
   car.upgrades ||= [];
@@ -1134,9 +1149,9 @@ function saleEstimate(car, player = null) {
     return sum + part.estimatedValue * qualityBonus * (0.16 + part.reliability / 500);
   }, 0));
   const platePremium = car.plateIncluded && car.registration?.plate ? car.registration.plate.estimatedValue : 0;
-  const expectedNpcPrice = Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium + platePremium + propertyPremium) / 1000) * 1000);
+  const expectedNpcPrice = Math.min(MAX_VEHICLE_VALUE, Math.max(1, Math.round((technicalValue * 0.58 + marketPrice * 0.42 + repairPremium + documentationPremium + restoredPremium + upgradePremium + conditionAdjustment - repairLiquidityPenalty + employeePremium + installedPartsPremium + platePremium + propertyPremium) / 1000) * 1000));
   const recommendedLow = Math.max(1, Math.round(expectedNpcPrice * 0.94 / 1000) * 1000);
-  const recommendedHigh = Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000);
+  const recommendedHigh = Math.min(MAX_VEHICLE_VALUE, Math.max(recommendedLow, Math.round(expectedNpcPrice * 1.09 / 1000) * 1000));
   const breakEven = Math.max(1, Math.ceil(car.invested * 1.02 / 1000) * 1000);
   return {
     technicalValue, marketPrice, repairPremium: Math.round(repairPremium), documentationPremium: Math.round(documentationPremium + restoredPremium), upgradePremium: Math.round(upgradePremium),
@@ -1289,7 +1304,7 @@ function makeCar(index, seller = "Авторынок") {
   const fair = currentValue(provisional);
   const indexed = marketIndices[item.model]?.price;
   const pricingBase = clamp(indexed || fair, fair * 0.78, fair * 1.28);
-  const asking = npcAskingPrice({ ...provisional, model: item.model, year: item.year, condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92) }, pricing.key);
+  const asking = npcAskingPrice({ ...provisional, model: item.model, year: item.year, mileage, catalogRevision: VEHICLE_PRICING_VERSION, condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92) }, pricing.key);
   const listedAt = Date.now();
   return {
     id: id("car_"), make: item.make, photoQuery: item.photoQuery, photoUrl: item.photoUrl, photoSource: item.photoSource, model: item.model, year: item.year, mileage, price: asking,
@@ -1298,7 +1313,7 @@ function makeCar(index, seller = "Авторынок") {
     condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92),
     defects: provisional.defects, discovered: [], checkedCategories: [], inspectionRecords: {}, serviceDiagnosed: false, repairs: [],
     description: pricing.key === "project" ? "Цена снижена: автомобиль под восстановление, состояние проверяйте внимательно." : count <= 1 ? "Ухоженная машина, сел и поехал." : ["Едет бодро, есть возрастные моменты.", "Продажа без спешки. Торг у капота.", "На ходу каждый день, требует внимания."][randomInt(0, 2)],
-    marketTag: pricing.tag, listedAt,
+    marketTag: pricing.tag, listedAt, npcPricingVersion: VEHICLE_PRICING_VERSION, catalogRevision: VEHICLE_PRICING_VERSION,
     history: [{ type: "listed", text: "Первичное объявление на рынке", at: listedAt }]
   };
 }
@@ -1963,7 +1978,7 @@ function configureNpcAuction(car) {
   const startFactor = 0.62 + Math.random() * 0.16;
   car.saleType = "auction";
   car.seller = ["Муниципальные торги", "Дилерский аукцион", "Страховой склад", "Лизинговый парк"][randomInt(0, 3)];
-  car.startingPrice = Math.max(Math.round(minimumNpcPrice(car.model) * 0.7 / 1000) * 1000, Math.round(estimate.expectedNpcPrice * startFactor / 1000) * 1000);
+  car.startingPrice = Math.max(1000, Math.round(estimate.expectedNpcPrice * startFactor / 1000) * 1000);
   car.price = car.startingPrice;
   car.auctionEnd = Date.now() + randomInt(180, 420) * 1000;
   car.highestBid = 0; car.highestBidderId = null; car.highestBidderName = null; car.highestBidderType = null;
@@ -2071,6 +2086,7 @@ setInterval(runContainerBots, 3500).unref();
 function rebalanceNpcMarket() {
   const npcCars = market.filter((car) => !car.sellerId && car.saleType !== "auction").sort(() => Math.random() - 0.5);
   npcCars.forEach((car, index) => {
+    if (car.npcPricingVersion >= VEHICLE_PRICING_VERSION) return;
     const ratio = (index + 0.5) / Math.max(1, npcCars.length);
     const pricing = npcPricingProfile(ratio);
     const fair = currentValue(car);
@@ -2080,11 +2096,12 @@ function rebalanceNpcMarket() {
     car.purchasePrice = car.price;
     car.invested = car.price;
     car.marketTag = pricing.tag;
+    car.npcPricingVersion = VEHICLE_PRICING_VERSION;
     car.listedAt = Date.now() - randomInt(0, NPC_ROTATION_MS);
   });
   for (const car of market.filter((item) => !item.sellerId && item.saleType === "auction" && !item.bidCount)) {
     const fair = saleEstimate(car).expectedNpcPrice;
-    car.startingPrice = Math.max(Math.round(minimumNpcPrice(car.model) * 0.7 / 1000) * 1000, Math.round(clamp(car.startingPrice || car.price, fair * 0.58, fair * 0.82) / 1000) * 1000);
+    car.startingPrice = Math.max(1000, Math.round(clamp(car.startingPrice || car.price, fair * 0.58, fair * 0.82) / 1000) * 1000);
     car.price = car.startingPrice;
   }
   ensureNpcAuctions();

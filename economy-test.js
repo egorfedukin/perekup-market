@@ -24,6 +24,8 @@ async function request(url, body, status = 200) {
 }
 async function run() {
   const player = { cash: 500000, xp: 0, purchasedCash: 0 };
+  assert.ok(acquisitionPrice({ value: 2000000000, restorationValue: 2000000000, repairCost: 0, kind: 'optimistic', unit: 1 }) <= 2000000000);
+  assert.ok(buyerPrice({ value: 2000000000, fit: 1.5, type: 'collector', unknownCount: 0, classic: true }) <= 2000000000);
   assert.equal(ownsCosmetic(player, cosmetics.find(item => item.id === "road"), 1), false);
   assert.equal(ownsCosmetic(player, cosmetics.find(item => item.id === "road"), 3), true);
   assert.equal(ownsCosmetic({ supporterTier: "bronze" }, cosmetics.find(item => item.id === "night"), 1), true);
@@ -54,8 +56,15 @@ async function run() {
   const saved = JSON.parse(db.prepare("SELECT payload FROM game_state WHERE id = 1").get().payload);
   const fixture = saved.players.find(([, p]) => p.id === state.player.id)[1];
   fixture.cash = 20000000; fixture.garageCapacity = 12; fixture.xp = 5000; fixture.cosmeticsOwned = ["night", "redline"];
+  const legacyCar = structuredClone(saved.market.find(car => car.saleType !== 'auction'));
+  Object.assign(legacyCar, { id: 'legacy_avatr_test', model: 'Avatr 07', make: 'Avatr', year: 1995, cleanValue: 100000, invested: 123456, purchasePrice: 110000, catalogRevision: 6, ownerId: fixture.id, sellerId: null });
+  fixture.garage.push(legacyCar);
   db.prepare("UPDATE game_state SET payload = ?, updated_at = ? WHERE id = 1").run(JSON.stringify(saved), Date.now()); db.close();
   await start(); state = await request("/api/state");
+  const migratedCar = state.player.garage.find(car => car.id === 'legacy_avatr_test');
+  assert.equal(migratedCar.year, 2024);
+  assert.equal(migratedCar.invested, 123456);
+  assert.ok(migratedCar.saleEstimate.expectedNpcPrice > 1000000, 'Modern car no longer valued as a 1995 salvage vehicle');
   await request("/api/profile/appearance", { cosmeticId: "night" });
   state = await request("/api/profile/appearance", { cosmeticId: "redline" });
   const eligible = state.market.filter(car => car.saleType !== "auction" && !car.sellerId && car.price < 500000 && ["Срочная продажа", "Под восстановление"].includes(car.marketTag)).sort((a, b) => a.price - b.price).slice(0, 6);
@@ -86,7 +95,9 @@ async function run() {
   }
   assert.ok(results.filter(result => result.profit > 0).length >= 4, JSON.stringify(results));
   const expectedCash = state.player.cash;
+  const npcPrices = new Map(state.market.filter(car => !car.sellerId && car.saleType !== 'auction').map(car => [car.id, car.price]));
   await stop(); await start(); state = await request("/api/state");
+  for (const car of state.market.filter(car => npcPrices.has(car.id))) assert.equal(car.price, npcPrices.get(car.id), 'Restart must not reroll NPC asking prices');
   assert.equal(state.player.cash, expectedCash);
   assert.deepEqual(state.player.appearance.selected, { background: "night", frame: "redline" });
   console.log(JSON.stringify(results, null, 2));
