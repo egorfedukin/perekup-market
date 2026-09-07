@@ -4,7 +4,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { repairQuote, repairReliability, inspectionQuote, careerProgress } = require("./gameplay");
+const { repairQuote, repairReliability, inspectionQuote, careerProgress, playInspectionMiniGame, tuningImpact, buyerProfiles, skillTree, propertyRoi } = require("./gameplay");
 
 async function run() {
   assert.throws(() => repairQuote({ labor: 1000, plan: "unknown" }));
@@ -16,6 +16,16 @@ async function run() {
   assert.equal(inspectionQuote("instrumental", 0, 0).depth, 4);
   assert.equal(inspectionQuote("instrumental", 5, 3).confidence, 100);
   assert.ok(repairQuote({ labor: 10000, plan: "restoration" }).total > repairQuote({ labor: 10000 }).total);
+  const coldStart = playInspectionMiniGame("engine", [62, 48, 55]);
+  assert.equal(coldStart.score, 100);
+  assert.equal(coldStart.defect, "engine");
+  assert.throws(() => playInspectionMiniGame("unknown", []));
+  assert.ok(playInspectionMiniGame("body", [0, 0, 0, 0]).score < 100);
+  assert.ok(tuningImpact({ profile: "sport", value: 80000, risk: 2 }, "enthusiast").suitable);
+  assert.ok(tuningImpact({ profile: "sport", value: 80000, risk: 2 }, "family").risk > 2);
+  assert.ok(buyerProfiles.collector.ageTolerance < buyerProfiles.budget.ageTolerance);
+  assert.ok(skillTree.negotiation.effects.length >= 2);
+  assert.ok(propertyRoi({ price: 1000000, income: 20000 }).months > 0);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "market-gameplay-"));
   const port = 5100 + process.pid % 500;
   let server;

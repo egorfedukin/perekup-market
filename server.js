@@ -317,7 +317,7 @@ const defectCatalog = [
   { code: "vin", category: "documents", name: "Следы вмешательства в маркировку VIN", symptom: "Шрифт и глубина символов отличаются от заводского образца.", consequence: "Отказ в регистрации и риск изъятия автомобиля.", severity: 3, skill: 3, equipment: "vinScanner", equipmentLevel: 3, repair: 180000, impact: 310000 }
 ];
 
-const { repairPlans, repairQuote, repairReliability, inspectionMethods, inspectionQuote, careerProgress } = require("./gameplay");
+const { repairPlans, repairQuote, repairReliability, inspectionMethods, inspectionQuote, careerProgress, playInspectionMiniGame } = require("./gameplay");
 
 const skillInfo = {
   diagnostics: { name: "Диагност", description: "Двигатель, подвеска и поиск скрытых симптомов", maxLevel: 5 },
@@ -3084,8 +3084,9 @@ async function api(req, res, pathname) {
     if (!Object.hasOwn(inspectionMethods, method)) return json(res, 400, { error: "Неизвестный метод осмотра" });
     const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment]);
     const baseScore = quote.depth;
-    const score = baseScore;
-    const interactionScore = quote.confidence;
+    const miniGame = Array.isArray(body.miniGame) ? playInspectionMiniGame(category, body.miniGame, car.id.length) : null;
+    const score = Math.min(8, baseScore + (miniGame?.depthBonus || 0));
+    const interactionScore = miniGame ? Math.min(quote.confidence, Math.max(quote.confidence, miniGame.score)) : quote.confidence;
     const previous = car.inspectionRecords[category];
     if (previous && baseScore <= previous.bestScore) return json(res, 400, { error: "Для повторной проверки сначала повысьте навык или оборудование" });
     const cost = quote.cost;
