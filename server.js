@@ -2,6 +2,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { cosmetics, stylePackages, profileAppearance, ownsCosmetic, paymentMatches, grantPurchase } = require("./cosmetics");
+const { acquisitionPrice, buyerPrice } = require("./economy");
 const { createInspection, gradeInspection } = require("./inspection");
 const inspectionSessions = new Map();
 const { prerequisites, requiredSkillLevel, workplaceBenefits, npcProfile, npcFit, negotiate } = require("./progression");
@@ -691,6 +693,11 @@ function ensurePlayerDefaults(player) {
   player.achievements ||= { unlocked: [], claimed: [] };
   syncAchievements(player);
   if (!player.contracts.length) player.contracts = generateContracts(player);
+  for (const contract of player.contracts) {
+    if (contract.status !== "active" || !contract.model || !["profit", "honest"].includes(contract.kind)) continue;
+    delete contract.model;
+    contract.description = contract.kind === "profit" ? "Купите и продайте автомобиль с прибылью" : "Продайте автомобиль, честно указав его проблемы";
+  }
 }
 
 function addLedger(player, type, title, amount = 0, details = {}, at = Date.now()) {
@@ -1006,11 +1013,10 @@ function detachPlate(player, car, reason = "Номер снят") {
 }
 
 function generateContracts() {
-  const models = catalog.slice().sort(() => Math.random() - 0.5);
   const contractId = () => `contract_${crypto.randomBytes(7).toString("hex")}`;
   return [
-    { id: contractId(), title: "Быстрый оборот", description: `Купите и продайте ${models[0].model} с прибылью`, kind: "profit", model: models[0].model, reward: 42000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
-    { id: contractId(), title: "Честный подбор", description: `Продайте ${models[1].model} без скрытых проблем в описании`, kind: "honest", model: models[1].model, reward: 36000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
+    { id: contractId(), title: "Быстрый оборот", description: "Купите и продайте автомобиль с прибылью", kind: "profit", reward: 42000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
+    { id: contractId(), title: "Честный подбор", description: "Продайте автомобиль, честно указав его проблемы", kind: "honest", reward: 36000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
     { id: contractId(), title: "Сервисная история", description: "Продайте диагностированную и отремонтированную машину", kind: "restored", reward: 58000, expiresAt: Date.now() + 7 * 86400000, status: "active" }
   ];
 }
@@ -1258,9 +1264,9 @@ function partsMarketStatistics() {
 }
 
 function npcPricingProfile(roll = Math.random()) {
-  if (roll < 0.12) return { key: "urgent", tag: "Срочная продажа", min: 0.78, max: 0.89 };
-  if (roll < 0.22) return { key: "project", tag: "Проект", min: 0.68, max: 0.82 };
-  if (roll < 0.8) return { key: "fair", tag: "Рыночная цена", min: 0.9, max: 1.04 };
+  if (roll < 0.3) return { key: "urgent", tag: "Срочная продажа", min: 0.68, max: 0.78 };
+  if (roll < 0.5) return { key: "project", tag: "Под восстановление", min: 0.6, max: 0.74 };
+  if (roll < 0.9) return { key: "fair", tag: "Рыночная цена", min: 0.83, max: 0.97 };
   return { key: "optimistic", tag: "Есть торг", min: 1.05, max: 1.14 };
 }
 
@@ -1283,7 +1289,7 @@ function makeCar(index, seller = "Авторынок") {
   const fair = currentValue(provisional);
   const indexed = marketIndices[item.model]?.price;
   const pricingBase = clamp(indexed || fair, fair * 0.78, fair * 1.28);
-  const asking = Math.max(minimumNpcPrice(item.model), Math.round((pricingBase * (pricing.min + Math.random() * (pricing.max - pricing.min))) / 1000) * 1000);
+  const asking = npcAskingPrice({ ...provisional, model: item.model, year: item.year, condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92) }, pricing.key);
   const listedAt = Date.now();
   return {
     id: id("car_"), make: item.make, photoQuery: item.photoQuery, photoUrl: item.photoUrl, photoSource: item.photoSource, model: item.model, year: item.year, mileage, price: asking,
@@ -1295,6 +1301,20 @@ function makeCar(index, seller = "Авторынок") {
     marketTag: pricing.tag, listedAt,
     history: [{ type: "listed", text: "Первичное объявление на рынке", at: listedAt }]
   };
+}
+
+function npcAskingPrice(car, kind, unit = Math.random()) {
+  ensureCarDefaults(car);
+  const value = saleEstimate(car).expectedNpcPrice;
+  const restored = structuredClone(car);
+  let repairCost = 0;
+  for (const defect of restored.defects.filter(item => !item.repaired)) {
+    repairCost += Math.round(defect.repair * 1.15);
+    defect.repaired = true; defect.repairQuality = "Стандартный ремонт"; defect.repairReliability = 88;
+    restored.repairs.push(defect.name);
+    restored.condition = Math.min(100, restored.condition + defect.severity * 4);
+  }
+  return acquisitionPrice({ value, restorationValue: saleEstimate(restored).expectedNpcPrice, repairCost, kind, unit });
 }
 
 function publicDefect(defect, car = null) {
@@ -1545,7 +1565,7 @@ function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
-    career: careerProgress(player), dealStyles: player.dealStyles || {},
+    career: careerProgress(player), dealStyles: player.dealStyles || {}, appearance: profileAppearance(player, levelForXp(player.xp)),
     id: player.id, name: player.name, avatar: player.avatar || "", cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
@@ -1563,7 +1583,6 @@ function playerView(player) {
     containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
     notifications: player.notifications.slice(-20).reverse(), unreadNotifications: player.notifications.filter((item) => !item.read).length,
     achievements: { unlocked: player.achievements.unlocked, catalog: achievementCatalog.map(({ test, ...item }) => ({ ...item, unlocked: player.achievements.unlocked.includes(item.key) })) },
-    activities: { ...player.activities, catalog: activityCatalog },
     ledger: player.ledger.slice(-100).reverse()
   };
 }
@@ -1596,6 +1615,7 @@ function publicPlayerProfile(candidate, viewer) {
     deals: candidate.deals || 0,
     profileBadge: candidate.profileBadge || (isAdmin(candidate) ? "Администратор" : ""),
     supporterTier: candidate.supporterTier || "none",
+    appearance: profileAppearance(candidate, levelForXp(candidate.xp)).selected,
     groupName: group?.name || null,
     groupRole: candidate.groupRole || null,
     listings: activeListings,
@@ -1632,7 +1652,7 @@ function snapshot(player) {
     groups: [...groups.values()].map((group) => ({ id: group.id, name: group.name, rating: group.rating, members: group.members.length })),
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
     employeeCandidates, groupJobCatalog: Object.values(groupJobCatalog),
-    store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: cashPackages },
+    store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: stylePackages.map(pack => ({ ...pack, owned: pack.cosmetics.every(id => ownsCosmetic(player, cosmetics.find(item => item.id === id), levelForXp(player.xp))) })) },
     catalogCount: catalog.length,
     containerAuctions: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL ? containerAuctions.map((container) => publicContainer(container, player)) : [],
     assetMarket: assetMarket.filter((listing) => listing.stock > 0).map((listing) => publicAssetListing(listing, player)), cryptoQuotes: cryptoQuotes(), clothingMarket: clothingMarket.map((lot) => ({ ...lot, viewerOwned: lot.sellerId === player.id })), itemContainerAuctions: itemContainerAuctions.map((box) => ({ ...box, viewerLeading: box.highestBidderId === player.id, viewerParticipated: box.participantIds.includes(player.id) })),
@@ -2056,7 +2076,7 @@ function rebalanceNpcMarket() {
     const fair = currentValue(car);
     const reference = clamp(marketIndices[car.model]?.price || fair, fair * 0.78, fair * 1.28);
     const multiplier = pricing.min + Math.random() * (pricing.max - pricing.min);
-    car.price = Math.max(minimumNpcPrice(car.model), Math.round(reference * multiplier / 1000) * 1000);
+    car.price = npcAskingPrice(car, pricing.key);
     car.purchasePrice = car.price;
     car.invested = car.price;
     car.marketTag = pricing.tag;
@@ -2107,12 +2127,11 @@ async function confirmPayment(paymentId) {
   const order = paymentOrders.get(paymentId);
   if (!order || order.status === "succeeded" || !YOOKASSA_SHOP_ID) return false;
   const payment = await yookassaRequest(`/payments/${encodeURIComponent(paymentId)}`);
-  if (payment.status !== "succeeded" || payment.paid !== true || payment.metadata?.orderId !== order.orderId) return false;
+  if (!paymentMatches(order, payment) || order.status === "succeeded") return false;
   const player = players.get(order.playerId);
   if (!player) return false;
   const pack = cashPackages.find((item) => item.id === order.packageId);
-  player.cash += order.cash;
-  player.purchasedCash += order.cash;
+  grantPurchase(player, order);
   if (pack && supporterTierRank[pack.supporterTier] > supporterTierRank[player.supporterTier || "none"]) player.supporterTier = pack.supporterTier;
   order.status = "succeeded";
   order.paidAt = Date.now();
@@ -2198,17 +2217,17 @@ function completeSale(car, buyer, amount) {
 function evaluateBots(car) {
   if (!market.some((item) => item.id === car.id) || !car.sellerId) return;
   const lie = /вложений не требует|идеал|без проблем/i.test(car.description) && car.defects.some((defect) => !defect.repaired);
-  const candidates = [...bots].sort(() => Math.random() - 0.5).slice(0, randomInt(2, 4));
+  const contacted = new Set([...offers.values()].filter(offer => offer.carId === car.id && (["active", "counter"].includes(offer.status) || offer.status === "rejected" && Date.now() - (offer.lastOfferAt || offer.createdAt) < 120000)).map(offer => offer.buyerId));
+  const types = new Set();
+  const candidates = [...bots].filter(bot => !contacted.has(bot.id)).sort((a, b) => botAuctionCeiling(car, b) - botAuctionCeiling(car, a)).filter(bot => {
+    if (types.has(bot.type)) return false;
+    types.add(bot.type); return true;
+  }).slice(0, 3);
   for (const bot of candidates) {
-    if (car.price > bot.budget) continue;
+    if (bot.budget < car.price * .65) continue;
     const detected = car.defects.filter((defect) => !defect.repaired && defect.skill + defect.equipmentLevel <= bot.skill + 2);
     const ceiling = botAuctionCeiling(car, bot);
-    if (ceiling < 1 || car.price > ceiling * 1.35) continue;
-    if (car.price <= ceiling * 0.99 && Math.random() < (car.repairs.length || car.serviceDiagnosed ? 0.78 : 0.58)) {
-      completeSale(car, null, car.price);
-      broadcast();
-      return;
-    }
+    if (ceiling < 1) continue;
     const amount = clamp(Math.round(Math.min(car.price * 0.97, ceiling) / 1000) * 1000, 1, car.price - 1);
     if (amount >= car.price) continue;
     const issue = detected.sort((a, b) => b.impact - a.impact)[0];
@@ -2228,7 +2247,7 @@ function evaluateBots(car) {
 }
 
 function scheduleBots(car) {
-  setTimeout(() => evaluateBots(car), 900 + randomInt(0, 900));
+  setTimeout(() => evaluateBots(car), 2500 + randomInt(0, 2000));
 }
 
 function refreshNpcOffers() {
@@ -2284,27 +2303,12 @@ setInterval(finalizeAuctions, 1000).unref();
 
 function botAuctionCeiling(car, bot) {
   const estimate = saleEstimate(car);
-  const unresolved = car.defects.filter((defect) => !defect.repaired);
-  const detected = unresolved.filter((defect) => defect.skill + defect.equipmentLevel <= bot.skill + 2);
-  const unknownCount = unresolved.length - detected.length;
-  const liePenalty = /идеал|без проблем|вложений не требует/i.test(car.description) && unresolved.length ? 0.06 : 0;
-  const uncertaintyPenalty = unknownCount * 0.018;
-  const repairBonus = car.repairs.length ? bot.repairPremium : 0;
-  const collectorMatch = bot.type === "collector" && ["classic", "coupe", "roadster", "premium"].includes(car.className) ? 0.1 : bot.type === "collector" ? -0.12 : 0;
-  const budgetPenalty = bot.type === "budget" && car.price > bot.budget * 0.8 ? 0.06 : 0;
-  const dealerMargin = bot.type === "dealer" ? 0.08 : 0;
-  const tuningBonus = car.upgrades.reduce((sum, key) => {
-    const upgrade = upgradeCatalog.find((item) => item.key === key);
-    if (!upgrade) return sum;
-    if (upgrade.demand?.includes(bot.type)) return sum + 0.035;
-    if (bot.type === "collector" && upgrade.profile === "sport") return sum - 0.012;
-    if (bot.type === "budget" && upgrade.profile === "sport") return sum - 0.045;
-    return sum;
-  }, 0);
+  const unresolved = car.defects.filter(defect => !defect.repaired);
+  const unknownCount = unresolved.filter(defect => defect.skill + defect.equipmentLevel > bot.skill + 2).length;
   const seller = players.get(car.sellerId);
-  const relationship = Math.max(-10, Math.min(10, seller?.npcRelations?.[bot.id] || 0));
-  const multiplier = (bot.risk + repairBonus + collectorMatch + tuningBonus - liePenalty - uncertaintyPenalty - budgetPenalty - dealerMargin + relationship * .003) * npcFit(car, bot, upgradeCatalog).multiplier;
-  return Math.min(bot.budget, Math.max(1, Math.round(estimate.expectedNpcPrice * multiplier / 1000) * 1000));
+  const classic = new Date().getFullYear() - car.year >= 25 || ["classic", "coupe", "roadster", "premium"].includes(car.className);
+  const price = buyerPrice({ value: estimate.expectedNpcPrice, fit: npcFit(car, bot, upgradeCatalog).multiplier, type: bot.type, unknownCount, lied: /идеал|без проблем|вложений не требует/i.test(car.description) && unresolved.length > 0, relationship: seller?.npcRelations?.[bot.id] || 0, repaired: car.repairs.length > 0, classic });
+  return Math.min(bot.budget, Math.max(1000, price));
 }
 
 function runAuctionBots() {
@@ -2520,6 +2524,13 @@ async function api(req, res, pathname) {
   const blocked = banMessage(player);
   if (blocked) return json(res, 403, { error: blocked });
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
+  if (req.method === "POST" && pathname === "/api/profile/appearance") {
+    const body = await readBody(req);
+    const item = cosmetics.find(item => item.id === body.cosmeticId);
+    if (!item || !ownsCosmetic(player, item, levelForXp(player.xp))) return json(res, 403, { error: "Это оформление ещё не открыто" });
+    player.appearance ||= {}; player.appearance[item.slot] = item.id;
+    persistState(); broadcast(); return json(res, 200, snapshot(player));
+  }
   if (req.method === "POST" && pathname === "/api/profile/update") {
     const body = await readBody(req);
     const name = String(body.name || "").trim().slice(0, 20);
@@ -2571,15 +2582,16 @@ async function api(req, res, pathname) {
   }
   if (req.method === "POST" && pathname === "/api/store/create-payment") {
     if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) return json(res, 503, { error: "Приём рублей ещё не подключён. Нужны ключи YooKassa." });
-    const pack = cashPackages.find((item) => item.id === body.packageId);
+    const pack = stylePackages.find((item) => item.id === body.packageId);
     if (!pack) return json(res, 404, { error: "Пакет не найден" });
+    if (pack.cosmetics.every(id => ownsCosmetic(player, cosmetics.find(item => item.id === id), levelForXp(player.xp)))) return json(res, 409, { error: "Этот комплект уже открыт" });
     const orderId = id("order_");
     try {
       const payment = await yookassaRequest("/payments", {
         method: "POST", headers: { "Idempotence-Key": orderId },
-        body: JSON.stringify({ amount: { value: pack.rubles.toFixed(2), currency: "RUB" }, capture: true, confirmation: { type: "redirect", return_url: `${PUBLIC_URL}/#store` }, description: `${pack.name}: ${pack.cash.toLocaleString("ru-RU")} игровых рублей`, metadata: { orderId, playerId: player.id, packageId: pack.id } })
+        body: JSON.stringify({ amount: { value: pack.rubles.toFixed(2), currency: "RUB" }, capture: true, confirmation: { type: "redirect", return_url: `${PUBLIC_URL}/#store` }, description: `Оформление профиля: ${pack.name}`, metadata: { orderId, playerId: player.id, packageId: pack.id } })
       });
-      paymentOrders.set(payment.id, { orderId, paymentId: payment.id, playerId: player.id, packageId: pack.id, rubles: pack.rubles, cash: pack.cash, status: payment.status, createdAt: Date.now() });
+      paymentOrders.set(payment.id, { orderId, paymentId: payment.id, playerId: player.id, packageId: pack.id, rubles: pack.rubles, cash: 0, cosmetics: [...pack.cosmetics], status: "pending", createdAt: Date.now() });
       persistState();
       return json(res, 200, { confirmationUrl: payment.confirmation?.confirmation_url });
     } catch (error) { return json(res, 502, { error: error.message }); }
@@ -3347,32 +3359,7 @@ async function api(req, res, pathname) {
     broadcast(); return json(res, 200, snapshot(player));
   }
 
-  if (req.method === "POST" && pathname === "/api/activity") {
-    ensureActivityDefaults(player);
-    const key = String(body.activity || "");
-    const activity = activityCatalog[key];
-    if (!activity) return json(res, 400, { error: "Активность не найдена" });
-    if (player.activities.completed[key]) return json(res, 400, { error: "Эта активность уже выполнена сегодня" });
-    const score = clamp(Number(body.score) || 0, 0, 100);
-    const precision = 0.7 + score / 333;
-    const mixedPortfolio = player.garage.length > 0 && player.ownedAssets.some((asset) => asset.type === "property") && player.ownedAssets.some((asset) => asset.type === "item");
-    const portfolioBonus = key === "portfolio" && mixedPortfolio ? 1.35 : 1;
-    const reward = Math.max(1000, Math.round(activity.reward * precision * portfolioBonus / 1000) * 1000);
-    const xp = Math.max(10, Math.round(activity.xp * (0.75 + score / 400)));
-    player.cash += reward;
-    addXp(player, xp);
-    player.activities.completed[key] = { score, reward, xp, at: Date.now(), mixedPortfolio };
-    const completedCount = Object.keys(player.activities.completed).length;
-    if (completedCount >= Object.keys(activityCatalog).length) {
-      player.activities.streak += 1;
-      player.activities.completed._bonus = { reward: 25000, xp: 100, at: Date.now() };
-      player.cash += 25000; addXp(player, 100); player.skillPoints += 1;
-      addLedger(player, "activity", "Полный круг ежедневных активностей", 25000, { category: "Активности" });
-    }
-    addLedger(player, "activity", `${activity.name} · точность ${score}%`, reward, { category: "Активности", xp });
-    broadcast();
-    return json(res, 200, snapshot(player));
-  }
+  if (req.method === "POST" && pathname === "/api/activity") return json(res, 410, { error: "Доска сделок закрыта" });
 
   if (req.method === "POST" && pathname === "/api/equipment") {
     const equipment = String(body.equipment || "");

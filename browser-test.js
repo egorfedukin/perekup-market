@@ -65,6 +65,11 @@ async function run() {
   await page.locator('#utility-nav [data-view="profile"]').click();
   await page.locator("#profile-journey").waitFor({ state: "visible" });
   await page.screenshot({ path: path.join(output, "mobile-profile.png") });
+  await page.locator('[data-profile-mode="style"]').click();
+  await page.locator("#appearance-options").waitFor({ state: "visible" });
+  assert.ok(await page.locator('[data-cosmetic="night"]').isDisabled(), "Paid background is locked for a free account");
+  await page.locator('[data-cosmetic="plain"]').click();
+  await page.screenshot({ path: path.join(output, "mobile-customize.png") });
   await page.locator('.tabs [data-view="garage"]').click();
   await page.locator('[data-garage-mode="development"]').first().click();
   await page.locator("#skills-grid").waitFor({ state: "visible" });
@@ -72,9 +77,24 @@ async function run() {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Skills overflow mobile viewport");
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: path.join(output, "desktop-skills.png") });
-  for (const width of [1440, 390, 360]) {
+  for (const width of [1440, 1024, 768, 390, 360]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
-    for (const view of ["market", "garage", "deals", "profile", "assets", "parts", "auctions", "chat", "rating"]) {
+    await page.locator('[data-mobile-menu]').click();
+    await page.locator('#utility-nav [data-view="store"]').click();
+    await page.locator('#store-view.active-view').waitFor({ state: 'visible' });
+    await page.locator('[data-mobile-menu]').click();
+    await page.locator('#utility-nav [data-view="assets"]').click();
+    assert.equal(await page.locator('#asset-market-grid').isVisible(), false);
+    await page.locator('.asset-mode-controls [data-asset-mode="all"]').click();
+    assert.equal(await page.locator('#asset-market-grid').isVisible(), true);
+    await page.locator('.tabs [data-view="market"]').click();
+    assert.equal(await page.locator('#market-filters').isVisible(), false);
+    await page.locator('#mobile-filter-toggle').click();
+    assert.equal(await page.locator('#market-filters').isVisible(), true);
+    await page.locator('#mobile-filter-toggle').click();
+    const firstCard = await page.locator('#market-grid .car-card').first().boundingBox();
+    assert.ok(firstCard && firstCard.y < 600, `Listings visible on first screen at ${width}px`);
+    for (const view of ["market", "garage", "deals", "profile", "store", "assets", "parts", "auctions", "chat", "rating"]) {
       await page.goto(`${base}/#${view}`);
       await page.locator(`#${view}-view.active-view`).waitFor({ state: "visible" });
       await page.waitForTimeout(150);
@@ -83,6 +103,13 @@ async function run() {
       await page.screenshot({ path: path.join(output, `${width}-${view}.png`) });
     }
   }
+  await page.goto(`${base}/#profile`);
+  await page.locator('[data-profile-mode="style"]').click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: path.join(output, "desktop-customize.png") });
+  const missingArt = await page.locator('.cosmetic-option img').evaluateAll(images => images.filter(image => !image.complete || image.naturalWidth === 0).length);
+  assert.equal(missingArt, 0, "Profile artwork loads locally");
+  assert.equal(await page.locator(".activity-board").count(), 0);
   assert.deepEqual(errors, []);
   if (process.env.RUN_SMOKE === "1") await new Promise((resolve, reject) => {
     const smoke = spawn(process.execPath, ["smoke-test.js"], { cwd: __dirname, env: { ...process.env, TEST_URL: base }, stdio: "inherit" });

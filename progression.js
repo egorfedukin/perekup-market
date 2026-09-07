@@ -15,9 +15,9 @@ function workplaceBenefits(player) {
 }
 function npcProfile(bot) {
   const profiles = {
-    specialist: { interests: ["sport", "utility"], riskTolerance: 80, maxAge: 30, patience: 3 },
+    specialist: { interests: ["sport", "utility"], riskTolerance: 80, maxAge: 45, patience: 4 },
     endBuyer: { interests: ["comfort", "utility"], riskTolerance: 25, maxAge: 12, patience: 2 },
-    budget: { interests: ["utility"], riskTolerance: 60, maxAge: 24, patience: 2 },
+    budget: { interests: ["utility"], riskTolerance: 60, maxAge: 35, patience: 3 },
     dealer: { interests: ["utility", "comfort"], riskTolerance: 70, maxAge: 18, patience: 3 },
     collector: { interests: ["classic"], riskTolerance: 35, maxAge: 100, patience: 2 }
   };
@@ -27,8 +27,8 @@ function npcFit(car, bot, upgrades, year = new Date().getFullYear()) {
   const profile = npcProfile(bot);
   const repairs = (car.defects || []).filter(d => d.repaired);
   const reliability = repairs.length ? repairs.reduce((sum, d) => sum + (d.repairReliability ?? 88), 0) / repairs.length : 100;
-  const risk = (100 - reliability) / 100 * (1 - profile.riskTolerance / 100);
-  const agePenalty = Math.min(.14, Math.max(0, year - car.year - profile.maxAge) * .006);
+  const risk = Math.min(.08, (100 - reliability) / 100 * (1 - profile.riskTolerance / 100) * .4);
+  const agePenalty = Math.min(.055, Math.max(0, year - car.year - profile.maxAge) * .002);
   const tuning = upgrades.filter(u => (car.upgrades || []).includes(u.key)).reduce((sum, u) => sum + (profile.interests.includes(u.profile) ? .025 : u.profile === "sport" ? -.045 : -.008), 0);
   return { profile, reliability, multiplier: Math.max(.5, 1 + Math.min(.1, tuning) - risk - agePenalty) };
 }

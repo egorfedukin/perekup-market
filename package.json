@@ -10,6 +10,8 @@
     "test": "node smoke-test.js",
     "test:persistence": "node persistence-test.js",
     "test:gameplay": "node gameplay-test.js",
+    "test:economy": "node economy-test.js",
+    "test:browser": "node browser-test.js",
     "catalog:years": "node enrich-vehicle-years.js"
   }
 }

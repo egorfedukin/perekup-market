@@ -500,21 +500,6 @@ function renderMarketStats() {
   </div>`).join("");
 }
 
-function renderActivities() {
-  const grid = $("#activity-grid");
-  if (!grid || !state.player?.activities) return;
-  const activities = state.player.activities;
-  const catalog = activities.catalog || {};
-  const completed = activities.completed || {};
-  const keys = Object.keys(catalog).filter((key) => key !== "catalog");
-  $("#activity-streak").textContent = `Сегодня: ${keys.filter((key) => completed[key]).length}/${keys.length} · серия ${activities.streak || 0}`;
-  grid.innerHTML = keys.map((key) => {
-    const item = catalog[key];
-    const result = completed[key];
-    const mixedReady = key !== "portfolio" || (state.player.garage?.length > 0 && state.player.ownedAssets?.some((asset) => asset.type === "property") && state.player.ownedAssets?.some((asset) => asset.type === "item"));
-    return `<article class="activity-card ${result ? "completed" : ""}"><div class="activity-card-top"><span class="activity-index">${key === "portfolio" ? "04" : key === "workshop" ? "03" : key === "negotiate" ? "02" : "01"}</span><span class="activity-reward">+${money(item.reward)} · ${item.xp} XP</span></div><h4>${escapeHtml(item.name)}</h4><p>${escapeHtml(item.description)}</p>${key === "portfolio" ? `<small class="activity-requirement ${mixedReady ? "ready" : ""}">${mixedReady ? "Авто + вещь + недвижимость собраны" : "Нужны: авто, вещь и недвижимость"}</small>` : ""}<button class="primary-button" data-activity="${escapeHtml(key)}" ${result || !mixedReady ? "disabled" : ""}>${result ? `Выполнено · ${result.score}%` : "Начать мини-игру"}</button></article>`;
-  }).join("");
-}
 
 function showToast(message, error = false) {
   const toast = $("#toast");
@@ -546,6 +531,11 @@ async function openPlayerProfile(playerId) {
     profile.name = profile.profileBadge ? `${profile.name} · ${profile.profileBadge}` : profile.name;
     const listings = profile.listings || [];
     $("#player-profile-content").innerHTML = `<div class="public-profile-head"><div class="public-profile-avatar">${escapeHtml(profile.avatar || profile.name[0].toUpperCase())}</div><div><p class="eyebrow">Публичный профиль</p><h2 id="player-profile-title">${escapeHtml(profile.name)}</h2><span>Уровень ${profile.level}${supporter ? ` · ${escapeHtml(supporter)}` : ""}</span></div><button class="primary-button" data-message-player="${profile.id}">Написать сообщение</button></div><div class="public-profile-stats"><div><span>Репутация</span><strong>${profile.reputation}/100</strong></div><div><span>Завершено сделок</span><strong>${number(profile.completedDeals)}</strong></div><div><span>Активных лотов</span><strong>${number(profile.listingsCount)}</strong></div><div><span>Команда</span><strong>${escapeHtml(profile.groupName || "Не состоит")}</strong></div></div><section class="public-profile-listings"><div><p class="eyebrow">Объявления игрока</p><h3>Сейчас в продаже</h3></div>${listings.length ? listings.map((car) => `<button data-profile-car="${car.id}">${carArt(car)}<span><strong>${escapeHtml(car.model)}</strong><small>${car.year} · ${money(car.price)}</small></span></button>`).join("") : '<div class="no-offers">У игрока сейчас нет активных автомобильных лотов.</div>'}</section>`;
+    const background = state.player.appearance?.catalog.find(item => item.id === profile.appearance?.background);
+    const publicHead = $("#player-profile-content .public-profile-head");
+    if (background && publicHead) publicHead.style.backgroundImage = `linear-gradient(90deg,rgba(13,23,20,.9),rgba(13,23,20,.3)),url("${background.image}")`;
+    const publicAvatar = $("#player-profile-content .public-profile-avatar");
+    if (publicAvatar) publicAvatar.classList.add(`frame-${profile.appearance?.frame || "plain"}`);
     $("#player-modal").hidden = false;
     document.body.style.overflow = "hidden";
     hydrateCarPhotos($("#player-profile-content"));
@@ -585,7 +575,7 @@ function renderMarket() {
   if ($("#career-mission")) $("#career-mission").innerHTML = activeContract ? `<div><p class="eyebrow">Ваш текущий контракт</p><strong>${escapeHtml(activeContract.title)}</strong><span>${escapeHtml(activeContract.description)}</span></div><b>Награда ${money(activeContract.reward)}</b>` : `<div><p class="eyebrow">Следующий шаг</p><strong>Найдите выгодную сделку</strong><span>Сравните цену, риск и будущего покупателя перед покупкой.</span></div>`;
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
-  const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><strong>Доступ до ${money(state.player.marketMaxPrice)}</strong><span>Новые ценовые уровни открываются с ростом опыта. Покупка и успешная продажа автомобиля дают XP.</span></div>` : "";
+  const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><span>Ваш уровень: автомобили до ${money(state.player.marketMaxPrice)}</span></div>` : "";
   const marketMarkup = accessNote + shown.map((car) => {
     const [label, className] = conditionLabel(car.condition);
     const [priceLabel, priceClass] = pricePosition(car);
@@ -985,6 +975,7 @@ function groupRoleSelect(member, group) {
 
 function renderProfile() {
   const player = state.player;
+  renderAppearance();
   $("#profile-monogram").textContent = player.avatar || player.name[0].toUpperCase();
   $("#profile-name-large").textContent = player.name;
   const profileNameInput = $("#profile-edit-name");
@@ -1048,13 +1039,25 @@ function renderProfile() {
 
 function renderStore() {
   const store = state.store || { enabled: false, packages: [] };
-  $("#store-status").textContent = store.enabled ? `Оплата через ${store.provider}` : "Приём платежей готовится";
-  $("#store-packages").innerHTML = store.packages.map((pack) => `<article class="store-package ${pack.popular ? "popular" : ""}">
-    <div class="store-package-head"><span>${escapeHtml(pack.tag || "Поддержка")}</span>${pack.popular ? "<b>Популярный</b>" : ""}</div>
-    <h3>${escapeHtml(pack.name)}</h3><strong>${money(pack.cash)}</strong><small>игровых рублей</small>
-    <p>${escapeHtml(pack.description || "Пополнение игрового баланса")}</p>${pack.benefits?.length ? `<ul>${pack.benefits.map((benefit) => `<li>${escapeHtml(benefit)}</li>`).join("")}</ul>` : ""}<em>${escapeHtml(pack.bonus || "")}</em>
-    <button class="danger-button" data-buy-cash="${pack.id}" ${store.enabled ? "" : "disabled"}>${store.enabled ? `Получить за ${number(pack.rubles)} ₽` : `${number(pack.rubles)} ₽ · скоро`}</button>
-  </article>`).join("");
+  $("#store-status").textContent = store.enabled ? "Разовый платёж" : "Оплата пока недоступна";
+  $("#store-packages").innerHTML = store.packages.map(pack => {
+    const image = state.player.appearance?.catalog.find(item => item.id === pack.preview)?.image || "";
+    return `<article class="style-product"><div class="style-product-art" style="background-image:url('${escapeHtml(image)}')"><span class="collection-label">PM / COLLECTION</span><div class="style-product-avatar frame-${pack.preview === "night" ? "redline" : "gold"}">${escapeHtml(state.player.avatar || state.player.name[0])}</div><strong>${escapeHtml(pack.name)}</strong></div><div class="style-product-body"><span class="eyebrow">Комплект оформления</span><h3>${escapeHtml(pack.name)}</h3><p>${escapeHtml(pack.description)}</p><ul>${pack.benefits.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul><div class="style-product-price"><strong>${money(pack.rubles)}</strong><button class="primary-button" data-buy-cash="${pack.id}" ${pack.owned || !store.enabled ? "disabled" : ""}>${pack.owned ? "В коллекции" : store.enabled ? "Купить комплект" : "Скоро"}</button></div></div></article>`;
+  }).join("");
+}
+
+function renderAppearance() {
+  const player = state.player;
+  const appearance = player.appearance;
+  if (!appearance) return;
+  const background = appearance.catalog.find(item => item.id === appearance.selected.background);
+  const hero = $("#profile-overview-panel .profile-hero");
+  hero.style.backgroundImage = `linear-gradient(90deg,rgba(13,23,20,.94),rgba(13,23,20,.28)),url("${background.image}")`;
+  $("#profile-monogram").className = `profile-monogram frame-${appearance.selected.frame}`;
+  $("#profile-level-emblem").innerHTML = `<strong>${player.level}</strong><span>уровень</span>`;
+  $("#appearance-preview").style.backgroundImage = `linear-gradient(90deg,rgba(13,23,20,.86),rgba(13,23,20,.12)),url("${background.image}")`;
+  $("#appearance-preview").innerHTML = `<div class="preview-avatar frame-${appearance.selected.frame}">${escapeHtml(player.avatar || player.name[0])}</div><div><strong>${escapeHtml(player.name)}</strong><p>${escapeHtml(player.career.stage)} · уровень ${player.level}</p></div>`;
+  $("#appearance-options").innerHTML = ["background", "frame"].map(slot => `<section class="cosmetic-section"><h3>${slot === "background" ? "Фоны" : "Рамки"}</h3><div class="cosmetic-grid ${slot === "frame" ? "frames-grid" : ""}">${appearance.catalog.filter(item => item.slot === slot).map(item => `<button class="cosmetic-option ${item.unlocked ? "" : "locked"} ${appearance.selected[slot] === item.id ? "selected" : ""}" data-cosmetic="${item.id}" ${item.unlocked ? "" : "disabled"} aria-pressed="${appearance.selected[slot] === item.id}">${slot === "background" ? `<img src="${item.image}" alt="" loading="lazy">` : `<span class="frame-swatch" style="border-color:${item.color}">PM</span>`}<strong>${escapeHtml(item.name)}</strong><small>${appearance.selected[slot] === item.id ? "Выбрано" : item.unlocked ? "Открыто" : item.level ? `Уровень ${item.level}` : "Магазин стиля"}</small></button>`).join("")}</div></section>`).join("") + '<button class="secondary-button" data-view="store">Магазин стиля</button>';
 }
 
 function renderAdmin() {
@@ -1129,6 +1132,7 @@ function renderChat() {
 }
 
 function renderAssets() {
+  document.querySelectorAll('.asset-mode-controls [data-asset-mode]').forEach(button => button.classList.toggle('active', button.dataset.assetMode === assetMode));
   const collectionOnly = assetMode === "owned";
   ["#asset-filters", "#property-market-heading", "#asset-market-grid", "#asset-load-more-wrap"].forEach((selector) => { const node = $(selector); if (node) node.hidden = collectionOnly; });
   const heading = $("#assets-view h2");
@@ -1294,7 +1298,7 @@ function updateShell() {
 }
 
 function renderView(view) {
-  if (view === "market") { renderMarketStats(); renderMarket(); renderActivities(); }
+  if (view === "market") { renderMarketStats(); renderMarket(); }
   if (view === "garage") {
     if (garageMode === "cars") renderGarage();
     if (garageMode === "development") renderProgression();
@@ -1337,6 +1341,7 @@ function renderWorkspaceModes() {
   $("#profile-progress-panel").hidden = profileMode !== "progress";
   $("#profile-achievements-panel").hidden = profileMode !== "achievements";
   $("#profile-history-panel").hidden = profileMode !== "history";
+  $("#profile-style-panel").hidden = profileMode !== "style";
   document.querySelectorAll("[data-chat-mode]").forEach((button) => button.classList.toggle("active", button.dataset.chatMode === chatMode));
   $("#public-chat-panel").hidden = chatMode !== "public";
   $("#direct-chat-panel").hidden = chatMode !== "direct";
@@ -1654,6 +1659,9 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#section-menu-button")) { toggleSectionMenu(); return; }
   const garageModeButton = event.target.closest("[data-garage-mode]");
   if (garageModeButton) { garageMode = garageModeButton.dataset.garageMode; renderView("garage"); renderWorkspaceModes(); hydrateCarPhotos($("#garage-view")); window.scrollTo({ top: 0, behavior: window.matchMedia("(max-width: 760px)").matches ? "auto" : "smooth" }); return; }
+  const cosmetic = event.target.closest("[data-cosmetic]");
+  if (cosmetic) return perform("/api/profile/appearance", { cosmeticId: cosmetic.dataset.cosmetic }, "Оформление сохранено");
+  if (event.target.closest("[data-open-customization]")) { setView("profile"); profileMode = "style"; renderWorkspaceModes(); return; }
   const profileModeButton = event.target.closest("[data-profile-mode]");
   if (profileModeButton) { profileMode = profileModeButton.dataset.profileMode; renderWorkspaceModes(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const chatModeButton = event.target.closest("[data-chat-mode]");
@@ -1721,17 +1729,6 @@ document.addEventListener("click", async (event) => {
   const equipment = event.target.closest("[data-equipment]"); if (equipment) return perform("/api/equipment", { equipment: equipment.dataset.equipment }, "Оборудование куплено");
   if (event.target.closest("[data-expand-garage]")) return perform("/api/garage/expand", {}, "В гараже появилось новое место");
   if (event.target.closest("[data-training]")) return perform("/api/training", {}, "Задание выполнено: получены XP и 7 000 ₽");
-  const activityButton = event.target.closest("[data-activity]");
-  if (activityButton) {
-    if (activityButton.disabled) return;
-    const key = activityButton.dataset.activity;
-    const activity = state.player.activities?.catalog?.[key];
-    if (!activity) return;
-    const mode = key === "workshop" ? "sequence" : key === "negotiate" ? "choice" : key === "portfolio" ? "risk" : "timing";
-    const score = await timingChallenge({ title: activity.name, task: activity.task, rounds: activity.rounds, mode });
-    if (score === null) return;
-    return perform("/api/activity", { activity: key, score }, `${activity.name}: награда начислена`);
-  }
   const buyParts = event.target.closest("[data-buy-parts]"); if (buyParts) return perform("/api/parts/buy", { type: buyParts.dataset.buyParts, model: $(buyParts.dataset.buyParts === "premium" ? "#parts-model-premium" : "#parts-model")?.value }, "Деталь для выбранной модели добавлена на склад");
   const carUpgrade = event.target.closest("[data-car-upgrade]"); if (carUpgrade) return perform("/api/car/upgrade", { carId: carUpgrade.dataset.carUpgrade, upgrade: carUpgrade.dataset.upgrade }, "Улучшение установлено, ценность автомобиля обновлена");
   const buyMarketPart = event.target.closest("[data-buy-part-market]"); if (buyMarketPart) return perform("/api/parts/buy-market", { partId: buyMarketPart.dataset.buyPartMarket }, "Запчасть куплена на рынке");
