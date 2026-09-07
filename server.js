@@ -2516,6 +2516,7 @@ async function api(req, res, pathname) {
       player = [...players.values()].find((item) => item.normalizedName === FALLBACK_ADMIN_LOGIN);
       if (!player) player = createPlayer(FALLBACK_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password: FALLBACK_ADMIN_PASSWORD, emailVerified: true });
       player.adminGranted = true;
+      players.set(player.id, player);
       persistState();
     }
     if (player && player.emailVerified) {
@@ -2554,6 +2555,7 @@ async function api(req, res, pathname) {
       player.adminGranted = true;
       player.email = CONFIGURED_ADMIN_EMAIL;
       player.emailVerified = true;
+      players.set(player.id, player);
       persistState();
     }
     const valid = player && (player.passwordHash ? verifyPassword(password, player) : verifyPin(pin, player));
