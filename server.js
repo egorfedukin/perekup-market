@@ -44,7 +44,8 @@ const FALLBACK_ADMIN_TOKEN = "perekup-fixed-admin-session-v1";
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market.ru").replace(/\/$/, "");
-const AD_PROVIDER = ["yandex", "adsense", "sape"].includes(String(process.env.PEREKUP_AD_PROVIDER || "").toLowerCase()) ? String(process.env.PEREKUP_AD_PROVIDER).toLowerCase() : "";
+const requestedAdProvider = String(process.env.PEREKUP_AD_PROVIDER ?? "sape").trim().toLowerCase();
+const AD_PROVIDER = ["yandex", "adsense", "sape"].includes(requestedAdProvider) ? requestedAdProvider : "";
 const PUBLIC_AD_CONFIG = {
   provider: AD_PROVIDER,
   marketSlot: process.env.PEREKUP_AD_MARKET_SLOT || "",
