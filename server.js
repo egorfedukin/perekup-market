@@ -2,6 +2,22 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { createInspection, gradeInspection } = require("./inspection");
+const inspectionSessions = new Map();
+const { prerequisites, requiredSkillLevel, workplaceBenefits, npcProfile, npcFit, negotiate } = require("./progression");
+function useWorkplace(player, roles) {
+  for (const asset of player?.ownedAssets || []) if (asset.rentalStatus === "workplace" && roles.includes(asset.propertyRole)) asset.maintenance = Math.max(20, (asset.maintenance ?? 100) - 1);
+}
+
+function inspectionResult(player, car, category, body, quote) {
+  if (!body.challengeId) return { depth: quote.depth, accuracy: quote.confidence };
+  const session = inspectionSessions.get(player.id);
+  if (!session || session.id !== body.challengeId || session.carId !== car.id || session.category !== category || session.method !== body.method || session.expires < Date.now()) throw new Error("Осмотр устарел. Начните проверку заново");
+  const skill = player.skills[inspectionRequirements[category].skill] || 0;
+  const grade = gradeInspection(session.challenge, body.answers, skill);
+  inspectionSessions.delete(player.id);
+  return { depth: Math.min(8, quote.depth + grade.bonus), accuracy: grade.accuracy };
+}
 const { DatabaseSync } = require("node:sqlite");
 
 const PORT = Number(process.env.PORT || 4173);
@@ -317,11 +333,13 @@ const defectCatalog = [
   { code: "vin", category: "documents", name: "Следы вмешательства в маркировку VIN", symptom: "Шрифт и глубина символов отличаются от заводского образца.", consequence: "Отказ в регистрации и риск изъятия автомобиля.", severity: 3, skill: 3, equipment: "vinScanner", equipmentLevel: 3, repair: 180000, impact: 310000 }
 ];
 
-const { repairPlans, repairQuote, repairReliability, inspectionMethods, inspectionQuote, careerProgress, playInspectionMiniGame } = require("./gameplay");
+const { repairPlans, repairQuote, repairReliability, inspectionMethods, inspectionQuote, careerProgress } = require("./gameplay");
 
 const skillInfo = {
+  negotiation: { name: "Переговорщик", description: "Каждый уровень: +0,9% к уступке покупателя при торге", maxLevel: 5 },
+  tuning: { name: "Настройщик", description: "Каждый уровень: −4% к цене работ в тюнинг-ателье", maxLevel: 5 },
   diagnostics: { name: "Диагност", description: "Двигатель, подвеска и поиск скрытых симптомов", maxLevel: 5 },
-  mechanics: { name: "Механик", description: "Ремонт двигателя, ходовой и колёс", maxLevel: 5 },
+  mechanics: { name: "Механик", description: "Каждый уровень: −2% к цене работ; открывает моториста, ходовую и шиномонтаж", maxLevel: 5 },
   engineRepair: { name: "Моторист", description: "Самостоятельный ремонт двигателя и его навесного оборудования", maxLevel: 5 },
   chassisRepair: { name: "Мастер ходовой", description: "Тормоза, рулевое управление, подвеска и трансмиссия", maxLevel: 5 },
   tireService: { name: "Шиномонтажник", description: "Ремонт, подбор и установка колёс и шин", maxLevel: 5 },
@@ -462,6 +480,7 @@ const groupJobCatalog = {
 };
 
 const assetCatalog = [
+  { key: "negotiation_office", name: "Офис переговоров", type: "property", category: "commercial", propertyRole: "negotiation", roleName: "Офис", description: "Место встреч с покупателями и постоянными клиентами.", basePrice: 1800000, income: 18000, liquidity: 75, risk: 1, skill: "propertyManagement", carBonus: 0 },
   { key: "phone_lot", type: "item", category: "electronics", name: "Партия смартфонов", description: "Возвраты магазина: часть комплектов вскрыта, документы в порядке.", basePrice: 145000, liquidity: 92, risk: 2, skill: "assetTrading" },
   { key: "gaming_pc", type: "item", category: "electronics", name: "Игровая рабочая станция", description: "Мощный компьютер после закрытия дизайн-студии.", basePrice: 310000, liquidity: 84, risk: 2, skill: "assetTrading" },
   { key: "camera_kit", type: "item", category: "electronics", name: "Комплект фототехники", description: "Камера, три объектива и студийный свет одним лотом.", basePrice: 480000, liquidity: 76, risk: 3, skill: "assetTrading" },
@@ -1102,8 +1121,7 @@ function saleEstimate(car, player = null) {
   const conditionAdjustment = clamp((car.condition - 65) * marketPrice * 0.0022, -marketPrice * 0.08, marketPrice * 0.08);
   const repairLiquidityPenalty = repaired.length ? Math.min(marketPrice * 0.035, repaired.length * 7000) : 0;
   const employeePremium = marketPrice * (groupEmployeeRating(employeePlayer, "sales") / 100) * 0.04 + marketPrice * (groupEmployeeRating(employeePlayer, "appraisal") / 100) * 0.025;
-  const ownedProperties = employeePlayer?.ownedAssets?.filter((asset) => asset.type === "property") || [];
-  const propertyBonus = ownedProperties.reduce((sum, asset) => sum + Number(asset.carBonus || 0), 0);
+  const propertyBonus = workplaceBenefits(employeePlayer).sales;
   const propertyPremium = Math.min(marketPrice * 0.16, marketPrice * propertyBonus);
   const installedPartsPremium = Math.min(marketPrice * 0.085, car.installedParts.reduce((sum, part) => {
     const qualityBonus = part.quality === "original" ? 1.35 : part.quality === "economy" ? 0.55 : part.quality === "restored" ? 0.7 : 1;
@@ -1127,9 +1145,14 @@ function upgradeOptions(car, player) {
   ensureCarDefaults(car);
   return upgradeCatalog.map((upgrade) => ({
     ...upgrade,
+    buyerEffects: bots.slice(0, 5).map(bot => {
+      const before = npcFit(car, bot, upgradeCatalog).multiplier;
+      const after = npcFit({ ...car, upgrades: [...new Set([...car.upgrades, upgrade.key])] }, bot, upgradeCatalog).multiplier;
+      return { name: bot.name, change: Math.round((after - before) * 1000) / 10 };
+    }),
     installed: car.upgrades.includes(upgrade.key),
     canAfford: Boolean(player && player.cash >= upgrade.cost),
-    serviceCost: Math.round(upgrade.cost * 1.55 / 1000) * 1000,
+    serviceCost: Math.round(upgrade.cost * 1.55 * (1 - (player?.skills.tuning || 0) * .04) / 1000) * 1000,
     canUse: Boolean(player && player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel)
   }));
 }
@@ -1275,13 +1298,18 @@ function makeCar(index, seller = "Авторынок") {
 }
 
 function publicDefect(defect, car = null) {
+  const owner = car ? players.get(car.ownerId || car.sellerId) : null;
+  const benefits = workplaceBenefits(owner);
+  const repairDiscount = Math.min(.3, benefits.repair + (owner?.skills.mechanics || 0) * .02);
   const repairSkill = defect.category === "engine" ? "engineRepair" : defect.category === "chassis" ? "chassisRepair" : defect.category === "tires" ? "tireService" : defect.category === "body" ? "bodywork" : defect.category === "electrics" ? "electrics" : "appraisal";
   const repairEquipment = defect.category === "engine" ? "engineStand" : defect.category === "chassis" ? "chassisTools" : defect.category === "tires" ? "tireStation" : defect.category === "body" ? "bodyStation" : defect.category === "electrics" ? "electricalBench" : "historyTerminal";
   const selfRepairable = defect.category !== "documents";
   const partSpec = partSpecForDefect(defect);
   const analogOffer = car && partSpec ? partOffer(car, defect, "analog") : null;
   const laborBase = partSpec && analogOffer ? Math.max(500, defect.repair - analogOffer.retailPrice) : defect.repair;
-  const serviceRepairCost = Math.max(500, Math.round((laborBase + (analogOffer?.retailPrice || 0) * 1.12) / 500) * 500);
+  const standardPartPrice = analogOffer ? Math.max(500, Math.round(analogOffer.retailPrice * 1.12 * (1 - benefits.parts) / 500) * 500) : 0;
+  const standardQuote = repairQuote({ labor: laborBase, partPrice: standardPartPrice, discount: repairDiscount });
+  const serviceRepairCost = standardQuote.total;
   return {
     code: defect.code, category: defect.category, name: defect.name, symptom: defect.symptom,
     consequence: defect.consequence, severity: defect.severity, skill: defect.skill,
@@ -1290,13 +1318,20 @@ function publicDefect(defect, car = null) {
     repair: serviceRepairCost, repaired: defect.repaired, repairQuality: defect.repairQuality || null, repairReliability: defect.repairReliability || null,
     servicePlans: car ? Object.entries(repairPlans).map(([key, plan]) => {
       const offer = partSpec ? partOffer(car, defect, plan.quality) : null;
-      const partPrice = offer ? Math.max(500, Math.round(offer.retailPrice * 1.12 / 500) * 500) : 0;
-      return repairQuote({ labor: laborBase, partPrice, plan: key });
+      const partPrice = offer ? Math.max(500, Math.round(offer.retailPrice * 1.12 * (1 - benefits.parts) / 500) * 500) : 0;
+      const quote = repairQuote({ labor: laborBase, partPrice, plan: key, discount: repairDiscount });
+      const projected = structuredClone(car);
+      const repairedDefect = projected.defects.find(item => item.code === defect.code);
+      Object.assign(repairedDefect, { repaired: true, repairQuality: plan.name, repairReliability: Math.min(plan.reliability, offer?.quality.reliability ?? 100) });
+      projected.repairs.push(defect.name);
+      projected.condition = Math.min(100, projected.condition + Math.round(defect.severity * 4));
+      const forecast = saleEstimate(projected, owner).expectedNpcPrice;
+      return { ...quote, forecastLow: Math.round(forecast * .94 / 1000) * 1000, forecastHigh: Math.round(forecast * 1.09 / 1000) * 1000, projectedProfit: Math.round(forecast - car.invested - quote.total), risk: 100 - Math.min(plan.reliability, offer?.quality.reliability ?? 100) };
     }) : [],
     selfRepairable,
-    serviceRepairCost, serviceLaborCost: laborBase,
-    assistedRepairCost: Math.max(500, Math.round(laborBase * 0.58 / 500) * 500),
-    selfRepairCost: Math.max(500, Math.round(laborBase * 0.3 / 500) * 500),
+    serviceRepairCost, serviceLaborCost: standardQuote.labor,
+    assistedRepairCost: Math.max(500, Math.round(laborBase * 0.58 * (1 - repairDiscount) / 500) * 500),
+    selfRepairCost: Math.max(500, Math.round(laborBase * 0.3 * (1 - repairDiscount) / 500) * 500),
     repairSkill, repairSkillLevel: Math.min(5, defect.severity + 1),
     repairEquipment, repairEquipmentLevel: defect.severity,
     assistedSkillLevel: defect.severity,
@@ -1369,7 +1404,8 @@ function playerPartNeeds(player) {
 
 function offerView(offer) {
   const car = market.find((item) => item.id === offer.carId);
-  return { ...offer, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
+  const bot = bots.find(item => item.id === offer.buyerId);
+  return { ...offer, profile: bot ? npcProfile(bot) : null, relationship: bot ? players.get(offer.sellerId)?.npcRelations?.[bot.id] || 0 : null, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
 }
 
 function assetResaleValue(asset, player) {
@@ -1390,13 +1426,14 @@ function propertyIncomeState(asset, player, now = Date.now()) {
   const elapsedCycles = Math.min(10, Math.floor((now - lastAt) / ASSET_INCOME_CYCLE_MS));
   const managementBonus = 1 + (player.skills.propertyManagement || 0) * 0.06;
   const occupied = asset.rentalStatus === "rented";
-  const grossPerCycle = occupied ? Math.round((asset.income || 0) * managementBonus * (asset.maintenance || 100) / 100) : 0;
-  const operatingCost = occupied ? Math.round(grossPerCycle * 0.12) : Math.round((asset.income || 0) * 0.025);
+  const grossPerCycle = occupied ? Math.round((asset.income || 0) * managementBonus * (1 + (asset.workplaceLevel || 0) * .08) * (asset.maintenance ?? 100) / 100) : 0;
+  const operatingCost = occupied ? Math.round(grossPerCycle * 0.12) : 0;
   const taxPerCycle = Math.max(100, Math.round((asset.fairValue || asset.purchasePrice || 0) * 0.00018));
   const taxCycles = Math.min(60, Math.floor((now - (asset.taxLastAt || now)) / ASSET_INCOME_CYCLE_MS));
   const taxDue = (asset.taxDebt || 0) + taxCycles * taxPerCycle;
   const netPerCycle = Math.max(0, grossPerCycle - operatingCost);
-  return { cycles: elapsedCycles, amount: netPerCycle * elapsedCycles, nextAt: lastAt + (elapsedCycles + 1) * ASSET_INCOME_CYCLE_MS, perCycle: grossPerCycle, netPerCycle, operatingCost, taxPerCycle, taxDue, occupied };
+  const afterTax = netPerCycle - taxPerCycle;
+  return { cycles: elapsedCycles, amount: netPerCycle * elapsedCycles, nextAt: lastAt + (elapsedCycles + 1) * ASSET_INCOME_CYCLE_MS, perCycle: grossPerCycle, netPerCycle, operatingCost, taxPerCycle, taxDue, occupied, afterTax, paybackMinutes: afterTax > 0 ? Math.ceil(((asset.purchasePrice || 0) + (asset.upgradeInvestment || 0)) / afterTax) : null, upgradeCost: Math.round((asset.purchasePrice || asset.fairValue) * .08 * (1 + (asset.workplaceLevel || 0))) };
 }
 
 function assetIncomeAvailable(player, now = Date.now()) {
@@ -1508,7 +1545,7 @@ function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
   return {
-    career: careerProgress(player),
+    career: careerProgress(player), dealStyles: player.dealStyles || {},
     id: player.id, name: player.name, avatar: player.avatar || "", cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
@@ -1575,7 +1612,7 @@ function snapshot(player) {
     player: player ? playerView(player) : null,
     market: market.filter((car) => canAccessCar(player, car) && (car.saleType !== "auction" || levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL || car.sellerId === player.id || car.participantIds?.includes(player.id))).map((car) => publicCar(car, car.sellerId === player?.id, player)),
     skillInfo,
-    skillPaths,
+    skillPaths, skillPrerequisites: prerequisites,
     equipmentInfo,
     inspectionCategories: inspectionCategories(),
     inspectionRequirements,
@@ -2111,6 +2148,10 @@ function completeSale(car, buyer, amount) {
     seller.cash += amount;
     seller.profit += amount - car.invested;
     seller.deals += 1;
+    useWorkplace(seller, ["showroom", "premium_showroom"]);
+    seller.dealStyles ||= {};
+    const style = car.upgrades.length ? "tuning" : car.repairs.length ? "restoration" : "quick";
+    seller.dealStyles[style] = (seller.dealStyles[style] || 0) + 1;
     addXp(seller, 100);
     const honest = !(/идеал|без проблем|вложений не требует/i.test(car.description) && car.defects.some((defect) => !defect.repaired));
     seller.reputation.score = clamp(seller.reputation.score + (honest ? 1 : -5), 0, 100);
@@ -2120,6 +2161,10 @@ function completeSale(car, buyer, amount) {
       if (contract.status !== "active" || contract.expiresAt < Date.now() || contract.model && contract.model !== car.model) continue;
       const qualifies = contract.kind === "profit" ? amount > car.invested : contract.kind === "honest" ? honest : car.serviceDiagnosed && car.repairs.length > 0;
       if (qualifies) { contract.status = "completed"; seller.cash += contract.reward; seller.profit += contract.reward; seller.reputation.score = clamp(seller.reputation.score + 2, 0, 100); }
+    }
+    if (honest && seller.deals % 3 === 0 && !seller.contracts.some(item => item.repeatCustomer && item.status === "active" && item.expiresAt > Date.now())) {
+      seller.contracts.push({ id: id("contract_"), title: "По рекомендации", description: `Подготовьте ещё один ${car.model}: полный осмотр и ремонт`, kind: "restored", model: car.model, reward: Math.min(80000, Math.max(15000, Math.round(amount * .04))), expiresAt: Date.now() + 7 * 86400000, status: "active", repeatCustomer: true });
+      seller.notifications.push({ id: id("notice_"), type: "deal", title: "Вас рекомендовали знакомым", text: `Новый заказ на ${car.model} появился в сделках.`, at: Date.now(), read: false });
     }
   }
   salesHistory.push({ model: car.model, price: amount, at: Date.now() });
@@ -2256,7 +2301,9 @@ function botAuctionCeiling(car, bot) {
     if (bot.type === "budget" && upgrade.profile === "sport") return sum - 0.045;
     return sum;
   }, 0);
-  const multiplier = bot.risk + repairBonus + collectorMatch + tuningBonus - liePenalty - uncertaintyPenalty - budgetPenalty - dealerMargin;
+  const seller = players.get(car.sellerId);
+  const relationship = Math.max(-10, Math.min(10, seller?.npcRelations?.[bot.id] || 0));
+  const multiplier = (bot.risk + repairBonus + collectorMatch + tuningBonus - liePenalty - uncertaintyPenalty - budgetPenalty - dealerMargin + relationship * .003) * npcFit(car, bot, upgradeCatalog).multiplier;
   return Math.min(bot.budget, Math.max(1, Math.round(estimate.expectedNpcPrice * multiplier / 1000) * 1000));
 }
 
@@ -2809,13 +2856,29 @@ async function api(req, res, pathname) {
     if (!asset) return json(res, 404, { error: "Объект недвижимости не найден" });
     const action = String(body.action || "");
     const incomeState = propertyIncomeState(asset, player);
-    if (action === "rent") {
+    if (action === "upgrade") {
+      if (!asset.propertyRole || (asset.workplaceLevel || 0) >= 3) return json(res, 400, { error: "Улучшения недоступны" });
+      const cost = incomeState.upgradeCost;
+      if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Недостаточно денег на улучшение" });
+      player.cash += incomeState.amount - cost;
+      asset.incomeLastAt = Date.now();
+      asset.workplaceLevel = (asset.workplaceLevel || 0) + 1;
+      asset.upgradeInvestment = (asset.upgradeInvestment || 0) + cost;
+      addLedger(player, "property", `Улучшение: ${asset.name}`, incomeState.amount - cost, { category: "Недвижимость" });
+    } else if (action === "workplace") {
+      if (!asset.propertyRole || asset.rentalStatus === "workplace") return json(res, 400, { error: "Рабочее место недоступно" });
+      player.cash += incomeState.amount;
+      asset.incomeLastAt = Date.now(); asset.rentalStatus = "workplace"; asset.tenant = null;
+      addLedger(player, "property", `Открыто рабочее место: ${asset.name}`, incomeState.amount, { category: "Недвижимость" });
+    } else if (action === "rent") {
       if (asset.rentalStatus === "rented") return json(res, 400, { error: "Объект уже сдан" });
       const fee = Math.max(5000, Math.round((asset.income || 0) * 0.35 / 1000) * 1000);
       if (player.cash - reservedCash(player) < fee) return json(res, 400, { error: `Нужно ${fee.toLocaleString("ru-RU")} ₽ на поиск арендатора` });
       player.cash -= fee; asset.rentalStatus = "rented"; asset.tenant = ["Семья Орловых", "Студия Север", "ООО Вектор", "ИП Соколов", "Компания Маяк"][randomInt(0, 4)]; asset.incomeLastAt = Date.now();
       addLedger(player, "property", `Заселение: ${asset.name}`, -fee, { category: "Недвижимость" });
     } else if (action === "vacate") {
+      player.cash += incomeState.amount;
+      if (incomeState.amount) addLedger(player, "property", `Завершение аренды: ${asset.name}`, incomeState.amount, { category: "Недвижимость" });
       asset.rentalStatus = "vacant"; asset.tenant = null; asset.incomeLastAt = Date.now();
     } else if (action === "tax") {
       if (incomeState.taxDue < 1) return json(res, 400, { error: "Налог пока не начислен" });
@@ -2823,12 +2886,12 @@ async function api(req, res, pathname) {
       player.cash -= incomeState.taxDue; asset.taxDebt = 0; asset.taxLastAt = Date.now();
       addLedger(player, "tax", `Налог: ${asset.name}`, -incomeState.taxDue, { category: "Недвижимость" });
     } else if (action === "maintain") {
-      if ((asset.maintenance || 100) >= 100) return json(res, 400, { error: "Объект уже в отличном состоянии" });
+      if ((asset.maintenance ?? 100) >= 100) return json(res, 400, { error: "Объект уже в отличном состоянии" });
       const cost = Math.max(10000, Math.round((asset.fairValue || asset.purchasePrice) * 0.004 / 1000) * 1000);
       if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Недостаточно денег на обслуживание" });
-      player.cash -= cost; asset.maintenance = 100; addLedger(player, "maintenance", `Обслуживание: ${asset.name}`, -cost, { category: "Недвижимость" });
+      player.cash += incomeState.amount - cost; asset.incomeLastAt = Date.now(); asset.maintenance = 100; addLedger(player, "maintenance", `Обслуживание: ${asset.name}`, incomeState.amount - cost, { category: "Недвижимость" });
     } else return json(res, 400, { error: "Неизвестное действие с недвижимостью" });
-    broadcast(); return json(res, 200, snapshot(player));
+    broadcast(); persistState(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/business/buy") {
     const template = businessCatalog.find((item) => item.key === String(body.key || ""));
@@ -3072,11 +3135,22 @@ async function api(req, res, pathname) {
     return json(res, 200, snapshot(player));
   }
 
+  if (req.method === "POST" && pathname === "/api/inspection/start") {
+    const car = [...player.garage, ...market].find(item => item.id === body.carId);
+    if (!car) return json(res, 404, { error: "Автомобиль недоступен" });
+    if (!Object.hasOwn(inspectionRequirements, body.category) || !Object.hasOwn(inspectionMethods, body.method)) return json(res, 400, { error: "Неизвестный осмотр" });
+    const challenge = createInspection(body.category);
+    const session = { id: crypto.randomUUID(), carId: car.id, category: body.category, method: body.method, challenge, expires: Date.now() + 300000 };
+    for (const [key, value] of inspectionSessions) if (value.expires < Date.now()) inspectionSessions.delete(key);
+    inspectionSessions.set(player.id, session);
+    return json(res, 200, { challengeId: session.id, ...challenge, rounds: challenge.rounds.map(({ answer, ...round }) => round) });
+  }
+
   if (req.method === "POST" && pathname === "/api/check") {
     const car = player.garage.find((item) => item.id === body.carId);
     const category = String(body.category || "");
     if (!car) return json(res, 404, { error: "Машины нет в гараже" });
-    if (!inspectionRequirements[category]) return json(res, 400, { error: "Неизвестная система автомобиля" });
+    if (!Object.hasOwn(inspectionRequirements, category)) return json(res, 400, { error: "Неизвестная система автомобиля" });
     ensureCarDefaults(car);
     if (car.serviceDiagnosed) return json(res, 400, { error: "Сервис уже выдал полное заключение" });
     const requirement = inspectionRequirements[category];
@@ -3084,11 +3158,12 @@ async function api(req, res, pathname) {
     if (!Object.hasOwn(inspectionMethods, method)) return json(res, 400, { error: "Неизвестный метод осмотра" });
     const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment]);
     const baseScore = quote.depth;
-    const miniGame = Array.isArray(body.miniGame) ? playInspectionMiniGame(category, body.miniGame, car.id.length) : null;
-    const score = Math.min(8, baseScore + (miniGame?.depthBonus || 0));
-    const interactionScore = miniGame ? Math.min(quote.confidence, Math.max(quote.confidence, miniGame.score)) : quote.confidence;
+    let result;
+    try { result = inspectionResult(player, car, category, body, quote); } catch (error) { return json(res, 400, { error: error.message }); }
+    const score = result.depth;
+    const interactionScore = result.accuracy;
     const previous = car.inspectionRecords[category];
-    if (previous && baseScore <= previous.bestScore) return json(res, 400, { error: "Для повторной проверки сначала повысьте навык или оборудование" });
+    if (previous && score <= previous.bestScore) return json(res, 400, { error: "Новых данных нет. Попробуйте более точный осмотр; деньги не списаны" });
     const cost = quote.cost;
     if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Не хватает денег на расходники" });
     player.cash -= cost;
@@ -3098,31 +3173,34 @@ async function api(req, res, pathname) {
     const found = matching.filter((defect) => score >= defect.skill + defect.equipmentLevel);
     const newFound = found.filter((defect) => !car.discovered.includes(defect.code));
     for (const defect of found) if (!car.discovered.includes(defect.code)) car.discovered.push(defect.code);
-    const confidence = quote.confidence;
-    car.inspectionRecords[category] = { bestScore: baseScore, attempts: (previous?.attempts || 0) + 1, confidence, foundCodes: found.map((defect) => defect.code), interactionScore };
+    const confidence = Math.min(100, Math.round(score / 6 * 100));
+    car.inspectionRecords[category] = { bestScore: score, attempts: (previous?.attempts || 0) + 1, confidence, foundCodes: found.map((defect) => defect.code), interactionScore };
     car.checkedCategories = Object.keys(car.inspectionRecords);
     if (interactionScore === 100) player.stats.perfectInspections += 1;
     addXp(player, 20 + newFound.length * 15 + (interactionScore >= 80 ? 8 : 0));
     if (cost) addLedger(player, "inspection", `Осмотр: ${car.model} · ${category}`, -cost, { carId: car.id, score: interactionScore, category: "Гараж" });
     broadcast();
-    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence, improvedFrom: previous?.bestScore || 0, canImprove: score < 6 } });
+    persistState();
+    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence, accuracy: interactionScore, improvedFrom: previous?.bestScore || 0, canImprove: score < 8 } });
   }
 
   if (req.method === "POST" && pathname === "/api/market-check") {
     const car = market.find((item) => item.id === body.carId);
     const category = String(body.category || "");
     if (!car) return json(res, 404, { error: "Автомобиль уже ушёл с рынка" });
-    if (!inspectionRequirements[category]) return json(res, 400, { error: "Неизвестная система автомобиля" });
+    if (!Object.hasOwn(inspectionRequirements, category)) return json(res, 400, { error: "Неизвестная система автомобиля" });
     ensureCarDefaults(car);
     const requirement = inspectionRequirements[category];
     const method = body.method || "visual";
     if (!Object.hasOwn(inspectionMethods, method)) return json(res, 400, { error: "Неизвестный метод осмотра" });
     const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment]);
     const baseScore = quote.depth;
-    const score = baseScore;
-    const interactionScore = quote.confidence;
+    let result;
+    try { result = inspectionResult(player, car, category, body, quote); } catch (error) { return json(res, 400, { error: error.message }); }
+    const score = result.depth;
+    const interactionScore = result.accuracy;
     const previous = car.publicInspectionRecords[category];
-    if (previous && baseScore <= previous.bestScore) return json(res, 400, { error: "Эту систему уже проверили на доступной глубине" });
+    if (previous && score <= previous.bestScore) return json(res, 400, { error: "Новых данных нет; деньги не списаны. Выберите более точный осмотр" });
     const cost = quote.cost;
     if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Недостаточно средств на осмотр" });
     player.cash -= cost;
@@ -3131,13 +3209,14 @@ async function api(req, res, pathname) {
     const found = matching.filter((defect) => score >= defect.skill + defect.equipmentLevel);
     const newFound = found.filter((defect) => !car.publicDiscovered.includes(defect.code));
     for (const defect of found) if (!car.publicDiscovered.includes(defect.code)) car.publicDiscovered.push(defect.code);
-    const confidence = quote.confidence;
-    car.publicInspectionRecords[category] = { bestScore: baseScore, confidence, inspector: player.name, at: Date.now(), interactionScore };
+    const confidence = Math.min(100, Math.round(score / 6 * 100));
+    car.publicInspectionRecords[category] = { bestScore: score, confidence, inspector: player.name, at: Date.now(), interactionScore };
     if (interactionScore === 100) player.stats.perfectInspections += 1;
     addXp(player, 12 + newFound.length * 10 + (interactionScore >= 80 ? 6 : 0));
     if (cost) addLedger(player, "inspection", `Предпродажный осмотр: ${car.model}`, -cost, { carId: car.id, score: interactionScore, category: "Рынок" });
     broadcast();
-    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence } });
+    persistState();
+    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence, accuracy: interactionScore } });
   }
 
   if (req.method === "POST" && pathname === "/api/service-diagnostic") {
@@ -3179,8 +3258,8 @@ async function api(req, res, pathname) {
       if (selfRepair && player.equipment[requirements.repairEquipment] < requirements.repairEquipmentLevel) return json(res, 400, { error: `Нужен комплект «${equipmentInfo[requirements.repairEquipment].name}» уровня ${requirements.repairEquipmentLevel}` });
       repairCost = selfRepair ? requirements.selfRepairCost : requirements.assistedRepairCost;
     }
-    const mechanicDiscount = groupEmployeeRating(player, "mechanics") / 100 * (selfRepair ? 0.08 : 0.18);
-    repairCost = Math.max(500, Math.round(repairCost * (1 - mechanicDiscount) / 500) * 500);
+    const benefits = workplaceBenefits(player);
+    const mechanicDiscount = Math.min(.3, benefits.repair + (player.skills.mechanics || 0) * .02);
     let installedPart = null;
     if (body.partId && !body.plan) {
       const partIndex = player.partInventory.findIndex((part) => part.id === body.partId);
@@ -3194,10 +3273,10 @@ async function api(req, res, pathname) {
     let suppliedPartCost = 0;
     if (requirements.partRequired && !installedPart && serviceRepair) {
       installedPart = makeSpecificPart(car, defect, repairPlans[plan].quality, 100, "Поставлено сервисом");
-      suppliedPartCost = Math.max(500, Math.round(installedPart.purchasePrice * 1.12 / 500) * 500);
+      suppliedPartCost = Math.max(500, Math.round(installedPart.purchasePrice * 1.12 * (1 - benefits.parts) / 500) * 500);
       installedPart.purchasePrice = suppliedPartCost;
     }
-    repairCost = repairQuote({ labor: serviceRepair ? serviceLabor : repairCost, plan, discount: serviceRepair && !body.plan ? mechanicDiscount : 0 }).labor;
+    repairCost = repairQuote({ labor: serviceRepair ? serviceLabor : repairCost, plan, discount: serviceRepair ? mechanicDiscount : 0 }).labor;
     const totalCashCost = repairCost + suppliedPartCost;
     if (player.cash - reservedCash(player) < totalCashCost) return json(res, 400, { error: `На ремонт и детали нужно ${totalCashCost.toLocaleString("ru-RU")} ₽` });
     if (installedPart) {
@@ -3227,10 +3306,22 @@ async function api(req, res, pathname) {
     else player.stats.workshopRepairs += 1;
     addXp(player, (selfRepair ? 60 : assistedRepair ? 40 : 25) + defect.severity * 10 + (selfRepair ? Math.round(interactionScore / 10) : 0));
     addLedger(player, "repair", `Ремонт: ${car.model} · ${defect.name}`, -totalCashCost, { carId: car.id, score: selfRepair ? interactionScore : null, category: "Гараж" });
+    useWorkplace(player, ["workshop", "parts"]);
     // Repairs mutate nested part history; persist before responding so a restart cannot lose the installed component.
     persistState();
     broadcast();
     return json(res, 200, snapshot(player));
+  }
+
+  if (req.method === "POST" && pathname === "/api/skill/reset") {
+    const total = Object.keys(skillInfo).reduce((sum, key) => sum + player.skills[key], 0);
+    const cost = Math.max(10000, total * 5000);
+    if (!total) return json(res, 400, { error: "Распределённых очков нет" });
+    if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Недостаточно денег для смены специализации" });
+    player.cash -= cost; player.skillPoints += total;
+    for (const key of Object.keys(player.skills)) player.skills[key] = 0;
+    addLedger(player, "skills", "Смена специализации", -cost, { category: "Развитие" });
+    broadcast(); persistState(); return json(res, 200, snapshot(player));
   }
 
   if (req.method === "POST" && pathname === "/api/skill") {
@@ -3238,9 +3329,12 @@ async function api(req, res, pathname) {
     if (!skillInfo[skill]) return json(res, 400, { error: "Навык не найден" });
     if (player.skillPoints < 1) return json(res, 400, { error: "Нет свободных очков навыков" });
     if (player.skills[skill] >= skillInfo[skill].maxLevel) return json(res, 400, { error: "Профессия уже максимального уровня" });
+    const parent = prerequisites[skill];
+    if (parent && player.skills[parent] < requiredSkillLevel(player.skills[skill])) return json(res, 400, { error: `Сначала повысьте навык «${skillInfo[parent].name}» до ${requiredSkillLevel(player.skills[skill])}` });
     player.skillPoints -= 1;
     player.skills[skill] += 1;
     broadcast();
+    persistState();
     return json(res, 200, snapshot(player));
   }
 
@@ -3336,7 +3430,7 @@ async function api(req, res, pathname) {
     ensureCarDefaults(car);
     if (car.upgrades.includes(upgrade.key)) return json(res, 400, { error: "Это улучшение уже установлено" });
     const canSelf = player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel;
-    const upgradeCost = canSelf ? upgrade.cost : Math.round(upgrade.cost * 1.55 / 1000) * 1000;
+    const upgradeCost = canSelf ? upgrade.cost : Math.round(upgrade.cost * 1.55 * (1 - (player.skills.tuning || 0) * .04) / 1000) * 1000;
     if (player.cash < upgradeCost) return json(res, 400, { error: "Не хватает денег на улучшение" });
     player.cash -= upgradeCost;
     car.invested += upgradeCost;
@@ -3348,7 +3442,7 @@ async function api(req, res, pathname) {
     player.stats.upgrades += 1;
     addXp(player, 55 + upgrade.skillLevel * 15);
     addLedger(player, "upgrade", `Улучшение: ${car.model} · ${upgrade.name}`, -upgradeCost, { carId: car.id, category: "Гараж" });
-    broadcast(); return json(res, 200, snapshot(player));
+    broadcast(); persistState(); return json(res, 200, snapshot(player));
   }
 
   if (req.method === "POST" && pathname === "/api/list") {
@@ -3524,9 +3618,21 @@ async function api(req, res, pathname) {
       const amount = Math.round(Number(body.amount));
       if (offer.buyerType === "bot") {
         if (!Number.isFinite(amount) || amount <= offer.amount || amount >= car.price) return json(res, 400, { error: "Встречная цена должна быть между предложением и ценой объявления" });
-        const botAccepts = amount <= offer.amount * 1.055;
-        if (botAccepts) completeSale(car, null, amount);
-        else { offer.status = "rejected"; offer.reason = "Покупатель отказался от встречной цены."; }
+        const bot = bots.find(item => item.id === offer.buyerId);
+        if (!bot) return json(res, 400, { error: "Покупатель недоступен" });
+        player.npcRelations ||= {};
+        const outcome = negotiate({ amount, current: offer.amount, ceiling: botAuctionCeiling(car, bot), skill: player.skills.negotiation, office: workplaceBenefits(player).negotiation, relationship: player.npcRelations[bot.id] || 0, attempts: offer.attempts || 0, patience: npcProfile(bot).patience });
+        player.npcRelations[bot.id] = clamp((player.npcRelations[bot.id] || 0) + outcome.relationshipDelta, -10, 10);
+        offer.attempts = (offer.attempts || 0) + 1;
+        useWorkplace(player, ["negotiation"]);
+        if (outcome.accepted) {
+          player.reputation.score = Math.min(100, player.reputation.score + 1);
+          completeSale(car, null, amount);
+        } else {
+          offer.status = outcome.exhausted ? "rejected" : "active";
+          offer.reason = outcome.exhausted ? "Покупатель завершил переговоры. Доверие снизилось." : "Слишком дорого. Моё предложение прежнее; готов выслушать ещё один вариант.";
+          if (outcome.relationshipDelta < -1) player.reputation.score = Math.max(0, player.reputation.score - 1);
+        }
       } else {
         if (!Number.isFinite(amount) || amount <= offer.amount || amount >= car.price) return json(res, 400, { error: "Встречная цена должна быть между предложением и ценой объявления" });
         offer.amount = amount;
@@ -3542,6 +3648,7 @@ async function api(req, res, pathname) {
       }
     } else return json(res, 400, { error: "Неизвестный ответ" });
     broadcast();
+    persistState();
     return json(res, 200, snapshot(player));
   }
 
