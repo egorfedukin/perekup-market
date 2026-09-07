@@ -327,8 +327,9 @@ input::placeholder { color:#86928a; }
 .npc-profile { gap:14px; padding:14px 0; }
 .npc-profile span { font-size:11px; }
 .npc-profile b { font-size:13px; line-height:1.5; }
-.counter-row { width:100%; }
-.counter-row input { min-width:0; font-size:14px; }
+.counter-row { display:grid; grid-template-columns:minmax(0,1fr) auto; width:100%; gap:8px; }
+.counter-row input { width:100%; min-width:0; font-size:14px; }
+.offer-actions .counter-row button { width:auto; }
 .container-card { border:1px solid #d9e2dc; border-top:0; border-radius:6px; background:#fff; }
 .container-visual { height:168px; background:#283b32 url('/profile-art/workshop.jpg') center/cover; }
 .container-visual::after { content:""; position:absolute; inset:0; background:#17251f44; }

@@ -171,6 +171,10 @@ async function run() {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
     await page.screenshot({ path: path.join(output, `${width}-npc-offers.png`) });
+    const counterInput = page.locator('#incoming-offers .counter-row input').first();
+    assert.ok((await counterInput.boundingBox()).width >= 120, 'Counteroffer price remains readable');
+    await counterInput.fill('57001');
+    assert.equal(await counterInput.inputValue(), '57001');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   }
   assert.deepEqual(errors, []);
