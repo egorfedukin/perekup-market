@@ -41,6 +41,7 @@ const CONFIGURED_ADMIN_EMAIL = "fedukinegor@gmail.com";
 const FALLBACK_ADMIN_LOGIN = "marketadmin";
 const FALLBACK_ADMIN_PASSWORD = "MarketAdmin2026!";
 const FALLBACK_ADMIN_TOKEN = "perekup-fixed-admin-session-v1";
+const ALLOW_FALLBACK_ADMIN = process.env.NODE_ENV !== "production";
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const PUBLIC_URL = String(process.env.PEREKUP_PUBLIC_URL || "https://perekup-market.ru").replace(/\/$/, "");
@@ -1874,6 +1875,7 @@ function ensureConfiguredAdmin() {
   admin.passwordSalt = credentials.salt;
   admin.passwordHash = credentials.hash;
   admin.adminGranted = true;
+  players.set(admin.id, admin);
   persistState();
   console.log("ADMIN_READY: configured federuk");
 }
@@ -2138,7 +2140,7 @@ function rotateNpcMarket() {
 function getPlayer(req) {
   const requestUrl = new URL(req.url, `http://${req.headers.host}`);
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, "") || requestUrl.searchParams.get("token");
-  const playerId = token === FALLBACK_ADMIN_TOKEN ? [...players.values()].find((item) => item.normalizedName === FALLBACK_ADMIN_LOGIN)?.id : token && sessions.get(token);
+  const playerId = token === FALLBACK_ADMIN_TOKEN ? (ALLOW_FALLBACK_ADMIN ? [...players.values()].find((item) => item.normalizedName === FALLBACK_ADMIN_LOGIN)?.id : undefined) : token && sessions.get(token);
   return playerId ? players.get(playerId) : null;
 }
 
@@ -2513,7 +2515,7 @@ async function api(req, res, pathname) {
     const body = await readBody(req);
     const email = String(body.email || "").trim().toLowerCase();
     let player = [...players.values()].find((item) => item.email === email && item.passwordHash);
-    if (!player && email === CONFIGURED_ADMIN_EMAIL) {
+    if (ALLOW_FALLBACK_ADMIN && !player && email === CONFIGURED_ADMIN_EMAIL) {
       player = [...players.values()].find((item) => item.normalizedName === FALLBACK_ADMIN_LOGIN);
       if (!player) player = createPlayer(FALLBACK_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password: FALLBACK_ADMIN_PASSWORD, emailVerified: true });
       player.adminGranted = true;
@@ -2548,7 +2550,7 @@ async function api(req, res, pathname) {
     const password = String(body.password || "");
     const pin = String(body.pin || "");
     let player = [...players.values()].find((item) => (item.normalizedName || item.name.toLocaleLowerCase("ru-RU")) === name && (item.passwordHash || item.pinHash));
-    if (name === FALLBACK_ADMIN_LOGIN && password === FALLBACK_ADMIN_PASSWORD) {
+    if (ALLOW_FALLBACK_ADMIN && name === FALLBACK_ADMIN_LOGIN && password === FALLBACK_ADMIN_PASSWORD) {
       if (!player) player = createPlayer(FALLBACK_ADMIN_LOGIN, null, { email: CONFIGURED_ADMIN_EMAIL, password: FALLBACK_ADMIN_PASSWORD, emailVerified: true });
       const fallbackCredentials = hashPassword(FALLBACK_ADMIN_PASSWORD);
       player.passwordSalt = fallbackCredentials.salt;
