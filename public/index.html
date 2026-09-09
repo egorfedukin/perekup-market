@@ -30,6 +30,8 @@
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
   <link rel="stylesheet" href="styles.css?v=gameplay-2">
   <link rel="stylesheet" href="design.css?v=trade-6">
+  <link rel="stylesheet" href="depth.css?v=1">
+  <link rel="stylesheet" href="collection.css?v=1">
 </head>
 <body>
   <div id="join-screen" class="join-screen">
@@ -113,12 +115,16 @@
       <button id="admin-tab" data-view="admin" hidden><span>Управление</span><small>Игроки и модерация</small></button>
     </nav>
 
+    <aside id="ad-left" class="ad-rail ad-rail-left" aria-label="Реклама" hidden></aside>
+    <aside id="ad-right" class="ad-rail ad-rail-right" aria-label="Реклама" hidden></aside>
     <main class="content">
+      <aside id="ad-global" class="ad-global" aria-label="Реклама" hidden></aside>
       <section id="market-view" class="view active-view">
         <div class="section-heading">
           <div>
             <p class="eyebrow">Объявления обновляются в реальном времени</p>
           <h2>Рынок автомобилей</h2>
+          <div id="market-emblem" aria-hidden="true"></div>
           </div>
           <div class="market-pulse"><i></i><span id="online-label">Рынок онлайн</span><b id="rotation-label">Новый завоз через 00:45</b></div>
         </div>
@@ -377,6 +383,7 @@
         </nav>
         <section id="profile-overview-panel" class="workspace-panel">
           <div class="profile-hero">
+          <button class="profile-customize" type="button" data-open-customization>Оформить профиль</button>
           <div class="profile-monogram" id="profile-monogram">P</div>
           <div id="profile-level-emblem" class="level-emblem"><strong>1</strong><span>уровень</span></div>
           <div class="profile-identity"><p class="eyebrow">Профиль игрока</p><h3 id="profile-name-large">Игрок</h3><p id="profile-career">1 уровень · 0 XP</p><div class="profile-level-track"><i id="profile-xp-bar"></i></div><small id="profile-xp-label">0 XP до следующего уровня</small></div>
@@ -432,6 +439,7 @@
     <div id="skill-challenge" class="skill-challenge" hidden></div>
     <footer class="site-footer"><span>Рынок · симулятор торговли</span><span>Фотографии: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span><span><a href="/about.html" target="_blank">Об игре</a> · <a href="/requisites.html" target="_blank">Реквизиты</a> · <a href="/privacy.html" target="_blank">Конфиденциальность</a> · <a href="/terms.html" target="_blank">Условия</a> · <a href="#profile" data-view="profile">О разработчике</a></span></footer>
   </div>
+  <script type="module" src="depth.js?v=1"></script>
   <script src="/runtime-config.js"></script>
   <script src="vehicle-names.js?v=catalog-5"></script>
   <script src="app.js?v=trade-6"></script>

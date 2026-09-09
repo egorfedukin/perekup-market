@@ -173,7 +173,9 @@ function loadExternalScript(id, src, attributes = {}) {
 function initAds() {
   const ads = window.PEREKUP_CONFIG?.ads || {};
   const placements = ads.provider === "sape"
-    ? [["ad-market", ads.sapeTag], ["ad-garage", ads.sapeTag]]
+    ? (window.matchMedia('(min-width: 1720px)').matches
+      ? [["ad-left", ads.sapeTag], ["ad-right", ads.sapeTag]]
+      : [["ad-global", ads.sapeTag]])
     : [["ad-market", ads.marketSlot], ["ad-garage", ads.garageSlot]].filter(([, blockId]) => blockId);
   if (!ads.provider || !placements.length) return;
   if (ads.provider === "yandex") {
@@ -189,13 +191,13 @@ function initAds() {
     });
   }
   if (ads.provider === "sape" && ads.sapeScript && ads.sapeTag) {
-    loadExternalScript("sape-rtb-script", ads.sapeScript);
     placements.forEach(([containerId]) => {
       const container = document.getElementById(containerId);
       if (!container) return;
       container.hidden = false;
       container.innerHTML = `<span class="ad-label">Реклама</span><div class="${escapeHtml(ads.sapeTag)} ad-network"></div>`;
     });
+    loadExternalScript("sape-rtb-script", ads.sapeScript);
   }
   if (ads.provider === "adsense" && /^ca-pub-\d+$/.test(ads.adsenseClient || "")) {
     loadExternalScript("adsense-script", `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ads.adsenseClient)}`, { crossorigin: "anonymous" });
@@ -840,6 +842,14 @@ function renderContainers() {
   const containerSignature = `${auctionMode}|${garageFull}|${containers.map((box) => `${box.id}:${box.highestBid}:${box.bidCount}:${box.highestBidderId}:${box.viewerParticipated}`).join("|")}`;
   if (renderSignatures.containers !== containerSignature) {
     $("#container-grid").innerHTML = containerMarkup;
+    const lotMarks = { salvage: '01 / USED', cheap: '02 / GARAGE', middle: '03 / DEPOT', performance: '04 / RACE', premium: '05 / PRIVATE' };
+    $("#container-grid").querySelectorAll('.container-visual').forEach((visual, index) => {
+      const object = document.createElement('div');
+      object.className = 'lot-object';
+      object.setAttribute('aria-hidden', 'true');
+      object.innerHTML = `<div class="lot-roof"></div><div class="lot-side"></div><div class="lot-front"></div><span class="lot-mark">${lotMarks[containers[index].tier] || 'PM'}</span>`;
+      visual.append(object);
+    });
     renderSignatures.containers = containerSignature;
   }
 }
