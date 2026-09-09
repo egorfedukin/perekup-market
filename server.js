@@ -67,9 +67,48 @@ const cashPackages = [
 ];
 const supporterTierRank = { none: 0, bronze: 1, silver: 2, gold: 3, platinum: 4, founder: 5 };
 const supporterTierBenefits = { none: [], bronze: ["Бронзовый бейдж в профиле и чате"], silver: ["Серебряный бейдж", "Приоритетный цвет имени в чате"], gold: ["Золотой бейдж", "Выделение профиля среди участников"], platinum: ["Платиновый бейдж", "Особая отметка постоянного партнёра"], founder: ["Бейдж партнёра", "Особая отметка раннего участника проекта"] };
-const DATA_DIR = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
-fs.mkdirSync(DATA_DIR, { recursive: true });
-const db = new DatabaseSync(path.join(DATA_DIR, "game.db"));
+const s3Sync = require("./s3-sync");
+function resolveDataDir() {
+  const preferred = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
+  for (const candidate of [preferred, "/tmp/perekup-data"]) {
+    try {
+      fs.mkdirSync(candidate, { recursive: true });
+      fs.writeFileSync(path.join(candidate, ".write-probe"), String(Date.now()), "utf8");
+      return candidate;
+    } catch (error) {
+      console.warn(`DATA_DIR_UNAVAILABLE: ${candidate} (${error.code || error.message})`);
+    }
+  }
+  throw new Error("Нет доступного каталога для базы данных: проверьте PEREKUP_DATA_DIR и права на запись");
+}
+const DATA_DIR = resolveDataDir();
+const preferredDataDir = process.env.PEREKUP_DATA_DIR ? path.resolve(process.env.PEREKUP_DATA_DIR) : path.join(__dirname, "data");
+if (DATA_DIR !== preferredDataDir) console.warn(`DATA_DIR_FALLBACK: используем ${DATA_DIR}. Без PEREKUP_S3_* данные исчезнут при перезапуске контейнера`);
+const DB_PATH = path.join(DATA_DIR, "game.db");
+let s3SyncDirty = false;
+function hasSavedRow(filePath) {
+  if (!fs.existsSync(filePath)) return false;
+  try {
+    const probe = new DatabaseSync(filePath);
+    try { return Boolean(probe.prepare("SELECT 1 FROM game_state WHERE id = 1").get()); }
+    finally { probe.close(); }
+  } catch { return false; }
+}
+if (s3Sync.configured()) {
+  if (hasSavedRow(DB_PATH)) console.log("S3_RESTORE_SKIP: локальная база уже содержит сохранение");
+  else {
+    const restore = s3Sync.restoreSync(DB_PATH);
+    if (restore.restored) {
+      if (hasSavedRow(DB_PATH)) console.log(`S3_RESTORE_OK: база восстановлена из ${s3Sync.describeTarget()}`);
+      else {
+        console.warn("S3_RESTORE_INVALID: файл из хранилища не похож на базу игры, начинаем с чистой базы");
+        try { fs.rmSync(DB_PATH, { force: true }); } catch {}
+      }
+    } else if (restore.missing) console.log(`S3_RESTORE_EMPTY: в ${s3Sync.describeTarget()} снимка пока нет, начинаем с чистой базы`);
+    else if (restore.error) console.warn(`S3_RESTORE_FAILED: ${restore.error}`);
+  }
+}
+const db = new DatabaseSync(DB_PATH);
 db.exec("CREATE TABLE IF NOT EXISTS game_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL, updated_at INTEGER NOT NULL)");
 
 const realVehicleSeeds = [
@@ -588,6 +627,7 @@ function persistState() {
   });
   db.prepare("INSERT INTO game_state (id, payload, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at")
     .run(payload, Date.now());
+  s3SyncDirty = true;
 }
 
 function schedulePersist() {
@@ -1836,6 +1876,7 @@ function resetAccountsOnStartup() {
   if (process.env.PEREKUP_RESET_ALL !== "1") return;
   const marker = path.join(DATA_DIR, ".full-reset-admin-v1");
   if (fs.existsSync(marker)) return;
+  if (hasSavedRow(DB_PATH)) { console.log("FULL_RESET_SKIP: база уже содержит сохранение (сброс выполнен ранее или восстановлен из хранилища)"); return; }
   const password = String(process.env.PEREKUP_RESET_ADMIN_PASSWORD || "");
   if (!validPassword(password)) throw new Error("PEREKUP_RESET_ADMIN_PASSWORD не задан или некорректен");
   const credentials = hashPassword(password);
@@ -1849,6 +1890,32 @@ resetAccountsOnStartup();
 if (!loadState()) {
   seedMarket();
   persistState();
+}
+if (s3Sync.configured()) {
+  const s3Config = s3Sync.readConfig();
+  console.log(`S3_SYNC_ENABLED: снимок базы ${s3Sync.describeTarget()} каждые ${Math.round(s3Config.intervalMs / 1000)} с`);
+  let s3PushInFlight = false;
+  const s3Timer = setInterval(() => {
+    if (!s3SyncDirty || s3PushInFlight) return;
+    s3PushInFlight = true;
+    let snapshotPath = null;
+    try {
+      snapshotPath = path.join(DATA_DIR, `game-snapshot-${Date.now()}.db`);
+      db.exec(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`);
+      const buffer = fs.readFileSync(snapshotPath);
+      fs.rmSync(snapshotPath, { force: true });
+      snapshotPath = null;
+      s3Sync.pushSnapshot(buffer)
+        .then(() => { s3SyncDirty = false; console.log(`S3_SYNC_PUSHED: снимок ${buffer.length} байт сохранён в хранилище`); })
+        .catch((error) => console.warn(`S3_SYNC_PUSH_FAILED: ${error.message}`))
+        .finally(() => { s3PushInFlight = false; });
+    } catch (error) {
+      if (snapshotPath) { try { fs.rmSync(snapshotPath, { force: true }); } catch {} }
+      console.warn(`S3_SYNC_SNAPSHOT_FAILED: ${error.message}`);
+      s3PushInFlight = false;
+    }
+  }, s3Config.intervalMs);
+  s3Timer.unref?.();
 }
 
 const AUCTION_UNLOCK_LEVEL = 3;
@@ -2464,7 +2531,7 @@ function moderateChat(player, rawText) {
 
 async function api(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/health") {
-    return json(res, 200, { status: "ok", service: "perekup-market", revision, uptimeSeconds: Math.round(process.uptime()) });
+    return json(res, 200, { status: "ok", service: "perekup-market", revision, uptimeSeconds: Math.round(process.uptime()), dataDir: DATA_DIR, s3Sync: s3Sync.configured() ? s3Sync.describeTarget() : "off" });
   }
   if (req.method === "POST" && pathname === "/api/payments/webhook") {
     if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) return json(res, 503, { error: "Платежи не настроены" });
@@ -3767,6 +3834,19 @@ server.listen(PORT, "0.0.0.0", () => console.log(`Perekup Market: http://0.0.0.0
 function shutdown(signal) {
   console.log(`${signal}: saving game state`);
   persistState();
+  if (s3Sync.configured()) {
+    const snapshotPath = path.join(DATA_DIR, "game-snapshot-final.db");
+    try {
+      try { fs.rmSync(snapshotPath, { force: true }); } catch {}
+      db.exec(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`);
+      const result = s3Sync.pushFileSync(snapshotPath, { timeoutMs: 8000 });
+      console.log(result.pushed ? "S3_SYNC_FINAL_OK: база выгружена в хранилище" : `S3_SYNC_FINAL_FAILED: ${result.error || "снимок не отправлен"}`);
+    } catch (error) {
+      console.warn(`S3_SYNC_FINAL_ERROR: ${error.message}`);
+    } finally {
+      try { fs.rmSync(snapshotPath, { force: true }); } catch {}
+    }
+  }
   server.close(() => {
     db.close();
     process.exit(0);

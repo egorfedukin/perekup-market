@@ -14,6 +14,8 @@
     "test:catalog": "node catalog-audit.js",
     "test:trade": "node trade-test.js",
     "test:browser": "node browser-test.js",
+    "test:s3": "node s3-sync-test.js",
+    "test:s3-persistence": "node s3-persistence-test.js",
     "catalog:years": "node enrich-vehicle-years.js"
   }
 }
