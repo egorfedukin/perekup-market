@@ -2783,3 +2783,16 @@ body:has(#join-screen:not([hidden])) {
   .workplace-controls .property-actions { display: grid; }
   .workplace-controls button { white-space: normal; }
 }
+
+/* Реферальная программа */
+.referral-card { display: grid; gap: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: #fffdf7; }
+.referral-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.referral-code-box { display: grid; gap: 2px; padding: 10px 16px; border: 2px dashed var(--accent); border-radius: 10px; background: #fff; }
+.referral-code-box span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #6f6353; }
+.referral-code-box strong { font-size: 22px; letter-spacing: 0.14em; font-family: ui-monospace, "Cascadia Mono", monospace; }
+.referral-hint { color: #6f6353; line-height: 1.5; }
+.referral-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.referral-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--line); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6f6353; }
+.referral-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.referral-table code { font-family: ui-monospace, "Cascadia Mono", monospace; letter-spacing: 0.08em; font-weight: 700; }
+@media (max-width: 720px) { .referral-actions { display: grid; } .referral-table { display: block; overflow-x: auto; } }

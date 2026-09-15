@@ -134,10 +134,17 @@ async function fetchSnapshot(config = readConfig()) {
   const code = errorXmlCode(res.body);
   if (res.status === 404 || code === "NoSuchKey") return null;
   if (res.status === 403 && code === "AccessDenied") return null; // снимка нет, а права на листинг не выданы
-  if (code === "SignatureDoesNotMatch" || code === "InvalidAccessKeyId" || code === "AccessDenied") {
-    throw new Error(`S3 отклонил запрос (${code}) — проверьте PEREKUP_S3_ACCESS_KEY_ID и PEREKUP_S3_SECRET_ACCESS_KEY`);
+  if (code === "InvalidAccessKeyId") throw new Error(`S3 отклонил запрос (InvalidAccessKeyId)${accessKeyHint(config)} — проверьте PEREKUP_S3_ACCESS_KEY_ID`);
+  if (code === "SignatureDoesNotMatch" || code === "AccessDenied") {
+    throw new Error(`S3 отклонил запрос (${code}) — проверьте PEREKUP_S3_SECRET_ACCESS_KEY и права на бакет`);
   }
   throw new Error(`S3 GET ${config.key}: HTTP ${res.status}${code ? ` ${code}` : ""}`);
+}
+
+function accessKeyHint(config) {
+  // Cloud.ru ожидает Key ID вида <идентификатор-тенанта>:<Key ID> (или через точку).
+  if (/[:.]/.test(config.accessKeyId)) return "";
+  return " — похоже, не хватает префикса <идентификатор-тенанта>: (для Cloud.ru формат <tenant>:<key>, тенант видно в Object Storage → Параметры работы с API)";
 }
 
 async function pushSnapshot(buffer, config = readConfig()) {
@@ -145,7 +152,8 @@ async function pushSnapshot(buffer, config = readConfig()) {
   const res = await request(options, buffer, config.timeoutMs);
   if (res.status < 200 || res.status >= 300) {
     const code = errorXmlCode(res.body);
-    if (code === "SignatureDoesNotMatch" || code === "InvalidAccessKeyId" || code === "AccessDenied") {
+    if (code === "InvalidAccessKeyId") throw new Error(`S3 отклонил запрос (InvalidAccessKeyId)${accessKeyHint(config)} — проверьте PEREKUP_S3_ACCESS_KEY_ID`);
+    if (code === "SignatureDoesNotMatch" || code === "AccessDenied") {
       throw new Error(`S3 отклонил запрос (${code}) — проверьте ключи доступа и права на запись в бакет`);
     }
     throw new Error(`S3 PUT ${config.key}: HTTP ${res.status}${code ? ` ${code}` : ""}`);
