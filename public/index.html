@@ -51,6 +51,7 @@
         <div class="auth-fields">
           <label for="player-name">Логин<input id="player-name" maxlength="20" minlength="2" autocomplete="username" placeholder="Например, Влад" required></label>
           <label for="player-email" class="registration-only">Email для подтверждения<input id="player-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label for="player-promo" class="registration-only">Промокод друга<input id="player-promo" maxlength="16" autocomplete="off" placeholder="7 символов, необязательно"><small>Бонус вам и пригласившему</small></label>
           <label for="player-password">Пароль<input id="player-password" type="password" minlength="8" maxlength="72" pattern="[A-Za-z0-9!@#$%^&amp;*()_+\-=\[\]{};':&quot;\\|,.&lt;&gt;/?`~]{8,72}" autocomplete="current-password" placeholder="Английские буквы, цифры, символы" required></label>
         </div>
         <div class="auth-actions">
@@ -367,6 +368,7 @@
         <div id="admin-economy" class="profile-stats"></div>
         <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Сообщения, отмеченные игроками</p><h3>Жалобы чата</h3></div></div><div id="admin-reports" class="admin-reports"></div></section>
         <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Баланс и состояние аккаунтов</p><h3>Игроки</h3></div></div><div id="admin-players" class="admin-players"></div></section>
+        <section class="admin-panel"><div class="workshop-heading"><div><p class="eyebrow">Реферальная программа</p><h3>Промокоды и приглашения</h3></div></div><div id="admin-referrals" class="admin-referrals"></div></section>
       </section>
 
       <section id="profile-view" class="view">
@@ -398,6 +400,7 @@
           <button data-view="team"><strong>Команда</strong><span>Общий бизнес и сотрудники</span></button>
         </nav>
         <div id="profile-stats" class="profile-stats"></div>
+        <section class="referral-card" id="profile-referral" hidden></section>
         <section class="developer-note"><p class="eyebrow">О проекте</p><h3>Независимая браузерная игра</h3><p>«Рынок» — симулятор торговли автомобилями с торгами, ремонтами, гаражом и пассивной недвижимостью. Экономика общая для всех игроков, прогресс хранится на сервере.</p><a href="https://github.com/egorfedukin/perekup-market" target="_blank" rel="noreferrer">Проект на GitHub</a></section>
         </section>
         <section id="profile-style-panel" class="workspace-panel" hidden><div class="section-heading"><div><p class="eyebrow">Личная коллекция</p><h3>Оформление профиля</h3></div></div><div id="appearance-preview" class="appearance-preview"></div><div id="appearance-options"></div></section>
