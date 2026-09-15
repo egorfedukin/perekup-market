@@ -35,6 +35,8 @@ const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) 
 const NPC_ROTATION_COUNT = 10;
 const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
 const ASSET_INCOME_CYCLE_MS = process.env.PEREKUP_FAST_ASSETS === "1" ? 600 : 60000;
+const REFERRAL_BONUS_CASH = Math.max(0, Number(process.env.PEREKUP_REFERRAL_BONUS_CASH ?? 50000));
+const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk-new").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
 const CONFIGURED_ADMIN_LOGIN = "federuk";
 const CONFIGURED_ADMIN_EMAIL = "fedukinegor@gmail.com";
@@ -94,22 +96,51 @@ function hasSavedRow(filePath) {
     finally { probe.close(); }
   } catch { return false; }
 }
+function restoreSnapshotFromS3() {
+  const restore = s3Sync.restoreSync(DB_PATH);
+  if (restore.restored) {
+    if (hasSavedRow(DB_PATH)) { console.log(`S3_RESTORE_OK: база восстановлена из ${s3Sync.describeTarget()}`); return true; }
+    console.warn("S3_RESTORE_INVALID: файл из хранилища не похож на базу игры, начинаем с чистой базы");
+    try { fs.rmSync(DB_PATH, { force: true }); } catch {}
+  } else if (restore.missing) console.log(`S3_RESTORE_EMPTY: в ${s3Sync.describeTarget()} снимка пока нет, начинаем с чистой базы`);
+  else if (restore.error) console.warn(`S3_RESTORE_FAILED: ${restore.error}`);
+  return false;
+}
 if (s3Sync.configured()) {
   if (hasSavedRow(DB_PATH)) console.log("S3_RESTORE_SKIP: локальная база уже содержит сохранение");
-  else {
-    const restore = s3Sync.restoreSync(DB_PATH);
-    if (restore.restored) {
-      if (hasSavedRow(DB_PATH)) console.log(`S3_RESTORE_OK: база восстановлена из ${s3Sync.describeTarget()}`);
-      else {
-        console.warn("S3_RESTORE_INVALID: файл из хранилища не похож на базу игры, начинаем с чистой базы");
-        try { fs.rmSync(DB_PATH, { force: true }); } catch {}
-      }
-    } else if (restore.missing) console.log(`S3_RESTORE_EMPTY: в ${s3Sync.describeTarget()} снимка пока нет, начинаем с чистой базы`);
-    else if (restore.error) console.warn(`S3_RESTORE_FAILED: ${restore.error}`);
+  else restoreSnapshotFromS3();
+}
+function quarantineCorruptDatabase(reason) {
+  const backup = `${DB_PATH}.corrupt-${Date.now()}`;
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try { fs.renameSync(DB_PATH + suffix, backup + suffix); }
+    catch { try { fs.rmSync(DB_PATH + suffix, { force: true }); } catch {} }
+  }
+  console.warn(`DB_CORRUPT: база повреждена (${reason}). Файлы отложены как ${backup}.*, запускаемся с чистой базы или снимка из хранилища`);
+}
+function openDatabase() {
+  for (let attempt = 0; ; attempt += 1) {
+    let handle = null;
+    try {
+      handle = new DatabaseSync(DB_PATH);
+      const check = handle.prepare("PRAGMA quick_check").get();
+      const verdict = String((check && check.quick_check) || "ok").toLowerCase();
+      if (verdict !== "ok") throw new Error(`quick_check: ${verdict}`);
+      handle.exec("CREATE TABLE IF NOT EXISTS game_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL, updated_at INTEGER NOT NULL)");
+      // WAL устойчивее к внезапному завершению контейнера: основная база не ломается на середине записи
+      handle.exec("PRAGMA journal_mode=WAL");
+      handle.exec("PRAGMA synchronous=NORMAL");
+      return handle;
+    } catch (error) {
+      if (handle) { try { handle.close(); } catch {} }
+      if (attempt >= 2) throw error;
+      console.warn(`DB_RECOVER: попытка открыть базу не удалась (${error.message}), восстанавливаем`);
+      quarantineCorruptDatabase(error.message);
+      if (s3Sync.configured()) restoreSnapshotFromS3();
+    }
   }
 }
-const db = new DatabaseSync(DB_PATH);
-db.exec("CREATE TABLE IF NOT EXISTS game_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL, updated_at INTEGER NOT NULL)");
+const db = openDatabase();
 
 const realVehicleSeeds = [
   ["Lada", "2107", "classic", 1988, 2012, 230000, ["1.5 MT", "1.6 MT"]], ["Lada", "Samara", "hatch", 1987, 2013, 280000, ["1.5 MT", "1.6 MT"]],
@@ -640,7 +671,9 @@ function schedulePersist() {
 }
 
 function loadState() {
-  const row = db.prepare("SELECT payload FROM game_state WHERE id = 1").get();
+  let row;
+  try { row = db.prepare("SELECT payload FROM game_state WHERE id = 1").get(); }
+  catch (error) { console.error(`STATE_READ_FAILED: ${error.message}`); return false; }
   if (!row) {
     console.warn(`STATE_EMPTY: database has no saved row at ${path.join(DATA_DIR, "game.db")}`);
     return false;
@@ -681,6 +714,11 @@ function ensurePlayerDefaults(player) {
   player.avatar ||= "";
   player.profileBadge ||= "";
   player.adminGranted ??= false;
+  player.referralCode ??= generateReferralCode();
+  player.referredBy ??= null;
+  player.referralAppliedAt ??= null;
+  player.referralCount ??= 0;
+  player.referralCash ??= 0;
   player.email ||= null;
   player.passwordSalt ||= null;
   player.passwordHash ||= null;
@@ -1637,6 +1675,7 @@ function playerView(player) {
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     marketMaxPrice: maxVehiclePriceForLevel(levelForXp(player.xp)), auctionUnlockLevel: AUCTION_UNLOCK_LEVEL, auctionUnlocked: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL,
+    referral: { code: player.referralCode, invited: player.referralCount || 0, earned: player.referralCash || 0, bonus: REFERRAL_BONUS_CASH, invitedBy: player.referredBy ? players.get(player.referredBy)?.name || null : null },
     skillPoints: player.skillPoints, skills: player.skills, skillPaths, equipment: player.equipment, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
@@ -1893,6 +1932,7 @@ if (!loadState()) {
 }
 if (s3Sync.configured()) {
   const s3Config = s3Sync.readConfig();
+  if (!/[:.]/.test(s3Config.accessKeyId)) console.warn("S3_KEY_FORMAT_WARNING: PEREKUP_S3_ACCESS_KEY_ID без префикса тенанта — для Cloud.ru ожидается формат <идентификатор-тенанта>:<Key ID> (тенант: Object Storage → Параметры работы с API)");
   console.log(`S3_SYNC_ENABLED: снимок базы ${s3Sync.describeTarget()} каждые ${Math.round(s3Config.intervalMs / 1000)} с`);
   let s3PushInFlight = false;
   const s3Timer = setInterval(() => {
@@ -2045,6 +2085,35 @@ function createPlayer(name, pin = null, account = {}) {
   };
   ensurePlayerDefaults(player);
   return player;
+}
+
+function generateReferralCode() {
+  const taken = new Set([...players.values()].map((candidate) => String(candidate.referralCode || "").toUpperCase()).filter(Boolean));
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    let code = "";
+    for (let index = 0; index < 7; index += 1) code += REFERRAL_CODE_ALPHABET[crypto.randomInt(0, REFERRAL_CODE_ALPHABET.length)];
+    if (!taken.has(code)) return code;
+  }
+  return `P${Date.now().toString(36).toUpperCase().slice(-6)}`;
+}
+
+// Применяет промокод к только что созданному аккаунту: бонус обоим, счётчики и уведомления пригласившему.
+function applyReferralPromo(rawCode, newPlayer) {
+  const code = String(rawCode || "").trim().toUpperCase().slice(0, 16);
+  if (!code) return { applied: false };
+  const referrer = [...players.values()].find((candidate) => String(candidate.referralCode || "").toUpperCase() === code);
+  if (!referrer || referrer.id === newPlayer.id || banMessage(referrer)) return { applied: false, invalid: true };
+  newPlayer.referredBy = referrer.id;
+  newPlayer.referralAppliedAt = Date.now();
+  if (REFERRAL_BONUS_CASH > 0) {
+    newPlayer.cash += REFERRAL_BONUS_CASH;
+    referrer.cash += REFERRAL_BONUS_CASH;
+    referrer.referralCount = (referrer.referralCount || 0) + 1;
+    referrer.referralCash = (referrer.referralCash || 0) + REFERRAL_BONUS_CASH;
+    newPlayer.notifications.push({ id: id("notification_"), type: "referral", title: "Промокод применён", text: `Вы пришли по промокоду игрока ${referrer.name} — бонус ${REFERRAL_BONUS_CASH.toLocaleString("ru-RU")} ₽ уже на счёте`, createdAt: Date.now(), read: false });
+    referrer.notifications.push({ id: id("notification_"), type: "referral", title: "Приглашён новый игрок", text: `${newPlayer.name} создал аккаунт по вашему промокоду — бонус ${REFERRAL_BONUS_CASH.toLocaleString("ru-RU")} ₽`, createdAt: Date.now(), read: false });
+  }
+  return { applied: true, referrerName: referrer.name };
 }
 
 function restock() {
@@ -2562,8 +2631,9 @@ async function api(req, res, pathname) {
     emailVerifications.set(verificationToken, { playerId: player.id, expiresAt: Date.now() + 86400000 });
     try { await sendVerificationEmail(email, name, verificationToken); } catch (error) { emailVerifications.delete(verificationToken); return json(res, 503, { error: error.message }); }
     players.set(player.id, player);
+    const referral = applyReferralPromo(body.promo, player);
     persistState();
-    return json(res, 200, { pendingVerification: true, email });
+    return json(res, 200, { pendingVerification: true, email, referralApplied: referral.applied, referralInvalid: Boolean(referral.invalid) });
   }
 
   if (req.method === "GET" && pathname === "/api/verify-email") {
@@ -2648,9 +2718,11 @@ async function api(req, res, pathname) {
     const player = createPlayer(name);
     if (name.toLocaleLowerCase("ru-RU") === CONFIGURED_ADMIN_LOGIN) player.adminGranted = true;
     players.set(player.id, player);
+    const referral = applyReferralPromo(body.promo, player);
     sessions.set(token, player.id);
+    persistState();
     broadcast();
-    return json(res, 200, { token, ...snapshot(player) });
+    return json(res, 200, { token, referralApplied: referral.applied, referralInvalid: Boolean(referral.invalid), ...snapshot(player) });
   }
 
   const player = getPlayer(req);
@@ -2686,10 +2758,26 @@ async function api(req, res, pathname) {
   }
   if (req.method === "GET" && pathname === "/api/admin/state") {
     if (!isAdmin(player)) return json(res, 403, { error: "Доступ только для администратора" });
+    const referralsByReferrer = new Map();
+    for (const candidate of players.values()) {
+      if (!candidate.referredBy) continue;
+      const list = referralsByReferrer.get(candidate.referredBy) || [];
+      list.push(candidate);
+      referralsByReferrer.set(candidate.referredBy, list);
+    }
+    const referralTop = [...referralsByReferrer.entries()].map(([referrerId, list]) => {
+      const referrer = players.get(referrerId);
+      if (!referrer) return null;
+      return {
+        id: referrerId, name: referrer.name, code: referrer.referralCode || "", count: list.length, earned: referrer.referralCash || 0,
+        recent: list.sort((a, b) => (b.referralAppliedAt || 0) - (a.referralAppliedAt || 0)).slice(0, 5).map((entry) => ({ name: entry.name, at: entry.referralAppliedAt || null }))
+      };
+    }).filter(Boolean).sort((a, b) => b.count - a.count).slice(0, 100);
     return json(res, 200, {
-      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, avatar: item.avatar || "", cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "", profileBadge: item.profileBadge || "", supporterTier: item.supporterTier || "none", isAdmin: isAdmin(item) })),
+      players: [...players.values()].map((item) => ({ id: item.id, name: item.name, avatar: item.avatar || "", cash: item.cash, skillPoints: item.skillPoints, profit: item.profit, deals: item.deals, level: levelForXp(item.xp), garage: item.garage.length, reputation: item.reputation?.score || 50, purchasedCash: item.purchasedCash || 0, bannedUntil: item.bannedUntil || 0, banReason: item.banReason || "", profileBadge: item.profileBadge || "", supporterTier: item.supporterTier || "none", isAdmin: isAdmin(item), referralCode: item.referralCode || "", referredBy: item.referredBy ? players.get(item.referredBy)?.name || null : null })),
       reports: moderationReports.filter((report) => report.status === "open").slice().reverse(),
-      economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length }
+      economy: { players: players.size, marketCars: market.length, deals: salesHistory.length, activeOffers: [...offers.values()].filter((offer) => ["active", "counter"].includes(offer.status)).length, payments: [...paymentOrders.values()].filter((order) => order.status === "succeeded").length, openReports: moderationReports.filter((report) => report.status === "open").length, referredPlayers: [...referralsByReferrer.values()].reduce((sum, list) => sum + list.length, 0), referralPaid: [...players.values()].reduce((sum, item) => sum + (item.referralCash || 0), 0) },
+      referrals: { total: [...referralsByReferrer.values()].reduce((sum, list) => sum + list.length, 0), paid: [...players.values()].reduce((sum, item) => sum + (item.referralCash || 0), 0), bonus: REFERRAL_BONUS_CASH, top: referralTop }
     });
   }
   if (req.method === "GET" && pathname === "/api/events") {
