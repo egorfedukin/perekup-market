@@ -1013,6 +1013,25 @@ function renderProfile() {
     ["Ремонты своими силами", player.stats.selfRepairs], ["Победы на торгах", player.stats.auctionsWon]
   ];
   $("#profile-stats").innerHTML = stats.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  const referral = player.referral;
+  const referralCard = $("#profile-referral");
+  if (referralCard && referral) {
+    const referralLink = `${location.origin}/?ref=${encodeURIComponent(referral.code)}`;
+    referralCard.hidden = false;
+    referralCard.innerHTML = `
+      <div class="workshop-heading"><div><p class="eyebrow">Реферальная программа</p><h3>Приведи друга — получите по ${money(referral.bonus)}</h3></div></div>
+      <div class="profile-stats">
+        <div><span>Приглашено игроков</span><strong>${referral.invited}</strong></div>
+        <div><span>Заработано бонусов</span><strong>${money(referral.earned)}</strong></div>
+        ${referral.invitedBy ? `<div><span>Пришёл по промокоду</span><strong>${escapeHtml(referral.invitedBy)}</strong></div>` : ""}
+      </div>
+      <div class="referral-actions">
+        <div class="referral-code-box"><span>Ваш промокод</span><strong>${escapeHtml(referral.code)}</strong></div>
+        <button class="secondary-button" type="button" data-copy-referral="code">Скопировать промокод</button>
+        <button class="primary-button" type="button" data-copy-referral="link">Скопировать ссылку-приглашение</button>
+      </div>
+      <small class="referral-hint">Отправьте другу ссылку ${escapeHtml(referralLink)} — или пусть он введёт промокод при регистрации. Бонус ${money(referral.bonus)} начисляется вам обоим.</small>`;
+  }
   let journey = document.getElementById("profile-journey");
   if (!journey) { journey = document.createElement("section"); journey.id = "profile-journey"; $("#profile-edit-form").before(journey); }
   const profileEdit = $("#profile-edit-form");
@@ -1079,7 +1098,7 @@ function renderAdmin() {
   if (renderedAdminState === adminState) return;
   renderedAdminState = adminState;
   const economy = adminState.economy;
-  $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Сделок", economy.deals], ["Предложений", economy.activeOffers], ["Жалоб", economy.openReports], ["Оплат", economy.payments]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("#admin-economy").innerHTML = [["Игроков", economy.players], ["Авто на рынке", economy.marketCars], ["Сделок", economy.deals], ["Предложений", economy.activeOffers], ["Жалоб", economy.openReports], ["Оплат", economy.payments], ["Приглашённых", economy.referredPlayers ?? 0]].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
   $("#admin-reports").innerHTML = adminState.reports.length ? adminState.reports.map((report) => `<article class="admin-report"><div><strong>${escapeHtml(report.accusedName)} · ${report.source === "direct" ? "личные сообщения" : "общий чат"}</strong><small>Жалоба от ${escapeHtml(report.reporterName)} · ${new Date(report.createdAt).toLocaleString("ru-RU")}</small><p>«${escapeHtml(report.messageText)}»</p><span>${escapeHtml(report.reason)}</span></div><div><button class="secondary-button" data-admin-report-mute="${report.id}" data-player-id="${report.accusedId}">Чат-бан на 1 час</button><button class="danger-button" data-admin-report-ban="${report.id}" data-player-id="${report.accusedId}">Заблокировать аккаунт</button><button class="secondary-button" data-admin-report="resolve" data-report-id="${report.id}">Закрыть</button><button class="secondary-button" data-admin-report="dismiss" data-report-id="${report.id}">Отклонить</button></div></article>`).join("") : '<div class="no-offers">Новых жалоб нет.</div>';
   $("#admin-players").innerHTML = adminState.players.map((player) => {
     const banned = player.bannedUntil === -1 || player.bannedUntil > Date.now();
@@ -1102,6 +1121,10 @@ function renderAdmin() {
       </div>
     </article>`;
   }).join("");
+  const referrals = adminState.referrals || { total: 0, paid: 0, top: [] };
+  $("#admin-referrals").innerHTML = `
+    <div class="profile-stats"><div><span>Пришло по промокодам</span><strong>${referrals.total}</strong></div><div><span>Выплачено бонусов</span><strong>${money(referrals.paid || 0)}</strong></div><div><span>Бонус за игрока</span><strong>${money(referrals.bonus || 0)}</strong></div></div>
+    ${referrals.top?.length ? `<table class="referral-table"><thead><tr><th>Игрок</th><th>Промокод</th><th>Приглашено</th><th>Выплачено</th><th>Последние приглашённые</th></tr></thead><tbody>${referrals.top.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td><code>${escapeHtml(row.code)}</code></td><td><strong>${row.count}</strong></td><td>${money(row.earned)}</td><td>${row.recent?.length ? row.recent.map((item) => escapeHtml(item.name)).join(", ") : "—"}</td></tr>`).join("")}</tbody></table>` : '<div class="no-offers">Пока никто не пришёл по промокодам.</div>'}`;
 }
 
 async function loadAdmin() {
@@ -1623,16 +1646,38 @@ function setAuthMode(mode) {
   $("#auth-submit").innerHTML = registration ? "Создать аккаунт <span aria-hidden=\"true\">→</span>" : "Войти <span aria-hidden=\"true\">→</span>";
   $("#player-email").required = registration;
   $("#player-email").closest("label").hidden = !registration;
+  document.querySelectorAll(".registration-only").forEach((label) => { label.hidden = !registration; });
   $(".auth-hint").textContent = registration ? "После регистрации мы отправим письмо со ссылкой подтверждения. Если письмо не пришло, проверьте папку «Спам» и правильность адреса." : "Введите логин и пароль, указанные при регистрации.";
   document.querySelectorAll("[data-auth-mode]").forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
 }
 document.addEventListener("click", (event) => { const switchButton = event.target.closest("[data-auth-mode]"); if (switchButton) setAuthMode(switchButton.dataset.authMode); });
 setAuthMode("register");
 
+// Реферальные ссылки вида ?ref=КОД: запоминаем промокод и подставляем в форму регистрации
+const referralFromUrl = new URLSearchParams(location.search).get("ref");
+if (referralFromUrl && /^[A-Za-z0-9]{3,16}$/.test(referralFromUrl)) {
+  localStorage.setItem("perekup-ref", referralFromUrl.toUpperCase());
+  history.replaceState(null, "", location.pathname + location.hash);
+}
+const savedReferral = localStorage.getItem("perekup-ref");
+if (savedReferral) $("#player-promo") && ($("#player-promo").value = savedReferral);
+
+document.addEventListener("click", async (event) => {
+  const copyButton = event.target.closest("[data-copy-referral]");
+  if (!copyButton) return;
+  const referral = state?.player?.referral;
+  if (!referral) return;
+  const value = copyButton.dataset.copyReferral === "code" ? referral.code : `${location.origin}/?ref=${encodeURIComponent(referral.code)}`;
+  const original = copyButton.textContent;
+  try { await navigator.clipboard.writeText(value); copyButton.textContent = "Скопировано!"; }
+  catch { window.prompt("Скопируйте вручную:", value); }
+  setTimeout(() => { copyButton.textContent = original; }, 2500);
+});
+
 $("#join-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; button.disabled = true; $("#join-error").textContent = "";
   const action = authMode;
-  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Откройте ссылку в письме; если его нет, проверьте папку «Спам».`; return; } token = data.token; localStorage.setItem("perekup-token", token); await enterGame(data); }
+  try { const data = await request(`/api/${action}`, { method: "POST", body: JSON.stringify({ name: $("#player-name").value, email: $("#player-email")?.value, password: $("#player-password")?.value, pin: $("#player-password")?.value, ...(action === "register" && $("#player-promo")?.value.trim() ? { promo: $("#player-promo").value.trim() } : {}) }) }); if (data.pendingVerification) { $("#join-error").textContent = `Письмо отправлено на ${data.email}. Откройте ссылку в письме; если его нет, проверьте папку «Спам».${data.referralApplied ? " Промокод друга применён: бонус будет на счёте после подтверждения email." : data.referralInvalid ? " Промокод не найден — бонус не начислен." : ""}`; return; } token = data.token; localStorage.setItem("perekup-token", token); localStorage.removeItem("perekup-ref"); await enterGame(data); }
   catch (error) { $("#join-error").textContent = error.message; } finally { button.disabled = false; }
 });
 $("#recovery-form").addEventListener("submit", async (event) => {
