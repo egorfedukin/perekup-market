@@ -10,6 +10,8 @@ const MIN_ISSUE_FEE = 1000;
 const LATE_PENALTY_RATE = 0.005;   // пеня за каждый период просрочки от суммы долга
 const MISSED_BEFORE_COLLECTION = 3; // после стольких пропусков подряд банк забирает автомобили
 const COLLECTION_PRICE_FACTOR = 0.7; // банк продаёт изъятую машину ниже рынка
+const GARNISH_RATE = 0.35;           // доля от продаж и доходов, удерживаемая во взыскании
+const COLLECTION_COOLDOWN_MS = 24 * 3600 * 1000; // после взыскания новые кредиты закрыты на сутки
 
 const loanProducts = [
   { key: "express", name: "Экспресс", tag: "Быстрые деньги", periods: 6, rate: 0.02, minLevel: 1, minRating: 0, maxShare: 0.6, description: "Небольшая сумма на диагностику, ремонт или срочный выкуп. Дорого, но доступно с первого уровня." },
@@ -57,11 +59,11 @@ function creditLimit(player, level = 1, rating = creditRating(player, level)) {
 }
 
 function activeDebt(player) {
-  return (player.loans || []).filter((loan) => loan.status === "active").reduce((sum, loan) => sum + loan.balance + (loan.overdue || 0), 0);
+  return (player.loans || []).filter((loan) => ["active", "collection"].includes(loan.status)).reduce((sum, loan) => sum + loan.balance + (loan.overdue || 0), 0);
 }
 
 function hasOverdue(player) {
-  return (player.loans || []).some((loan) => loan.status === "active" && (loan.overdue || 0) > 0);
+  return (player.loans || []).some((loan) => ["active", "collection"].includes(loan.status) && (loan.overdue || 0) > 0);
 }
 
 // Персональная ставка: продуктовая ставка × коэффициент 0.75..1.25 в зависимости от рейтинга.
@@ -85,17 +87,53 @@ function loanQuote(product, amount, rating) {
   return { productKey: product.key, principal, rate, ratePct: Math.round(rate * 10000) / 100, periods: product.periods, payment, fee, total, overpayment: total - principal + fee, received: principal - fee };
 }
 
-function productAvailability(product, player, level, rating, limit) {
+// Максимальная сумма кредита, при которой аннуитетный платёж не превышает affordablePayment.
+function principalForPayment(payment, rate, periods) {
+  if (payment <= 0) return 0;
+  if (rate <= 0) return payment * periods;
+  return payment * (1 - Math.pow(1 + rate, -periods)) / rate;
+}
+
+// Скоринг заявки. Банк смотрит на три вещи:
+//  1) рейтинговый лимит (уровень, история, репутация);
+//  2) капитал заёмщика — нельзя занять больше, чем netWorth × плечо (0.6..1.8 по рейтингу);
+//  3) платёжеспособность — платёж не должен превышать 6% капитала + 50% среднего дохода за период.
+// Итог — минимум из трёх. Так игрок с 650 000 ₽ не получит миллиард.
+function underwrite(product, { player, level, rating, limit, netWorth = 0, incomePerPeriod = 0 }) {
   const debt = activeDebt(player);
-  const activeCount = (player.loans || []).filter((loan) => loan.status === "active").length;
-  const maxAmount = Math.max(0, Math.floor(Math.min(limit * product.maxShare, limit - debt) / 1000) * 1000);
+  const rate = effectiveRate(product, rating);
+  const leverage = 0.6 + clamp((rating - 300) / 550, 0, 1) * 1.2;
+  const byRating = Math.max(0, Math.min(limit * product.maxShare, limit - debt));
+  const byCapital = Math.max(0, netWorth * leverage - debt);
+  const affordablePayment = Math.max(0, netWorth) * 0.06 + Math.max(0, incomePerPeriod) * 0.5 - currentPayments(player);
+  const byIncome = Math.max(0, principalForPayment(affordablePayment, rate, product.periods));
+  const approved = Math.max(0, Math.floor(Math.min(byRating, byCapital, byIncome) / 1000) * 1000);
+  const limiting = approved >= Math.floor(byRating / 1000) * 1000 ? "rating" : approved >= Math.floor(byCapital / 1000) * 1000 ? "capital" : "income";
+  return { approved, byRating: Math.floor(byRating), byCapital: Math.floor(byCapital), byIncome: Math.floor(byIncome), leverage: Math.round(leverage * 100) / 100, affordablePayment: Math.floor(affordablePayment), netWorth: Math.floor(netWorth), incomePerPeriod: Math.floor(incomePerPeriod), limiting, rate };
+}
+
+function currentPayments(player) {
+  return (player.loans || []).filter((loan) => loan.status === "active").reduce((sum, loan) => sum + loan.payment, 0);
+}
+
+function inCollection(player) {
+  return (player.loans || []).some((loan) => loan.status === "collection");
+}
+
+function productAvailability(product, player, level, rating, limit, context = {}) {
+  const activeCount = (player.loans || []).filter((loan) => ["active", "collection"].includes(loan.status)).length;
+  const decision = underwrite(product, { player, level, rating, limit, ...context });
+  const maxAmount = decision.approved;
+  const cooldownLeft = Math.max(0, (player.credit?.blockedUntil || 0) - Date.now());
   let reason = null;
   if (level < product.minLevel) reason = `Доступно с ${product.minLevel} уровня`;
   else if (rating < product.minRating) reason = `Нужен кредитный рейтинг от ${product.minRating}`;
+  else if (inCollection(player)) reason = "Долг передан во взыскание. Новые кредиты недоступны до полного погашения";
+  else if (cooldownLeft > 0) reason = `После взыскания банк не кредитует ещё ${Math.ceil(cooldownLeft / 3600000)} ч`;
   else if (hasOverdue(player)) reason = "Сначала погасите просрочку";
   else if (activeCount >= MAX_ACTIVE_LOANS) reason = `Не больше ${MAX_ACTIVE_LOANS} активных кредитов`;
-  else if (maxAmount < 10000) reason = "Лимит исчерпан";
-  return { maxAmount, reason, available: !reason };
+  else if (maxAmount < 10000) reason = decision.limiting === "income" ? "Отказ: платёж не по карману. Увеличьте капитал или доход" : decision.limiting === "capital" ? "Отказ: недостаточно капитала под обеспечение" : "Лимит исчерпан";
+  return { maxAmount, reason, available: !reason, decision };
 }
 
 function createLoan(product, amount, rating, now = Date.now(), makeId = () => `loan_${now}`) {
@@ -173,7 +211,8 @@ function carSaleTax({ amount, invested, showroomBonus = 0, deals = 0, level = 1 
 }
 
 module.exports = {
-  LOAN_PERIOD_MS, MAX_ACTIVE_LOANS, MISSED_BEFORE_COLLECTION, COLLECTION_PRICE_FACTOR, LATE_PENALTY_RATE, ISSUE_FEE_RATE,
+  LOAN_PERIOD_MS, MAX_ACTIVE_LOANS, MISSED_BEFORE_COLLECTION, COLLECTION_PRICE_FACTOR, LATE_PENALTY_RATE, ISSUE_FEE_RATE, GARNISH_RATE, COLLECTION_COOLDOWN_MS,
+  underwrite, principalForPayment, currentPayments, inCollection,
   loanProducts, carTax, creditRating, ratingLabel, creditLimit, activeDebt, hasOverdue, effectiveRate, annuityPayment, loanQuote, productAvailability,
   createLoan, scheduledDue, applyScheduledPayment, applyEarlyRepayment, payoffAmount, carSaleTax
 };

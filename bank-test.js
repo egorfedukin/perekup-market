@@ -24,6 +24,18 @@ assert.equal(paid.missed, false); assert.equal(loan.overdue, 0); assert.equal(lo
 const early = bank.applyEarlyRepayment(loan, 10000000, 3);
 assert.equal(early.closed, true); assert.equal(loan.balance, 0);
 
+// Взыскание: три пропуска подряд → флаг collection
+const bad = bank.createLoan(product, 100000, 500, 0);
+let collect = null;
+for (let i = 1; i <= 3; i += 1) collect = bank.applyScheduledPayment(bad, 0, i);
+assert.equal(collect.collection, true, "third consecutive miss triggers collection");
+assert.ok(bad.overdue > 3 * bank.scheduledDue(bad).due * 0.9);
+// Андеррайтинг: игрок с 650к не получит миллиард
+const poor = { loans: [], credit: {}, reputation: { score: 50 }, deals: 0 };
+const decision = bank.underwrite(bank.loanProducts[0], { player: poor, level: 1, rating: 550, limit: 50000000, netWorth: 650000, incomePerPeriod: 0 });
+assert.ok(decision.approved < 1000000, `approved ${decision.approved} must be bounded by capital/income`);
+assert.ok(decision.approved >= 100000, "but still gets something meaningful");
+
 // Интеграция с сервером
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "market-bank-"));
 const port = 6200 + process.pid % 150;
@@ -42,22 +54,30 @@ async function request(url, body, status = 200) {
     assert.ok(state.player.bank.limit >= 100000);
     assert.ok(state.player.bank.products.find((item) => item.key === "express").available);
     assert.equal(state.player.bank.products.find((item) => item.key === "invest").available, false, "invest locked for level 1");
-    const cashBefore = state.player.cash;
+    const express = state.player.bank.products.find((item) => item.key === "express");
+    assert.ok(express.maxAmount <= state.player.bank.netWorth * 2, "approval bounded by capital");
+    assert.ok(express.maxAmount < 1000000000);
+    const denied = await request("/api/bank/loan", { productKey: "express", amount: 1000000000 }, 400);
+    assert.match(denied.error, /одобрил максимум/);
     await request("/api/bank/loan", { productKey: "invest", amount: 100000 }, 400);
+    state = await request("/api/bank/loan", { productKey: "express", amount: 123000 });
+    assert.equal(state.player.bank.loans[0].principal, 123000, "custom amount with 1000 step");
+    state = await request("/api/bank/repay", { loanId: state.player.bank.loans[0].id, full: true });
+    const cashBeforeSecond = state.player.cash;
     state = await request("/api/bank/loan", { productKey: "express", amount: 100000 });
-    const loanRow = state.player.bank.loans[0];
-    assert.equal(state.player.cash, cashBefore + 100000 - loanRow.fee, "principal minus fee credited");
+    const loanRow = state.player.bank.loans.find((loan) => loan.status === "active");
+    assert.equal(state.player.cash, cashBeforeSecond + 100000 - loanRow.fee, "principal minus fee credited");
     assert.equal(state.player.bank.debt, 100000);
     await new Promise((resolve) => setTimeout(resolve, 2600));
     state = await request("/api/state");
-    const afterPeriod = state.player.bank.loans[0];
+    const afterPeriod = state.player.bank.loans.find((loan) => loan.status === "active");
     assert.ok(afterPeriod.paidPeriods >= 1, "scheduled payment processed");
     assert.ok(afterPeriod.balance < 100000, "balance decreased");
     assert.ok(state.player.ledger.some((entry) => entry.type === "loan-payment"), "ledger entry for payment");
     state = await request("/api/bank/repay", { loanId: afterPeriod.id, full: true });
-    assert.equal(state.player.bank.loans[0].status, "closed");
+    assert.equal(state.player.bank.loans.find((loan) => loan.id === afterPeriod.id).status, "closed");
     assert.equal(state.player.bank.debt, 0);
-    assert.equal(state.player.bank.history.repaid, 1);
+    assert.equal(state.player.bank.history.repaid, 2);
     await request("/api/bank/repay", { loanId: afterPeriod.id, full: true }, 404);
     // Первая продажа новичка — налоговые каникулы отражены в прогнозе
     assert.equal(state.player.bank.tax.holidayDealsLeft, 3);

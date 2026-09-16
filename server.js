@@ -1700,18 +1700,46 @@ function playerView(player) {
   };
 }
 
-function bankView(player) {
+// Капитал заёмщика: деньги + автомобили по оценке + недвижимость/активы по цене быстрой продажи + бизнесы. Минус долги.
+function playerNetWorth(player) {
+  const cars = player.garage.reduce((sum, car) => sum + saleEstimate(car, player).expectedNpcPrice, 0);
+  const assets = player.ownedAssets.reduce((sum, asset) => sum + assetResaleValue(asset, player), 0);
+  const businesses = player.businesses.reduce((sum, business) => sum + (business.invested || business.price || 0) * 0.7, 0);
+  return Math.max(0, player.cash + cars + assets + businesses - bank.activeDebt(player));
+}
+
+// Средний доход за платёжный период: подтверждённая прибыль от сделок за последние сутки + пассивный доход недвижимости и бизнеса.
+function playerIncomePerPeriod(player) {
+  const since = Date.now() - 86400000;
+  const tradeProfit = player.ledger.filter((entry) => entry.at >= since && Number.isFinite(entry.profit) && entry.profit > 0).reduce((sum, entry) => sum + entry.profit, 0);
+  const periodsPerDay = 86400000 / bank.LOAN_PERIOD_MS;
+  const passivePerCycle = player.ownedAssets.filter((asset) => asset.type === "property").reduce((sum, asset) => sum + (propertyIncomeState(asset, player).afterTax || 0), 0)
+    + player.businesses.reduce((sum, business) => sum + Math.max(0, businessState(business).profitPerCycle || 0), 0);
+  return tradeProfit / periodsPerDay + passivePerCycle * (bank.LOAN_PERIOD_MS / ASSET_INCOME_CYCLE_MS);
+}
+
+function bankContext(player) {
   const level = levelForXp(player.xp);
   const rating = bank.creditRating(player, level);
   const limit = bank.creditLimit(player, level, rating);
+  return { player, level, rating, limit, netWorth: playerNetWorth(player), incomePerPeriod: playerIncomePerPeriod(player) };
+}
+
+function bankView(player) {
+  const context = bankContext(player);
+  const { level, rating, limit } = context;
   const debt = bank.activeDebt(player);
   const products = bank.loanProducts.map((product) => {
-    const availability = bank.productAvailability(product, player, level, rating, limit);
-    const sample = bank.loanQuote(product, Math.max(10000, availability.maxAmount || limit * product.maxShare), rating);
+    const availability = bank.productAvailability(product, player, level, rating, limit, context);
+    const sample = bank.loanQuote(product, Math.max(10000, availability.maxAmount || 10000), rating);
     return { ...product, ...availability, ratePct: sample.ratePct, samplePayment: sample.payment, sampleAmount: sample.principal };
   });
+  const collection = player.loans.find((loan) => loan.status === "collection");
   return {
     rating, ratingLabel: bank.ratingLabel(rating), limit, debt, available: Math.max(0, limit - debt), periodSeconds: Math.round(bank.LOAN_PERIOD_MS / 1000), maxActive: bank.MAX_ACTIVE_LOANS, missedBeforeCollection: bank.MISSED_BEFORE_COLLECTION,
+    netWorth: Math.round(context.netWorth), incomePerPeriod: Math.round(context.incomePerPeriod), garnishRate: bank.GARNISH_RATE,
+    collection: collection ? { loanId: collection.id, owed: bank.payoffAmount(collection), name: collection.name } : null,
+    blockedUntil: player.credit.blockedUntil || 0,
     history: player.credit, products,
     loans: player.loans.slice(-12).map((loan) => ({ ...loan, payoff: bank.payoffAmount(loan), nextDue: loan.status === "active" ? bank.scheduledDue(loan).due + (loan.overdue || 0) : 0, history: loan.history.slice(-8) })),
     tax: { ...bank.carTax, holidayDealsLeft: level <= bank.carTax.holidayMaxLevel ? Math.max(0, bank.carTax.holidayDeals - player.deals) : 0, showroomDeductionPct: Math.round(Math.min(bank.carTax.baseRate - bank.carTax.minRate, workplaceBenefits(player).sales * bank.carTax.showroomDeductionFactor) * 10000) / 100 }
@@ -1747,6 +1775,7 @@ function processLoans() {
 
 function collectLoanDebt(player, loan, now = Date.now()) {
   const owed = bank.payoffAmount(loan);
+  // Сначала банк забирает автомобили (самые дорогие первыми, пока не покроет долг).
   const cars = player.garage.slice().sort((a, b) => saleEstimate(b, player).expectedNpcPrice - saleEstimate(a, player).expectedNpcPrice);
   let recovered = 0; const seized = [];
   for (const car of cars) {
@@ -1756,13 +1785,39 @@ function collectLoanDebt(player, loan, now = Date.now()) {
     recovered += value; seized.push(`${car.model} за ${value.toLocaleString("ru-RU")} ₽`);
     player.profit += value - car.invested;
   }
-  if (!seized.length) return;
+  // Затем — свободные деньги на счёте (кроме резерва в ставках).
+  const freeCash = Math.max(0, player.cash - reservedCash(player));
+  const cashTaken = Math.min(freeCash, Math.max(0, owed - recovered));
+  if (cashTaken > 0) { player.cash -= cashTaken; recovered += cashTaken; }
   const applied = Math.min(owed, recovered); const surplus = recovered - applied;
-  bank.applyEarlyRepayment(loan, applied, now); loan.history.push({ type: "collection", text: `Банк изъял: ${seized.join(", ")}`, at: now });
+  if (applied > 0) bank.applyEarlyRepayment(loan, applied, now);
+  loan.history.push({ type: "collection", text: `Взыскание: ${seized.length ? `изъято ${seized.join(", ")}` : "автомобилей нет"}${cashTaken ? `, списано со счёта ${cashTaken.toLocaleString("ru-RU")} ₽` : ""}`, at: now });
   if (surplus > 0) player.cash += surplus;
-  player.credit.seized += 1; player.reputation.score = clamp(player.reputation.score - 5, 0, 100);
-  addLedger(player, "loan-collection", `Изъятие банком по кредиту «${loan.name}»`, surplus, { category: "Банк", loanId: loan.id, note: seized.join(", ") });
-  player.notifications.push({ id: id("notice_"), type: "bank", title: "Банк изъял автомобили", text: `${seized.join(", ")}. ${loan.status === "closed" ? "Долг закрыт." : `Остаток долга ${bank.payoffAmount(loan).toLocaleString("ru-RU")} ₽.`}`, at: now, read: false });
+  player.credit.seized += 1; player.credit.blockedUntil = now + bank.COLLECTION_COOLDOWN_MS; player.reputation.score = clamp(player.reputation.score - 5, 0, 100);
+  addLedger(player, "loan-collection", `Взыскание по кредиту «${loan.name}»`, surplus - cashTaken, { category: "Банк", loanId: loan.id, note: seized.join(", ") || "Списание со счёта" });
+  if (loan.status !== "closed") {
+    // Долг не покрыт: кредит переходит во взыскание — банк удерживает долю со всех будущих поступлений.
+    loan.status = "collection"; loan.nextPaymentAt = Number.MAX_SAFE_INTEGER;
+    player.notifications.push({ id: id("notice_"), type: "bank", title: "Долг передан во взыскание", text: `${seized.length ? `Изъято: ${seized.join(", ")}. ` : ""}Остаток ${bank.payoffAmount(loan).toLocaleString("ru-RU")} ₽ будет удерживаться: ${Math.round(bank.GARNISH_RATE * 100)}% с каждой продажи и дохода до полного погашения. Новые кредиты недоступны.`, at: now, read: false });
+  } else {
+    player.notifications.push({ id: id("notice_"), type: "bank", title: "Банк изъял имущество", text: `${seized.join(", ") || `Списано ${cashTaken.toLocaleString("ru-RU")} ₽`}. Долг закрыт. Новые кредиты недоступны 24 часа.`, at: now, read: false });
+  }
+}
+
+// Удержание из поступлений игрока, у которого долг во взыскании. Вызывается там, где игрок получает деньги.
+function garnishIncome(player, amount, source) {
+  const loan = (player.loans || []).find((item) => item.status === "collection");
+  if (!loan || amount <= 0) return 0;
+  const owed = bank.payoffAmount(loan);
+  const taken = Math.min(owed, Math.round(amount * bank.GARNISH_RATE));
+  if (taken <= 0) return 0;
+  player.cash -= taken;
+  const result = bank.applyEarlyRepayment(loan, taken);
+  addLedger(player, "loan-garnish", `Удержание банка: ${source}`, -taken, { category: "Банк", loanId: loan.id });
+  if (result.closed) {
+    player.notifications.push({ id: id("notice_"), type: "bank", title: "Долг перед банком закрыт", text: `Удержания по «${loan.name}» завершены. Кредитная история восстановится по мере честных сделок.`, at: Date.now(), read: false });
+  }
+  return taken;
 }
 
 function leaderboardView(viewer) {
@@ -2418,6 +2473,7 @@ function completeSale(car, buyer, amount) {
       seller.cash -= saleTax.tax; seller.profit -= saleTax.tax; seller.credit.taxPaid += saleTax.tax;
       addLedger(seller, "tax", `Налог с продажи: ${car.model}`, -saleTax.tax, { carId: car.id, category: "Налоги", note: `${saleTax.rate}% с прибыли ${saleTax.profit.toLocaleString("ru-RU")} ₽` });
     }
+    garnishIncome(seller, amount - saleTax.tax, `продажа ${car.model}`);
     useWorkplace(seller, ["showroom", "premium_showroom"]);
     seller.dealStyles ||= {};
     const style = car.upgrades.length ? "tuning" : car.repairs.length ? "restoration" : "quick";
@@ -3121,25 +3177,30 @@ async function api(req, res, pathname) {
     }
     player.cash += income; player.profit += income; player.assetIncomeLastAt = now; addXp(player, 18);
     addLedger(player, "income", "Доход от недвижимости", income, { profit: income, category: "Недвижимость" });
+    garnishIncome(player, income, "доход от недвижимости");
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/bank/loan") {
     const product = bank.loanProducts.find((item) => item.key === String(body.productKey || ""));
     if (!product) return json(res, 404, { error: "Кредитный продукт не найден" });
-    const level = levelForXp(player.xp); const rating = bank.creditRating(player, level); const limit = bank.creditLimit(player, level, rating);
-    const availability = bank.productAvailability(product, player, level, rating, limit);
+    const context = bankContext(player); const { level, rating, limit } = context;
+    const availability = bank.productAvailability(product, player, level, rating, limit, context);
     if (!availability.available) return json(res, 400, { error: availability.reason });
     const amount = Math.round(Number(body.amount) / 1000) * 1000;
     if (!Number.isFinite(amount) || amount < 10000) return json(res, 400, { error: "Минимальная сумма кредита 10 000 ₽" });
-    if (amount > availability.maxAmount) return json(res, 400, { error: `Максимум по этому продукту сейчас ${availability.maxAmount.toLocaleString("ru-RU")} ₽` });
+    if (amount > availability.maxAmount) {
+      const why = { rating: "кредитный лимит по рейтингу", capital: `обеспечение: ваш капитал ${Math.round(context.netWorth).toLocaleString("ru-RU")} ₽ × плечо ${availability.decision.leverage}`, income: `платёжеспособность: комфортный платёж не больше ${availability.decision.affordablePayment.toLocaleString("ru-RU")} ₽ за период` }[availability.decision.limiting];
+      return json(res, 400, { error: `Банк одобрил максимум ${availability.maxAmount.toLocaleString("ru-RU")} ₽. Ограничение — ${why}.` });
+    }
     const loan = bank.createLoan(product, amount, rating, Date.now(), () => id("loan_"));
+    loan.approval = { netWorth: Math.round(context.netWorth), incomePerPeriod: Math.round(context.incomePerPeriod), leverage: availability.decision.leverage, limiting: availability.decision.limiting };
     player.loans.push(loan); if (player.loans.length > 40) player.loans = player.loans.filter((item) => item.status === "active").concat(player.loans.filter((item) => item.status !== "active").slice(-20));
     player.cash += loan.principal - loan.fee;
     addLedger(player, "loan", `Кредит «${loan.name}»`, loan.principal - loan.fee, { category: "Банк", loanId: loan.id, note: `${loan.periods} платежей по ${loan.payment.toLocaleString("ru-RU")} ₽, ставка ${Math.round(loan.rate * 10000) / 100}% за период` });
     persistState(); broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/bank/repay") {
-    const loan = player.loans.find((item) => item.id === String(body.loanId || "") && item.status === "active");
+    const loan = player.loans.find((item) => item.id === String(body.loanId || "") && ["active", "collection"].includes(item.status));
     if (!loan) return json(res, 404, { error: "Активный кредит не найден" });
     const payoff = bank.payoffAmount(loan);
     const requested = body.full ? payoff : Math.round(Number(body.amount));
@@ -3251,6 +3312,7 @@ async function api(req, res, pathname) {
       const current = businessState(business);
       if (current.amount < 1) return json(res, 400, { error: "Прибыль ещё не накопилась" });
       player.cash += current.amount; player.profit += current.amount; business.lastCollectedAt += current.cycles * ASSET_INCOME_CYCLE_MS; business.reputation = Math.min(100, business.reputation + 1);
+      garnishIncome(player, current.amount, `прибыль ${business.name}`);
       addLedger(player, "business-income", `Прибыль: ${business.name}`, current.amount, { profit: current.amount, category: "Бизнес" });
     } else if (action === "hire") {
       const cost = 85000 * business.staff;
