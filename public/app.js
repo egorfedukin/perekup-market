@@ -691,11 +691,11 @@ function renderGarage() {
       : plates.length
         ? `<select id="car-plate-${car.id}" aria-label="Номер для ${vehicleLabel(car.model)}">${plates.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="${registration.registered ? "attach" : "register"}" data-car-id="${car.id}">${registration.registered ? "Установить номер" : "Поставить на учёт · 8 500 ₽"}</button>`
         : `<button class="secondary-button" data-garage-mode="plates">Сначала получить номер</button>`;
-    const result = (car.saleEstimate?.expectedNpcPrice || 0) - car.invested;
+    const result = (car.saleEstimate?.expectedNet ?? car.saleEstimate?.expectedNpcPrice ?? 0) - car.invested;
     const phase = open.length ? "Нужен ремонт" : (car.inspection?.confidence || 0) < 100 ? "Нужен осмотр" : "Готова к продаже";
     return `<article class="garage-car">
       ${carArt(car)}
-      <div class="garage-main"><span class="garage-phase">${phase}</span><h3>${vehicleLabel(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p><small>Прогноз продажи ${money(car.saleEstimate?.expectedNpcPrice || 0)}</small><strong class="${result >= 0 ? "profit-positive" : "profit-negative"}">${result >= 0 ? "+" : ""}${money(result)}</strong></div>
+      <div class="garage-main"><span class="garage-phase">${phase}</span><h3>${vehicleLabel(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p><small>Прогноз продажи ${money(car.saleEstimate?.expectedNpcPrice || 0)}${car.saleEstimate?.expectedTax ? ` · налог ${money(car.saleEstimate.expectedTax)}` : car.saleEstimate?.taxHoliday ? " · без налога" : ""}</small><strong class="${result >= 0 ? "profit-positive" : "profit-negative"}">${result >= 0 ? "+" : ""}${money(result)}</strong></div>
       <div class="garage-status">
         <div class="status-line"><span>Состояние</span><strong>${car.condition}%</strong></div>
         <div class="status-bar"><i style="width:${car.condition}%"></i></div>
@@ -1285,6 +1285,31 @@ function openPropertyDetail(assetId) {
   }
 }
 
+document.addEventListener("input", (event) => { const form = event.target.closest("[data-loan-product]"); if (form) updateLoanPreview(form); });
+
+function renderBank() {
+  const info = state.player.bank; if (!info) return;
+  const period = info.periodSeconds >= 60 ? `${Math.round(info.periodSeconds / 60)} мин` : `${info.periodSeconds} с`;
+  const activeLoans = info.loans.filter((loan) => loan.status === "active");
+  const nextDue = activeLoans.reduce((sum, loan) => sum + loan.nextDue, 0);
+  const overdue = activeLoans.reduce((sum, loan) => sum + (loan.overdue || 0), 0);
+  $("#bank-period-label").textContent = `Платёжный период ${period} · списание автоматически`;
+  $("#bank-summary").innerHTML = `<div><span>Кредитный рейтинг</span><strong>${info.rating}</strong><small>${escapeHtml(info.ratingLabel)} · 300–850</small></div><div><span>Кредитный лимит</span><strong>${money(info.limit)}</strong><small>свободно ${money(info.available)}</small></div><div><span>Текущий долг</span><strong class="${overdue ? "profit-negative" : ""}">${money(info.debt)}</strong><small>${overdue ? `просрочка ${money(overdue)}` : `${activeLoans.length} из ${info.maxActive} кредитов`}</small></div><div><span>Ближайшие платежи</span><strong>${money(nextDue)}</strong><small>погашено кредитов: ${info.history.repaid} · налогов уплачено ${money(info.history.taxPaid)}</small></div>`;
+  $("#bank-products").innerHTML = info.products.map((product) => `<article class="business-card business-offer bank-product ${product.available ? "" : "locked"}"><div class="business-card-head"><span>${escapeHtml(product.tag)}</span><strong>${escapeHtml(product.name)}</strong><p>${escapeHtml(product.description)}</p></div><div class="business-metrics"><span>Ваша ставка<strong>${product.ratePct}% / период</strong></span><span>Срок<strong>${product.periods} платежей</strong></span><span>Доступно<strong>${money(product.maxAmount)}</strong></span></div>${product.available ? `<form class="bank-loan-form" data-loan-product="${product.key}"><label>Сумма кредита<input name="amount" type="number" min="10000" max="${product.maxAmount}" step="10000" value="${Math.min(product.maxAmount, Math.max(10000, Math.round(product.maxAmount / 2 / 10000) * 10000))}"></label><div class="bank-loan-preview" data-loan-preview></div><button class="primary-button" type="submit">Оформить</button></form>` : `<div class="bank-locked">${escapeHtml(product.reason)}</div>`}</article>`).join("");
+  document.querySelectorAll("[data-loan-product]").forEach((form) => updateLoanPreview(form));
+  $("#bank-loans").innerHTML = info.loans.length ? info.loans.slice().reverse().map((loan) => { const active = loan.status === "active"; const progress = Math.round(loan.paidPeriods / loan.periods * 100); return `<article class="owned-asset bank-loan ${active ? "" : "closed"}"><div><span>${active ? (loan.overdue ? "Просрочка" : "Активный кредит") : "Закрыт"} · ставка ${Math.round(loan.rate * 10000) / 100}% за период</span><strong>${escapeHtml(loan.name)} · ${money(loan.principal)}</strong><small>Платёж ${money(loan.payment)} · выплачено ${loan.paidPeriods} из ${loan.periods} периодов${active ? ` · следующий ${new Date(loan.nextPaymentAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : ""}</small><div class="bank-progress"><i style="width:${progress}%"></i></div>${loan.overdue ? `<small class="profit-negative">Просрочено ${money(loan.overdue)} · пропусков подряд ${loan.missed} из ${info.missedBeforeCollection}. После этого банк изымет автомобили.</small>` : ""}<small>${(loan.history || []).slice(-3).map((entry) => escapeHtml(entry.text)).join(" · ")}</small></div><div><span>${active ? "К полному погашению" : "Переплата"}</span><strong>${money(active ? loan.payoff : loan.interestPaid + loan.penaltyPaid + loan.fee)}</strong>${active ? `<form class="bank-repay-form" data-loan-id="${loan.id}"><input name="amount" type="number" min="1000" step="1000" max="${loan.payoff}" placeholder="Сумма" aria-label="Сумма погашения"><button class="secondary-button" type="submit" name="mode" value="part">Внести</button><button class="primary-button" type="submit" name="mode" value="full" ${state.player.availableCash < loan.payoff ? "disabled" : ""}>Погасить всё</button></form>` : ""}</div></article>`; }).join("") : '<div class="no-offers">Кредитов пока не было. Вовремя закрытые кредиты повышают рейтинг и лимит.</div>';
+  const tax = info.tax;
+  $("#bank-tax").innerHTML = `<div class="bank-tax-grid"><div><span>Ставка</span><strong>${Math.round(tax.baseRate * 100)}% с прибыли</strong><small>налог берётся только с разницы между ценой продажи и вложениями. Убыточные сделки не облагаются.</small></div><div><span>Повышенная ставка</span><strong>${Math.round(tax.highRate * 100)}%</strong><small>на часть прибыли сверх ${money(tax.highThreshold)} за одну сделку</small></div><div><span>Налоговые каникулы</span><strong>${tax.holidayDealsLeft ? `осталось ${tax.holidayDealsLeft}` : "закончились"}</strong><small>первые ${tax.holidayDeals} продажи до ${tax.holidayMaxLevel} уровня включительно без налога</small></div><div><span>Вычет за шоурум</span><strong>−${tax.showroomDeductionPct} п.п.</strong><small>рабочее место в шоуруме снижает ставку, но не ниже ${Math.round(tax.minRate * 100)}%</small></div></div>`;
+}
+
+function updateLoanPreview(form) {
+  const product = state.player.bank?.products.find((item) => item.key === form.dataset.loanProduct); if (!product) return;
+  const amount = Math.max(0, Number(form.amount.value) || 0); const rate = product.ratePct / 100;
+  const payment = rate > 0 ? Math.ceil(amount * rate / (1 - Math.pow(1 + rate, -product.periods))) : Math.ceil(amount / product.periods);
+  const fee = Math.max(1000, Math.round(amount * 0.01));
+  form.querySelector("[data-loan-preview]").innerHTML = `<span>На руки<strong>${money(amount - fee)}</strong></span><span>Платёж<strong>${money(payment)}</strong></span><span>Переплата<strong>${money(payment * product.periods - amount + fee)}</strong></span>`;
+}
+
 function renderBusiness() {
   const owned = state.player.businesses || [];
   const catalog = state.player.businessCatalog || [];
@@ -1340,6 +1365,8 @@ function updateShell() {
   const unreadNotifications = state.player.unreadNotifications || 0;
   if ($("#notification-count")) { $("#notification-count").hidden = !unreadNotifications; $("#notification-count").textContent = unreadNotifications; }
   $("#admin-tab").hidden = !state.player.isAdmin;
+  const overdueLoans = (state.player.bank?.loans || []).filter((loan) => loan.status === "active" && loan.overdue > 0).length;
+  if ($("#bank-count")) { $("#bank-count").hidden = !overdueLoans; $("#bank-count").textContent = overdueLoans; }
 }
 
 function renderView(view) {
@@ -1358,6 +1385,7 @@ function renderView(view) {
   if (view === "exchange") renderExchange();
   if (view === "wardrobe") renderWardrobe();
   if (view === "business") renderBusiness();
+  if (view === "bank") renderBank();
   if (view === "store") renderStore();
   if (view === "admin") renderAdmin();
   if (view === "auctions") { renderContainers(); renderAuctions(); }
@@ -1498,7 +1526,7 @@ function garageModal(car) {
   return `${carArt(car, "modal-car-art")}<div class="modal-body">
     <p class="eyebrow">Подготовка автомобиля</p><h2 id="modal-title">${vehicleLabel(car.model)}</h2>
     <p class="modal-subtitle">Состояние ${car.condition}% · вложено ${money(car.invested)}</p>
-    <div class="deal-summary"><div><span>Вложено</span><strong>${money(car.invested)}</strong></div><div><span>Оценка продажи сейчас</span><strong>${money(car.saleEstimate?.expectedNpcPrice || 0)}</strong></div><div><span>Прогноз результата</span><strong class="${(car.saleEstimate?.expectedNpcPrice || 0) >= car.invested ? 'profit-positive' : 'profit-negative'}">${money((car.saleEstimate?.expectedNpcPrice || 0) - car.invested)}</strong></div><div><span>Подтверждённых проблем</span><strong>${open.length}</strong></div></div>
+    <div class="deal-summary"><div><span>Вложено</span><strong>${money(car.invested)}</strong></div><div><span>Оценка продажи сейчас</span><strong>${money(car.saleEstimate?.expectedNpcPrice || 0)}</strong></div><div><span>Налог с продажи</span><strong>${car.saleEstimate?.taxHoliday ? "каникулы" : money(car.saleEstimate?.expectedTax || 0)}</strong></div><div><span>Прогноз после налога</span><strong class="${(car.saleEstimate?.expectedNet ?? 0) >= car.invested ? 'profit-positive' : 'profit-negative'}">${money((car.saleEstimate?.expectedNet ?? car.saleEstimate?.expectedNpcPrice ?? 0) - car.invested)}</strong></div><div><span>Подтверждённых проблем</span><strong>${open.length}</strong></div></div>
     ${!car.serviceDiagnosed ? `<div class="service-diagnostic"><div><strong>Полная диагностика в сервисе · необязательно</strong><span>Уже найденные ниже неисправности можно ремонтировать сразу. Сервис нужен только чтобы раскрыть остальные проблемы и получить заключение для продажи.</span></div><button class="danger-button" data-service-diagnostic="${car.id}">${money(car.serviceDiagnosticCost)}</button></div>` : `<div class="inspection-summary"><strong>Диагностика сервиса завершена.</strong> Все неисправности известны, заключение увеличивает ликвидность машины.</div>`}
     <div class="inspection-actions">${state.inspectionCategories.map((category) => inspectionButton(car, category)).join("")}</div>
     <section class="upgrade-section"><div class="workshop-heading"><div><p class="eyebrow">Тюнинг своими силами или через ателье</p><h3>Улучшения автомобиля</h3></div><span>Подготовка для конкретного покупателя</span></div><div class="upgrade-options">${(car.upgradeOptions || []).map((upgrade) => { const price = upgrade.canUse ? upgrade.cost : upgrade.serviceCost; const profiles = { comfort: "Комфорт", utility: "Практичность", sport: "Спорт", classic: "Классика" }; const buyers = { endBuyer: "частный клиент", budget: "бюджетный покупатель", specialist: "специалист", dealer: "дилер", collector: "коллекционер" }; const demand = (upgrade.demand || []).map((item) => buyers[item] || item).join(", "); return `<article class="car-upgrade ${upgrade.installed ? "installed" : ""}"><div><strong>${escapeHtml(upgrade.name)}</strong><small>${escapeHtml(upgrade.description)}</small><small class="upgrade-profile">Профиль: ${escapeHtml(profiles[upgrade.profile] || upgrade.profile || "Подготовка")}</small><small>Лучший спрос: ${escapeHtml(demand || "рынок")} · ценность +${money(upgrade.value)}</small></div>${upgrade.installed ? `<b>Установлено</b>` : `<button class="primary-button" data-car-upgrade="${car.id}" data-upgrade="${upgrade.key}" ${state.player.cash >= price ? "" : "disabled"}>${upgrade.canUse ? "Установить самому" : "Заказать в ателье"} · ${money(price)}</button>`}</article>`; }).join("")}</div></section>
@@ -1956,6 +1984,15 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("submit", async (event) => {
+  if (event.target.matches("[data-loan-product]")) {
+    event.preventDefault();
+    return perform("/api/bank/loan", { productKey: event.target.dataset.loanProduct, amount: Number(event.target.amount.value) }, "Кредит выдан, деньги на счёте");
+  }
+  if (event.target.matches("[data-loan-id]")) {
+    event.preventDefault();
+    const full = event.submitter?.value === "full";
+    return perform("/api/bank/repay", { loanId: event.target.dataset.loanId, amount: Number(event.target.amount.value), full }, full ? "Кредит погашен" : "Платёж внесён");
+  }
   if (event.target.id === "crypto-trade") {
     event.preventDefault(); const data = new FormData(event.target);
     return perform("/api/crypto/trade", { key: data.get("key"), rubles: data.get("rubles"), action: event.submitter?.value }, event.submitter?.value === "sell" ? "Криптовалюта продана" : "Криптовалюта куплена");

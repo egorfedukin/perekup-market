@@ -17,6 +17,7 @@
     "test:s3": "node s3-sync-test.js",
     "test:s3-persistence": "node s3-persistence-test.js",
     "test:referral": "node referral-test.js",
+    "test:bank": "node bank-test.js",
     "catalog:years": "node enrich-vehicle-years.js"
   }
 }
