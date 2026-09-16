@@ -2834,3 +2834,5 @@ body:has(#join-screen:not([hidden])) {
 .bank-collection-banner strong { display: block; color: var(--danger); font-size: 12px; }
 .bank-collection-banner span { display: block; margin-top: 4px; font-size: 10px; line-height: 1.4; }
 @media (max-width: 760px) { .bank-underwriting { grid-template-columns: 1fr; } }
+.bank-repay-presets { flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.bank-repay-presets button { min-height: 28px; font-size: 10px; }
