@@ -2796,3 +2796,43 @@ body:has(#join-screen:not([hidden])) {
 .referral-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .referral-table code { font-family: ui-monospace, "Cascadia Mono", monospace; letter-spacing: 0.08em; font-weight: 700; }
 @media (max-width: 720px) { .referral-actions { display: grid; } .referral-table { display: block; overflow-x: auto; } }
+
+/* Банк: кредиты и налоги */
+.bank-product.locked { opacity: .72; }
+.bank-locked { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--line); color: var(--muted); font-size: 11px; }
+.bank-loan-form { display: grid; gap: 10px; margin-top: 14px; }
+.bank-loan-form label { display: grid; gap: 5px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.bank-loan-form input, .bank-repay-form input { min-height: 34px; padding: 6px 9px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: 12px; }
+.bank-loan-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.bank-loan-preview span { padding: 8px; background: var(--surface-soft); color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.bank-loan-preview strong { display: block; margin-top: 4px; color: var(--ink); font-size: 11px; text-transform: none; }
+.bank-loan.closed { opacity: .65; }
+.bank-loan > div:last-child { grid-template-columns: 1fr; }
+.bank-repay-form { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.bank-repay-form input { width: 130px; }
+.bank-progress { height: 4px; margin: 6px 0; background: var(--line); }
+.bank-progress i { display: block; height: 100%; background: var(--ink); }
+.bank-tax-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.bank-tax-grid > div { padding: 14px; background: var(--surface); }
+.bank-tax-grid span { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.bank-tax-grid strong { display: block; margin: 5px 0; font-size: 13px; }
+.bank-tax-grid small { display: block; color: var(--muted); font-size: 10px; line-height: 1.4; }
+@media (max-width: 760px) { .bank-tax-grid { grid-template-columns: 1fr 1fr; } .bank-loan-preview { grid-template-columns: 1fr; } }
+.bank-underwriting { grid-column: 1 / -1; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.bank-underwriting > div { padding: 12px 14px; background: var(--surface-soft); }
+.bank-underwriting span, .bank-decision span { display: block; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.bank-underwriting strong { display: block; margin: 4px 0; font-size: 12px; }
+.bank-underwriting small { display: block; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.bank-decision { display: grid; gap: 3px; margin-top: 10px; padding: 8px 10px; border: 1px dashed var(--line); }
+.bank-decision span { text-transform: none; font-size: 10px; }
+.bank-decision em { font-style: normal; font-size: 10px; color: var(--ink); }
+.bank-amount-row { display: flex; gap: 6px; }
+.bank-amount-row input { flex: 1; min-width: 0; }
+.bank-loan-form input[type=range] { width: 100%; accent-color: var(--ink); }
+.bank-over { grid-column: 1 / -1; padding: 6px 8px; background: #f7e7e3; color: var(--danger); font-size: 10px; }
+.bank-collection-banner { grid-column: 1 / -1; padding: 12px 14px; border: 1px solid var(--danger); background: #f7e7e3; }
+.bank-collection-banner strong { display: block; color: var(--danger); font-size: 12px; }
+.bank-collection-banner span { display: block; margin-top: 4px; font-size: 10px; line-height: 1.4; }
+@media (max-width: 760px) { .bank-underwriting { grid-template-columns: 1fr; } }
+.bank-repay-presets { flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.bank-repay-presets button { min-height: 28px; font-size: 10px; }
