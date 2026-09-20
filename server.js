@@ -4881,7 +4881,13 @@ const server = http.createServer(async (req, res) => {
     const requested = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
     const filePath = path.resolve(PUBLIC_DIR, requested);
     if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) { res.writeHead(404); return res.end("Not found"); }
-    res.writeHead(200, { "Content-Type": mime[path.extname(filePath)] || "application/octet-stream" });
+    const stat = fs.statSync(filePath);
+    // no-cache + ETag: клиент всегда узнаёт, что файл свежий (правка интерфейса видна сразу),
+    // но при неизменном ассете получает 304 и не качает 260 КБ заново.
+    const etag = `W/"${stat.size.toString(16)}-${Math.round(stat.mtimeMs).toString(16)}"`;
+    const headers = { "Content-Type": mime[path.extname(filePath)] || "application/octet-stream", "Cache-Control": "no-cache", ETag: etag };
+    if (String(req.headers["if-none-match"] || "") === etag) { res.writeHead(304, headers); return res.end(); }
+    res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   } catch (error) {
     console.error(error);
