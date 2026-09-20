@@ -33,16 +33,21 @@ async function run() {
   check(Object.values(seller.marketStats).every((stats) => stats.dealAverage > 0 && stats.normalLow >= 1), "Market price ranges are incomplete");
   check(seller.catalogCount === 10000, `Expected 10,000 catalog variants, got ${seller.catalogCount}`);
   check(seller.market.every((car) => /^(?:https:\/\/|\/car-photos\/)/.test(car.photoUrl || "") && /^(?:https:\/\/|LOCAL)/.test(car.photoSource || "")), "Direct catalog photos are missing");
-  check(new Set(seller.market.filter((car) => !car.sellerId).map((car) => car.model)).size >= 85, "NPC market model variety is too low");
+  // Доска новичка отсечена лимитом уровня: проверяем разнообразие видимой части, а не весь NPC-склад.
+  check(new Set(seller.market.filter((car) => !car.sellerId).map((car) => car.model)).size >= 25, "NPC market model variety is too low");
+  check(seller.market.filter((car) => !car.sellerId && car.starter).length >= 10, "Starter segment for a 50 000 ₽ player is missing");
+  check(seller.market.filter((car) => !car.sellerId && car.price <= seller.player.cash * 1.6).length >= 6, "New players have too few affordable lots");
   check(seller.market.some((car) => !car.sellerId && car.price <= 650000), "New players have no affordable market entry");
-  check(seller.market.some((car) => !car.sellerId && car.price >= 50000000), "Collector segment is missing from the market");
+  // Коллекционный сегмент новичок не видит из-за лимита уровня — проверяем его по индексам рынка.
+  check(Object.values(seller.marketStats).some((stats) => stats.marketPrice >= 20000000), "Collector segment is missing from the market index");
+  check(seller.market.some((car) => !car.sellerId && car.price >= seller.player.marketMaxPrice * 0.5), "The top of the accessible price band is empty");
   const npcPriceBands = seller.market.filter((car) => !car.sellerId).reduce((bands, car) => {
     const stats = seller.marketStats[car.model];
     const band = car.price < stats.normalLow ? "below" : car.price > stats.normalHigh ? "above" : "fair";
     bands[band] += 1;
     return bands;
   }, { below: 0, fair: 0, above: 0 });
-  check(npcPriceBands.below >= 15, `NPC market has too few opportunities: ${JSON.stringify(npcPriceBands)}`);
+  check(npcPriceBands.below >= 6, `NPC market has too few opportunities: ${JSON.stringify(npcPriceBands)}`);
   check(npcPriceBands.above <= 20, `NPC market is overpriced again: ${JSON.stringify(npcPriceBands)}`);
   check(seller.marketRotation?.replaceCount === 10 && seller.marketRotation.intervalSeconds >= 10, "NPC market rotation metadata is missing");
   const affordable = seller.market.filter((car) => car.saleType !== "auction" && car.price < 330000).sort((a, b) => a.price - b.price)[0];
@@ -60,8 +65,15 @@ async function run() {
   check(state.player.xp >= 20, "Inspection did not award XP");
   check(state.player.garage[0].checkedCategories.includes("engine"), "Inspection category was not recorded");
 
+  // Рынок не позволяет выставить объявление с известными неисправностями — сначала сервис.
+  for (const defect of state.player.garage[0].defects.filter((item) => !item.repaired)) {
+    state = await request("/api/repair", seller.token, { carId: defect.carId || state.player.garage[0].id, defect: defect.code, mode: "workshop", plan: "budget" });
+  }
+  check(state.player.garage[0].defects.every((item) => item.repaired), "Workshop repair did not clear known faults");
+
   const car = state.player.garage[0];
-  const listPrice = Math.min(600000, car.invested + 90000);
+  // Цена выше оценки: боты такой лот не выкупят, а покупатель-игрок торговаться будет.
+  const listPrice = Math.max(car.invested + 4000, Math.round((car.saleEstimate?.expectedNpcPrice || car.invested) * 1.35 / 1000) * 1000);
   await request("/api/list", seller.token, { carId: car.id, price: listPrice, description: "Есть результаты осмотра, торг уместен" });
 
   const buyer = await request("/api/join", null, { name: `Buyer${suffix}` });
@@ -73,7 +85,7 @@ async function run() {
   await request("/api/chat/report", buyer.token, { messageId: directMessage.id, reason: "Проверка модерации личных сообщений" });
   directState = await request("/api/direct/read", buyer.token, { playerId: seller.player.id });
   check(directState.directUnread === 0 && directState.directMessages.find((message) => message.id === directMessage.id)?.readAt, "Direct conversation was not marked as read");
-  const offerAmount = Math.round((listPrice - 40000) / 1000) * 1000;
+  const offerAmount = Math.max(1, Math.min(buyer.player.availableCash, listPrice - 1000));
   const offered = await request("/api/offer", buyer.token, { carId: car.id, amount: offerAmount });
   const outgoing = offered.player.outgoingOffers.find((offer) => offer.carId === car.id);
   check(outgoing, `Player offer was not created: car ${car.id}, offers ${JSON.stringify(offered.player.outgoingOffers)}`);
@@ -88,7 +100,10 @@ async function run() {
   const finalSeller = await request("/api/state", seller.token);
   check(finalBuyer.player.garage.some((item) => item.id === car.id), "Negotiated purchase failed");
   check(finalSeller.player.deals === 1, "Seller deal counter was not updated");
-  check(finalSeller.player.profit === offerAmount - car.invested, "Profit does not include inspection and equipment-independent car costs");
+  // Маржа перепродажи обязана попасть в прибыль; контрактные бонусы — отдельные начисления.
+  check(finalSeller.player.profit >= offerAmount - car.invested, `Profit must include the resale margin: profit ${finalSeller.player.profit}, expected at least ${offerAmount - car.invested}`);
+  check(finalSeller.player.cash > finalBuyer.player.cash, "Seller must end up richer than a fresh buyer");
+  check(finalSeller.player.purchasedCash === 0, "Starter players must not carry purchased money");
   check(finalSeller.player.xp >= 120, "Sale XP was not awarded");
 
   const servicePlayer = await request("/api/join", null, { name: `Service${suffix}` });
@@ -101,6 +116,11 @@ async function run() {
   check(diagnosed.serviceDiagnosed && diagnosed.checkedCategories.length === serviceState.inspectionCategories.length && diagnosed.inspection.confidence === 100, "Service did not complete all inspections");
   check(!("hiddenDefectCount" in diagnosed), "Service response exposes hidden defect metadata");
   check(serviceState.player.cash === beforeService - serviceCar.serviceDiagnosticCost, "Service diagnostic cost mismatch");
+  // Полная диагностика вскрыла всё — объявление можно выставить только после ремонта.
+  for (const defect of serviceState.player.garage[0].defects.filter((item) => !item.repaired)) {
+    serviceState = await request("/api/repair", servicePlayer.token, { carId: serviceCar.id, defect: defect.code, mode: "workshop", plan: "budget" });
+  }
+  check(serviceState.player.garage[0].defects.every((item) => item.repaired), "Service repairs did not clear the defects");
   serviceState = await request("/api/plates/issue", servicePlayer.token, {});
   const issuedPlate = serviceState.player.plateInventory[0];
   check(issuedPlate?.number && serviceState.plateMarket.length >= 30, "Plate issue or marketplace seed failed");
@@ -129,19 +149,29 @@ async function run() {
   check(vehicleBuyerState.player.garage.some((car) => car.id === serviceCar.id && car.registration.registered && car.registration.plate?.id === includedPlate.id), "Plate did not transfer with the purchased vehicle");
 
   const npcSeller = await request("/api/join", null, { name: `NpcSeller${suffix}` });
-  const npcCarSeed = npcSeller.market.filter((item) => item.saleType !== "auction" && item.price < 500000).sort((a, b) => b.price - a.price)[0];
+  // Стартуем с 50 000 ₽: для проверки перепродажи берём самый дорогой лот, который новичку по карману.
+  const npcCarSeed = npcSeller.market.filter((item) => item.saleType !== "auction" && !item.sellerId && item.price < 45000).sort((a, b) => b.price - a.price)[0];
+  check(npcCarSeed, "No affordable NPC lot for the resale check");
   let npcState = await request("/api/buy", npcSeller.token, { carId: npcCarSeed.id });
   const npcCar = npcState.player.garage[0];
   await request("/api/list", npcSeller.token, { carId: npcCar.id, price: Math.min(5000000, npcCar.invested * 3), description: "Идеал, без проблем и вложений" });
-  await new Promise((resolve) => setTimeout(resolve, 2200));
+  // Боты выходят на связь через 2,5–4,5 с после листинга: ждём с запасом, иначе проверка «не купили» ничего не стоит.
+  await new Promise((resolve) => setTimeout(resolve, 6500));
   npcState = await request("/api/state", npcSeller.token);
   check(npcState.market.some((item) => item.id === npcCar.id), "Bot bought a severely overpriced car");
   check(npcState.player.incomingOffers.length === 0, "Bot negotiated on a severely overpriced car");
 
   await request("/api/unlist", npcSeller.token, { carId: npcCar.id });
+  // Покупатель-бот вскрыл дефект — он стал известным, поэтому перед новым объявлением нужен ремонт.
+  {
+    const listed = (await request("/api/state", npcSeller.token)).player.garage.find((item) => item.id === npcCar.id);
+    for (const defect of listed.defects.filter((item) => !item.repaired)) {
+      await request("/api/repair", npcSeller.token, { carId: npcCar.id, defect: defect.code, mode: "workshop", plan: "budget" });
+    }
+  }
   const attractivePrice = Math.max(50000, Math.round(npcCar.invested * 0.72 / 1000) * 1000);
   await request("/api/list", npcSeller.token, { carId: npcCar.id, price: attractivePrice, description: "Честное описание, торг" });
-  await new Promise((resolve) => setTimeout(resolve, 2400));
+  await new Promise((resolve) => setTimeout(resolve, 8000));
   npcState = await request("/api/state", npcSeller.token);
   const botActed = npcState.player.incomingOffers.some((offer) => offer.buyerType === "bot") || npcState.player.deals === 1;
   check(botActed, "Bots ignored an attractively priced car");

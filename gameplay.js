@@ -30,11 +30,15 @@ const inspectionGames = {
   electronics: { name: "Диагностический прибор", prompt: "Выберите подозрительный показатель", success: "Электрика и блоки" }
 };
 
-function inspectionQuote(method, skill, equipment) {
+// scale — скидка на расходники для дешёвых машин: 9 000 ₽ за осмотр на автомобиле
+// за 40 000 ₽ съедали всю маржу новичка, который поднимается с 50 000 ₽.
+function inspectionQuote(method, skill, equipment, scale = 1) {
   if (!Object.hasOwn(inspectionMethods, method)) throw new Error("Неизвестный метод осмотра");
   const option = inspectionMethods[method];
   const depth = Math.min(8, skill + equipment + option.depth);
-  return { ...option, key: method, depth, confidence: Math.min(100, Math.round(depth / 6 * 100)) };
+  const factor = Math.min(1, Math.max(0.1, Number(scale) || 1));
+  const cost = option.cost ? Math.max(100, Math.round(option.cost * factor / 100) * 100) : 0;
+  return { ...option, cost, key: method, depth, confidence: Math.min(100, Math.round(depth / 6 * 100)) };
 }
 
 function careerProgress(player) {

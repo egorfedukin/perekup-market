@@ -85,13 +85,24 @@ async function run() {
     const investment = car.invested;
     state = await request("/api/list", { carId: car.id, price: Math.round(car.saleEstimate.expectedNpcPrice * 1.2), description: "Состояние соответствует осмотру. Разумный торг." });
     let offers = [];
-    for (let retry = 0; retry < 14 && !offers.length; retry++) {
+    let clean = [];
+    for (let retry = 0; retry < 20; retry++) {
       await new Promise(resolve => setTimeout(resolve, 500)); state = await request("/api/state");
       offers = state.player.incomingOffers.filter(offer => offer.carId === car.id).sort((a, b) => b.amount - a.amount);
+      clean = offers.filter(offer => (offer.suspicion?.score || 0) < 60);
+      if (clean.length) break;
     }
     assert.ok(offers.length, "Buyer must make a concrete offer");
-    state = await request("/api/offer/respond", { offerId: offers[0].id, action: "accept" });
-    results.push({ model: car.model, mode: "inspection/mandatory repair", cost: investment, sold: offers[0].amount, profit: offers[0].amount - investment });
+    // «Покупатели», требующие предоплату и пропадающие после сделки — отдельная механика рынка:
+    // их сдаём бирже и ждём нормального покупателя.
+    for (const scam of offers.filter(offer => (offer.suspicion?.score || 0) >= 60)) {
+      const before = state.player.cash;
+      state = await request("/api/offer/respond", { offerId: scam.id, action: "expose" });
+      assert.ok(state.player.cash >= before, "Exposing a scam buyer must not cost money");
+    }
+    const chosen = clean[0] || offers[0];
+    state = await request("/api/offer/respond", { offerId: chosen.id, action: "accept", confirmDeposit: true });
+    results.push({ model: car.model, mode: "inspection/mandatory repair", cost: investment, sold: chosen.amount, profit: chosen.amount - investment });
   }
   assert.ok(results.filter(result => result.profit > 0).length >= 4, JSON.stringify(results));
   const expectedCash = state.player.cash;

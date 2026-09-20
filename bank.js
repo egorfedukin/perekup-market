@@ -30,6 +30,8 @@ const carTax = {
   showroomDeductionFactor: 0.2 // бонус шоурума (0..0.15) уменьшает ставку до 3 п.п.
 };
 
+const STARTER_PAYMENT_FLOOR = Math.max(0, Number(process.env.PEREKUP_BANK_STARTER_PAYMENT) || 12000);
+
 function round(value) { return Math.round(Number(value) || 0); }
 function clamp(value, low, high) { return Math.min(high, Math.max(low, value)); }
 
@@ -105,7 +107,9 @@ function underwrite(product, { player, level, rating, limit, netWorth = 0, incom
   const leverage = 0.6 + clamp((rating - 300) / 550, 0, 1) * 1.2;
   const byRating = Math.max(0, Math.min(limit * product.maxShare, limit - debt));
   const byCapital = Math.max(0, netWorth * leverage - debt);
-  const affordablePayment = Math.max(0, netWorth) * 0.06 + Math.max(0, incomePerPeriod) * 0.5 - currentPayments(player);
+  // Минимум платежа для новичка: иначе с капиталом в 50 000 ₽ банк не одобряет даже
+  // сумму на первую машину, а старт «с нуля» превращается в тупик.
+  const affordablePayment = Math.max(STARTER_PAYMENT_FLOOR, Math.max(0, netWorth) * 0.06) + Math.max(0, incomePerPeriod) * 0.5 - currentPayments(player);
   const byIncome = Math.max(0, principalForPayment(affordablePayment, rate, product.periods));
   const approved = Math.max(0, Math.floor(Math.min(byRating, byCapital, byIncome) / 1000) * 1000);
   const limiting = approved >= Math.floor(byRating / 1000) * 1000 ? "rating" : approved >= Math.floor(byCapital / 1000) * 1000 ? "capital" : "income";
@@ -211,7 +215,7 @@ function carSaleTax({ amount, invested, showroomBonus = 0, deals = 0, level = 1 
 }
 
 module.exports = {
-  LOAN_PERIOD_MS, MAX_ACTIVE_LOANS, MISSED_BEFORE_COLLECTION, COLLECTION_PRICE_FACTOR, LATE_PENALTY_RATE, ISSUE_FEE_RATE, GARNISH_RATE, COLLECTION_COOLDOWN_MS,
+  LOAN_PERIOD_MS, STARTER_PAYMENT_FLOOR, MAX_ACTIVE_LOANS, MISSED_BEFORE_COLLECTION, COLLECTION_PRICE_FACTOR, LATE_PENALTY_RATE, ISSUE_FEE_RATE, GARNISH_RATE, COLLECTION_COOLDOWN_MS,
   underwrite, principalForPayment, currentPayments, inCollection,
   loanProducts, carTax, creditRating, ratingLabel, creditLimit, activeDebt, hasOverdue, effectiveRate, annuityPayment, loanQuote, productAvailability,
   createLoan, scheduledDue, applyScheduledPayment, applyEarlyRepayment, payoffAmount, carSaleTax

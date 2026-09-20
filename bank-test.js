@@ -60,19 +60,28 @@ async function request(url, body, status = 200) {
     const denied = await request("/api/bank/loan", { productKey: "express", amount: 1000000000 }, 400);
     assert.match(denied.error, /одобрил максимум/);
     await request("/api/bank/loan", { productKey: "invest", amount: 100000 }, 400);
-    state = await request("/api/bank/loan", { productKey: "express", amount: 123000 });
-    assert.equal(state.player.bank.loans[0].principal, 123000, "custom amount with 1000 step");
+    // Стартовый капитал невелик, поэтому суммы берём из одобренного лимита, а не из фиксированной цифры.
+    const loanAmount = Math.max(10000, Math.floor(Math.min(123000, express.maxAmount) / 1000) * 1000);
+    state = await request("/api/bank/loan", { productKey: "express", amount: loanAmount });
+    assert.equal(state.player.bank.loans[0].principal, loanAmount, "custom amount with 1000 step");
     state = await request("/api/bank/repay", { loanId: state.player.bank.loans[0].id, full: true });
     const cashBeforeSecond = state.player.cash;
-    state = await request("/api/bank/loan", { productKey: "express", amount: 100000 });
+    const secondAmount = Math.max(10000, Math.floor(loanAmount * 0.8 / 1000) * 1000);
+    state = await request("/api/bank/loan", { productKey: "express", amount: secondAmount });
     const loanRow = state.player.bank.loans.find((loan) => loan.status === "active");
-    assert.equal(state.player.cash, cashBeforeSecond + 100000 - loanRow.fee, "principal minus fee credited");
-    assert.equal(state.player.bank.debt, 100000);
-    await new Promise((resolve) => setTimeout(resolve, 2600));
-    state = await request("/api/state");
-    const afterPeriod = state.player.bank.loans.find((loan) => loan.status === "active");
+    assert.equal(state.player.cash, cashBeforeSecond + secondAmount - loanRow.fee, "principal minus fee credited");
+    assert.equal(state.player.bank.debt, secondAmount);
+    // Обслуживание кредитов идёт тиком раз в 3 секунды — ждём фактического списания, а не фиксированную паузу.
+    let afterPeriod = null;
+    for (let attempt = 0; attempt < 20 && !afterPeriod; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      state = await request("/api/state");
+      const candidate = state.player.bank.loans.find((loan) => loan.status === "active" && loan.paidPeriods >= 1);
+      if (candidate) afterPeriod = candidate;
+    }
+    assert.ok(afterPeriod, "scheduled payment processed");
     assert.ok(afterPeriod.paidPeriods >= 1, "scheduled payment processed");
-    assert.ok(afterPeriod.balance < 100000, "balance decreased");
+    assert.ok(afterPeriod.balance < secondAmount, "balance decreased");
     assert.ok(state.player.ledger.some((entry) => entry.type === "loan-payment"), "ledger entry for payment");
     state = await request("/api/bank/repay", { loanId: afterPeriod.id, full: true });
     assert.equal(state.player.bank.loans.find((loan) => loan.id === afterPeriod.id).status, "closed");

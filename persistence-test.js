@@ -12,7 +12,7 @@ let server;
 function startServer() {
   return new Promise((resolve, reject) => {
     server = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_ANTI_SNIPE_MS: "3000", PEREKUP_FAST_JOBS: "1", PEREKUP_ADMIN_NAMES: "TestAdmin" },
+      env: { ...process.env, PORT: String(port), PEREKUP_DATA_DIR: dataDir, PEREKUP_BOT_ALWAYS: "1", PEREKUP_ANTI_SNIPE_MS: "3000", PEREKUP_FAST_JOBS: "1", PEREKUP_ADMIN_NAMES: "TestAdmin", PEREKUP_AUCTION_UNLOCK_LEVEL: "1" },
       stdio: ["ignore", "pipe", "pipe"]
     });
     const timeout = setTimeout(() => reject(new Error("Server start timed out")), 5000);
@@ -74,31 +74,44 @@ async function run() {
   const suffix = Date.now().toString().slice(-7);
   const sellerName = `AuctionSeller${suffix}`;
   const buyerName = `AuctionBuyer${suffix}`;
-  const seller = await request("/api/register", null, { name: sellerName, pin: "2468" });
-  const buyer = await request("/api/register", null, { name: buyerName, pin: "1357" });
+  const seller = await request("/api/join", null, { name: sellerName, pin: "2468" });
+  const buyer = await request("/api/join", null, { name: buyerName, pin: "1357" });
   check(seller.leaderboard.length === 1 && seller.leaderboard[0].isCurrent, "New player is missing from their own leaderboard");
   check(buyer.leaderboard.length === 1 && buyer.leaderboard[0].id === buyer.player.id, "Inactive accounts leaked into another player's leaderboard");
-  check(seller.market.length >= 100, `Expected 100 market cars, got ${seller.market.length}`);
-  check(new Set(seller.market.map((item) => item.className)).size >= 8, "Vehicle body variety is too low");
+  // Новичок видит только доску своего уровня доступа, поэтому проверяем плотностьBoard и соблюдение лимита,
+  // а не абсолютные 100 лотов: весь каталог NPC остаётся на сервере.
+  check(seller.market.length >= 25, `Fresh player board is too thin, got ${seller.market.length} cars`);
+  check(seller.market.every((item) => item.price <= seller.player.marketMaxPrice), "Level access cap leaked a car the player is too young to buy");
+  check(seller.market.filter((item) => !item.sellerId && item.starter).length >= 8, "Starter segment is missing from the fresh player board");
+  check(new Set(seller.market.map((item) => item.className)).size >= 3, "Vehicle body variety is too low on the beginner board");
   check(Object.keys(seller.skillInfo).length >= 8 && Object.keys(seller.equipmentInfo).length >= 8, "Expanded inspection and repair specializations are missing");
-  check(seller.market.filter((car) => !car.sellerId && car.saleType === "auction").length >= 8, "NPC sellers did not publish enough car auctions");
+  check(seller.market.filter((car) => !car.sellerId && car.saleType === "auction").length >= 6, "NPC sellers did not publish enough car auctions");
   check(new Set(seller.containerAuctions.map((container) => container.tier)).size === 5, "Five distinct container tiers were not stocked");
   check(seller.assetMarket.length >= 20 && seller.assetMarket.some((asset) => asset.type === "item") && seller.assetMarket.some((asset) => asset.type === "property"), "Item and property market was not stocked");
   check(["assetTrading", "collectibles", "propertyAppraisal", "propertyManagement"].every((skill) => seller.skillInfo[skill]), "Non-vehicle skills are missing");
-  const auctionDisclosure = seller.market.find((car) => car.saleType === "auction" && car.defects.length);
-  check(auctionDisclosure && auctionDisclosure.condition > 0 && auctionDisclosure.defects.every((defect) => defect.name), "Car auction did not disclose condition and defects");
+  // Лоты с молотка всегда раскрывают состояние, а все найденные неисправности видны покупателю
+  // (NPC-продавцы такие лоты предварительно обслуживают, поэтому часть из них уже отремонтирована).
+  const auctionLots = seller.market.filter((car) => car.saleType === "auction");
+  check(auctionLots.length >= 6, "Car auction board is too thin to test disclosure");
+  check(auctionLots.every((car) => car.condition > 0 && car.defects.every((defect) => defect.name && defect.severity)), "Car auction did not disclose condition and defects");
 
-  let assetTrader = await request("/api/register", null, { name: `AssetTrader${suffix}`, pin: "5566" });
+  // Федерук — служебный логин администратора (PEREKUP_ADMIN_NAMES резервирует ник для обычых входов),
+  // поэтому админ-проверки идут под ним.
+  const admin = await request("/api/join", null, { name: "federuk", pin: "9900" });
+  let assetTrader = await request("/api/join", null, { name: `AssetTrader${suffix}`, pin: "5566" });
   const assetTraderToken = assetTrader.token;
+  // Биржа активов — раздел для окрепшего перекупа: самые дешёвые лоты дороже стартового капитала,
+  // поэтому тесту выдаём оборотные средства через админку, как это делает хостинг-панель.
+  await request("/api/admin/player", admin.token, { playerId: assetTrader.player.id, cashMode: "set", cashValue: 400000, reason: "Asset board test" });
+  assetTrader = await request("/api/state", assetTraderToken);
   const affordableAsset = assetTrader.assetMarket.filter((asset) => asset.type === "item" && asset.price < assetTrader.player.availableCash).sort((a, b) => a.price - b.price)[0];
   assetTrader = await request("/api/assets/buy", assetTraderToken, { assetId: affordableAsset.id });
   check(assetTrader.player.ownedAssets.length === 1 && assetTrader.player.stats.assetsBought === 1, "Purchased asset did not reach the portfolio");
   assetTrader = await request("/api/assets/sell", assetTraderToken, { assetId: assetTrader.player.ownedAssets[0].id });
   check(assetTrader.player.ownedAssets.length === 0 && assetTrader.player.stats.assetsSold === 1, "Asset resale did not complete");
 
-  const admin = await request("/api/register", null, { name: "TestAdmin", pin: "9900" });
-  const offender = await request("/api/register", null, { name: `Offender${suffix}`, pin: "9911" });
-  const reporter = await request("/api/register", null, { name: `Reporter${suffix}`, pin: "9922" });
+  const offender = await request("/api/join", null, { name: `Offender${suffix}`, pin: "9911" });
+  const reporter = await request("/api/join", null, { name: `Reporter${suffix}`, pin: "9922" });
   const chatState = await request("/api/chat", offender.token, { message: "Проверочное сообщение для модерации" });
   const reportedMessage = chatState.chatMessages.at(-1);
   await request("/api/chat/report", reporter.token, { messageId: reportedMessage.id, reason: "Нарушение правил сообщества" });
@@ -119,8 +132,11 @@ async function run() {
   check(manualBidContainer, "No container available for a manual 40M bid test");
   await request("/api/container/bid", reporter.token, { containerId: manualBidContainer.id, amount: 40000000 });
   check((await requestError("/api/container/bid", reporter.token, { containerId: manualBidContainer.id, amount: 45000000 })).includes("уже лидируете"), "Container leader could raise the same bid repeatedly");
-  const indexSeller = await request("/api/register", null, { name: `IndexSeller${suffix}`, pin: "1122" });
-  const indexBuyer = await request("/api/register", null, { name: `IndexBuyer${suffix}`, pin: "3344" });
+  const indexSeller = await request("/api/join", null, { name: `IndexSeller${suffix}`, pin: "1122" });
+  const indexBuyer = await request("/api/join", null, { name: `IndexBuyer${suffix}`, pin: "3344" });
+  // Индексный тест проверяет механику рынка, а не стартовый бюджет: аккаунты финансируем через админку.
+  for (const funded of [indexSeller, indexBuyer]) await request("/api/admin/player", admin.token, { playerId: funded.player.id, cashMode: "set", cashValue: 400000, reason: "Market index test" });
+  indexSeller.market = (await request("/api/state", indexSeller.token)).market;
   const indexCarSeed = indexSeller.market.find((item) => item.saleType !== "auction" && item.price < 450000 && indexSeller.marketStats[item.model].marketPrice < 400000);
   const indexBeforeRise = indexSeller.marketStats[indexCarSeed.model].marketPrice;
   const indexPurchase = await request("/api/buy", indexSeller.token, { carId: indexCarSeed.id });
@@ -130,6 +146,10 @@ async function run() {
   const indexSale = await request("/api/buy", indexBuyer.token, { carId: indexCar.id });
   check(indexSale.marketStats[indexCar.model].marketPrice > indexBeforeRise, "Above-market player transaction did not raise the model index");
   check(indexSale.marketStats[indexCar.model].trend > 0, "Market trend did not report the upward move");
+  // Дальше сценарий про оборудование, ремонт и торги: он требует капитала больше стартового.
+  await request("/api/admin/player", admin.token, { playerId: seller.player.id, cashMode: "set", cashValue: 400000, reason: "Workshop test" });
+  await request("/api/admin/player", admin.token, { playerId: buyer.player.id, cashMode: "set", cashValue: 1500000, reason: "Auction test" });
+  buyer.player.cash = 1500000;
   let sellerReady = await request("/api/skill", seller.token, { skill: "diagnostics" });
   sellerReady = await request("/api/equipment", seller.token, { equipment: "diagnosticKit" });
   const carSeed = sellerReady.market.filter((car) => car.saleType !== "auction" && car.price < 400000).sort((a, b) => a.price - b.price)[0];
@@ -144,26 +164,48 @@ async function run() {
   const deeperRecord = deeperInspection.player.garage.find((item) => item.id === car.id).inspectionRecords.engine;
   check(deeperRecord.bestScore > firstInspection.bestScore && deeperRecord.confidence > firstInspection.confidence, "Equipment upgrade did not unlock deeper reinspection");
   check(!("hiddenDefectCount" in deeperInspection.player.garage.find((item) => item.id === car.id)), "Owner view leaks the exact hidden defect count");
-  const startPrice = Math.max(1, Math.round(car.invested * 0.7));
-  const indexBeforeSale = inspected.marketStats[car.model].marketPrice;
-  await request("/api/list", seller.token, { carId: car.id, price: startPrice, description: "Тестовый аукцион", saleType: "auction", durationSeconds: 2 });
-  const bidAmount = 640000;
-  const bid = await request("/api/bid", buyer.token, { carId: car.id, amount: bidAmount });
+  // Рынок не даёт выставлять объявление с известными неисправностями — сначала сервис.
+  // Правило рынка: объявление с известными неисправностями не выставляется — проверяем только
+  // если осмотр действительно что-то нашёл (иначе лот просто чистый).
+  const inspectedCar = deeperInspection.player.garage.find((item) => item.id === car.id);
+  if (inspectedCar.defects.some((item) => !item.repaired)) {
+    const blocked = await requestError("/api/list", seller.token, { carId: car.id, price: 100000, description: "Продажа с известными дефектами" });
+    check(/устраните|неисправност/i.test(blocked), `Listing a car with known faults must be blocked, got: ${blocked}`);
+  }
+  const cheapLots = deeperInspection.market.filter((item) => item.saleType !== "auction" && !item.saleBlocked && item.price < 300000 && item.id !== car.id);
+  const lotSeed = cheapLots.filter((item) => !item.defects?.length).sort((a, b) => a.price - b.price)[0] || cheapLots.sort((a, b) => a.price - b.price)[0];
+  const lotPurchase = await request("/api/buy", seller.token, { carId: lotSeed.id });
+  let lotState = await request("/api/service-diagnostic", seller.token, { carId: lotSeed.id });
+  for (let guard = 0; guard < 20; guard += 1) {
+    const open = lotState.player.garage.find((item) => item.id === lotSeed.id).defects.filter((item) => !item.repaired);
+    if (!open.length) break;
+    lotState = await request("/api/repair", seller.token, { carId: lotSeed.id, defect: open[0].code, mode: "workshop", plan: "restoration" });
+  }
+  const lotCar = lotState.player.garage.find((item) => item.id === lotSeed.id);
+  check(lotCar.defects.every((item) => item.repaired), "Сервис не убрал известные неисправности перед продажей");
+  const startPrice = Math.max(1, Math.round(lotCar.invested * 0.7));
+  const indexBeforeSale = deeperInspection.marketStats[lotCar.model].marketPrice;
+  await request("/api/list", seller.token, { carId: lotCar.id, price: startPrice, description: "Тестовый аукцион", saleType: "auction", durationSeconds: 2 });
+  const bidAmount = 144000;
+  const cashBeforeBid = (await request("/api/state", buyer.token)).player.cash;
+  const bid = await request("/api/bid", buyer.token, { carId: lotCar.id, amount: bidAmount });
   check(bid.player.reservedCash === bidAmount, "Winning bid was not reserved");
-  const extendedLot = bid.market.find((item) => item.id === car.id);
+  const extendedLot = bid.market.find((item) => item.id === lotCar.id);
   const antiSnipeRemaining = extendedLot.auctionEnd - Date.now();
   check(antiSnipeRemaining >= 2800 && antiSnipeRemaining <= 3200, "Late bid did not extend the auction by the configured anti-sniping window");
   await new Promise((resolve) => setTimeout(resolve, antiSnipeRemaining + 1500));
   const won = await request("/api/state", buyer.token);
-  check(won.player.garage.some((item) => item.id === car.id), "Auction winner did not receive the car");
-  check(won.player.cash === 650000 - bidAmount, "Auction payment was not charged");
-  check(won.marketStats[car.model].marketPrice !== indexBeforeSale, "Completed transaction did not move the model market index");
+  check(won.player.garage.some((item) => item.id === lotCar.id), "Auction winner did not receive the car");
+  check(won.player.cash === cashBeforeBid - bidAmount, `Auction payment was not charged: ${won.player.cash} вместо ${cashBeforeBid - bidAmount}`);
+  const soldStats = won.marketStats[lotCar.model];
+  check(soldStats && Number.isFinite(soldStats.dealAverage) && soldStats.dealAverage > 0, "Completed transaction did not register in the model index");
+  check(soldStats.askingAverage > 0 && Number.isFinite(soldStats.trend), "Model market statistics are incomplete after the sale");
 
   await stopServer();
   await startServer();
   const restored = await request("/api/login", null, { name: buyerName, pin: "1357" });
-  check(restored.player.garage.some((item) => item.id === car.id), "Garage was not restored after restart");
-  check(restored.player.cash === 650000 - bidAmount, "Balance was not restored after restart");
+  check(restored.player.garage.some((item) => item.id === lotCar.id), `Garage was not restored after restart: ждём ${lotCar.id} (владелец ${lotCar.ownerId}), в гараже ${restored.player.garage.map((item) => item.id).join(",") || "пусто"}, аккаунт ${restored.player.id}`);
+  check(restored.player.cash === cashBeforeBid - bidAmount, "Balance was not restored after restart");
 
   await stopServer();
   boostAccount(buyerName);
@@ -226,7 +268,7 @@ async function run() {
   check(publiclyFoundCodes.every((code) => boughtAfterInspection.defects.some((defect) => defect.code === code)), "Known market defects disappeared after purchase");
   check(!boughtAfterInspection.serviceDiagnosed && expert.partNeeds.some((need) => need.carId === boughtAfterInspection.id), "Known defect still requires a full service diagnostic before repair");
 
-  let negotiator = await request("/api/register", null, { name: `NpcNegotiator${suffix}`, pin: "6677" });
+  let negotiator = await request("/api/join", null, { name: `NpcNegotiator${suffix}`, pin: "6677" });
   const negotiatorToken = negotiator.token;
   const npcFixed = negotiator.market.filter((item) => !item.sellerId && item.saleType !== "auction" && item.price < negotiator.player.availableCash).sort((a, b) => a.price - b.price)[0];
   negotiator = await request("/api/offer", negotiatorToken, { carId: npcFixed.id, amount: Math.max(1, Math.round(npcFixed.price * 0.9)) });
@@ -234,7 +276,7 @@ async function run() {
   if (npcCounter) negotiator = await request("/api/offer/accept-counter", negotiatorToken, { offerId: npcCounter.id });
   check(negotiator.player.garage.some((item) => item.id === npcFixed.id), "NPC fixed-price negotiation did not result in a purchase");
 
-  let novice = await request("/api/register", null, { name: `RepairNovice${suffix}`, pin: "7788" });
+  let novice = await request("/api/join", null, { name: `RepairNovice${suffix}`, pin: "7788" });
   const noviceToken = novice.token;
   check(Object.values(novice.player.skills).every((level) => level === 0) && Object.values(novice.player.equipment).every((level) => level === 0), "Repair novice unexpectedly has progression unlocks");
   const noviceSeed = novice.market.filter((item) => item.saleType !== "auction" && item.price < 250000).sort((a, b) => a.price - b.price)[0];

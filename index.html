@@ -68,7 +68,7 @@
         <button type="button" class="forgot-link" data-auth-mode="login">Вернуться ко входу</button>
       </form>
       <div class="join-stats">
-        <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>
+        <div><strong>50 000 ₽</strong><span>стартовый капитал</span></div>
         <div><strong>Расширяемый гараж</strong><span>места добавляются без верхнего лимита</span></div>
         <div><strong>навсегда</strong><span>сохранение прогресса</span></div>
       </div>
@@ -104,6 +104,9 @@
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
       <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
       <button data-view="assets" data-asset-mode="owned"><span>Недвижимость</span><small>Мои объекты и покупка</small></button>
+      <button data-view="bank"><span>Банк</span><small>Кредит, лимит, налоги</small></button>
+      <span class="utility-group-label">Риски</span>
+      <button data-view="risk"><span>Тени рынка</span><small>Проверки, серые схемы, претензии</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
@@ -323,6 +326,22 @@
         <div id="exchange-market" class="asset-grid"></div>
         <div class="asset-section-head"><div><p class="eyebrow">Ваши инвестиции</p><h3>Портфель биржи</h3></div><span>Текущая оценка и быстрая продажа</span></div>
         <div id="exchange-owned" class="owned-assets"></div>
+      </section>
+
+      <section id="bank-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Кредиты, лимит и налоги</p><h2>Банк «Перекуп»</h2></div><div class="bank-summary" id="bank-summary"></div></div>
+        <div id="bank-product-list" class="bank-panel"></div>
+        <div id="bank-loan-list" class="bank-panel"></div>
+        <div id="bank-info-list" class="bank-panel"></div>
+      </section>
+
+      <section id="risk-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Проверки, серые схемы и последствия</p><h2>Тени рынка</h2></div><div id="risk-summary"></div></div>
+        <div id="risk-meter-list" class="risk-panel"></div>
+        <div id="risk-car-list" class="risk-panel"></div>
+        <div id="risk-scheme-list" class="risk-panel"></div>
+        <div id="risk-threat-list" class="risk-panel"></div>
+        <div id="risk-history-list" class="risk-panel"></div>
       </section>
 
       <section id="wardrobe-view" class="view">
