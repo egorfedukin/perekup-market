@@ -53,6 +53,11 @@ async function run() {
   const affordable = seller.market.filter((car) => car.saleType !== "auction" && car.price < 330000).sort((a, b) => a.price - b.price)[0];
   check(affordable, "No affordable car was seeded");
 
+  // Оборотные средства выдаём через админку: тест проверяет механику (осмотр → ремонт → продажа),
+  // а не то, хватит ли 50 000 ₽ на первый ремонт при конкретном раскладе цен на доске.
+  const admin = await request("/api/join", null, { name: "federuk", pin: "9900" });
+  await request("/api/admin/player", admin.token, { playerId: seller.player.id, cashMode: "set", cashValue: 250000, reason: "Smoke test working capital" });
+
   let state = await request("/api/buy", seller.token, { carId: affordable.id });
   check(state.player.garage.length === 1, "Purchased car did not reach garage");
 

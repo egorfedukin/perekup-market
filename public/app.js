@@ -1410,13 +1410,13 @@ function renderBank() {
   if (!bank) return;
   const debt = bank.debt || 0;
   const free = Math.max(0, (bank.limit || 0) - debt);
-  const summary = $("bank-summary");
+  const summary = $("#bank-summary");
   if (summary) {
     summary.innerHTML = `<div class="bank-score"><span>Кредитный рейтинг</span><strong>${bank.rating}</strong><small>${escapeHtml(bank.ratingLabel || "")} · лимит ${money(bank.limit)}</small></div>
       <div class="bank-score"><span>Капитал банка видит</span><strong>${compactMoney(bank.netWorth)}</strong><small>свободно ${compactMoney(free)} · долг ${compactMoney(debt)}</small></div>
       <div class="bank-score"><span>Налог на сделки</span><strong>${Math.round((bank.tax?.rate || 0) * 100)}%</strong><small>${bank.tax?.holiday ? `каникулы: ещё ${bank.tax.holidayDealsLeft} сдел.` : `к уплате ${money(bank.tax?.tax || 0)}`}</small></div>`;
   }
-  const products = $("bank-product-list");
+  const products = $("#bank-product-list");
   if (products) {
     products.innerHTML = `<h3 class="panel-title">Кредитные продукты <small>период списания — ${Math.max(1, Math.round((bank.periodMs || 0) / 60000))} мин реального времени, до ${bank.maxActiveLoans} активных кредитов</small></h3><div class="bank-products">${(bank.products || []).map((product) => {
       const max = Math.max(0, Math.min(product.maxAmount || 0, free));
@@ -1428,7 +1428,7 @@ function renderBank() {
       </article>`;
     }).join("")}</div>`;
   }
-  const loans = $("bank-loan-list");
+  const loans = $("#bank-loan-list");
   if (loans) {
     const active = (bank.loans || []).filter((loan) => loan.status !== "closed");
     const closed = (bank.loans || []).filter((loan) => loan.status === "closed");
@@ -1440,7 +1440,7 @@ function renderBank() {
         <small class="bank-next">Автоплатёж через ${Math.max(0, Math.round((loan.nextPaymentAt - Date.now()) / 1000))} с — деньги спишутся с баланса, даже если вы забудете. Ставка ${loan.rate}% за период.</small>
       </article>`).join("") : `<div class="no-offers">Активных кредитов нет${closed.length ? ` · закрыто ${closed.length}` : ""}. История: выдано ${bank.history?.issued || 0}, закрыто ${bank.history?.repaid || 0}, просрочек ${bank.history?.missed || 0}, взысканий ${bank.history?.seized || 0}.</div>`);
   }
-  const info = $("bank-info-list");
+  const info = $("#bank-info-list");
   if (info) {
     const ledger = (state.player.ledger || []).filter((entry) => String(entry.type || "").startsWith("loan") || ["tax", "fraud-bounty"].includes(entry.type)).slice(-10).reverse();
     info.innerHTML = `<h3 class="panel-title">Банковские операции</h3>
@@ -1454,11 +1454,11 @@ function renderBank() {
 function renderRisk() {
   const fraud = state.player.fraud;
   if (!fraud) return;
-  const summary = $("risk-summary");
+  const summary = $("#risk-summary");
   if (summary) {
     summary.innerHTML = `<div class="risk-counters"><span>стадия <b>${escapeHtml(fraud.stage || "")}</b></span><span>разоблачений <b>${fraud.exposed || 0}</b></span><span>схем <b>${fraud.schemes || 0}</b></span><span>поймано <b>${fraud.caught || 0}</b></span><span>претензии <b>${fraud.claimsWon || 0}/${fraud.claims || 0}</b></span><span>кинули вас <b>${fraud.scammed || 0}</b> на ${compactMoney(fraud.scammedCash || 0)}</span></div>`;
   }
-  const meters = $("risk-meter-list");
+  const meters = $("#risk-meter-list");
   if (meters) {
     const blocked = fraud.blocked > 0;
     meters.innerHTML = `${fraudMeters(fraud, state.player.reputation?.score)}
@@ -1468,7 +1468,7 @@ function renderRisk() {
       <div class="risk-lawyer"><div><strong>Адвокат и «тёплые» связи</strong><small>снимает подозрение и возвращает доверие рынка</small></div><button class="secondary-button" data-fraud-lawyer ${(fraud.suspicion || 0) < 8 ? "disabled" : ""}>${money(fraud.lawyerCost || 0)}</button></div>`;
   }
   const cars = state.player.garage || [];
-  const picker = $("risk-car-list");
+  const picker = $("#risk-car-list");
   if (picker) {
     if (!cars.length) {
       selectedRiskCarId = "";
@@ -1481,7 +1481,7 @@ function renderRisk() {
       }).join("")}</div>`;
     }
   }
-  const schemes = $("risk-scheme-list");
+  const schemes = $("#risk-scheme-list");
   if (schemes) {
     const car = cars.find((item) => item.id === selectedRiskCarId);
     schemes.innerHTML = `<h3 class="panel-title">Серые схемы <small>повышают цену, но растёт подозрение</small></h3><div class="risk-schemes">${(fraud.schemeOptions || []).map((scheme) => {
@@ -1495,14 +1495,14 @@ function renderRisk() {
       </article>`;
     }).join("")}</div>`;
   }
-  const threats = $("risk-threat-list");
+  const threats = $("#risk-threat-list");
   if (threats) {
     const info = state.fraudInfo || {};
     threats.innerHTML = `<h3 class="panel-title">Чем рискуют покупатели <small>то же ищут в вашей машине</small></h3><div class="risk-threats">${(info.threats || []).map((threat) => `<article class="risk-threat"><strong>${escapeHtml(threat.name)}</strong><p>${escapeHtml(threat.hint)}</p><small>${escapeHtml(threat.consequence)} · глубина проверки ${threat.depth}</small></article>`).join("")}</div>
       <div class="risk-rules">${Object.values(info.rules || {}).map((rule) => `<p>${escapeHtml(rule)}</p>`).join("")}</div>
       ${info.starterBand ? `<p class="risk-note">Сегмент новичка: ${money(info.starterBand[0])} — ${money(info.starterBand[1])}, лотов ${info.starterLots}.</p>` : ""}`;
   }
-  const history = $("risk-history-list");
+  const history = $("#risk-history-list");
   if (history) {
     const items = (fraud.history || []).slice(0, 14);
     history.innerHTML = `<h3 class="panel-title">Хроника</h3>` + (items.length ? items.map((item) => `<div class="risk-event ${escapeHtml(item.kind || "")}"><time>${new Date(item.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(item.title || "")}</span>${item.amount ? `<b class="${item.amount >= 0 ? "plus" : "minus"}">${item.amount >= 0 ? "+" : ""}${compactMoney(item.amount)}</b>` : ""}</div>`).join("") : '<div class="no-offers">Хроника пуста — пока вы играете в открытую.</div>');
@@ -2080,7 +2080,7 @@ document.addEventListener("click", async (event) => {
       showToast("Покупатель требует предоплату. Нажмите ещё раз, если готовы её потерять.", true);
       return;
     }
-    return perform("/api/offer/respond", { offerId: offerAction.dataset.offerId, action, amount, confirmDeposit: offerAction.dataset.confirmed === "1" || undefined }, action === "accept" ? "Предложение принято" : action === "reject" ? "Предложение отклонено" : action === "expose" ? "Развод раскрыт: рынок взыскал депозит" : "Встречная цена отправлена");
+    return perform("/api/offer/respond", { offerId: offerAction.dataset.offerId, action, amount, confirmDeposit: offerAction.dataset.confirmed === "1" || undefined }, action === "accept" ? "Предложение принято" : action === "reject" ? "Предложение отклонено" : action === "expose" ? "Развод раскрыт: покупатель заблокирован, премия на счету" : "Встречная цена отправлена");
   }
   const acceptCounter = event.target.closest("[data-accept-counter]");
   if (acceptCounter) { if (await perform("/api/offer/accept-counter", { offerId: acceptCounter.dataset.acceptCounter }, "Машина куплена по встречной цене")) setView("garage"); }
