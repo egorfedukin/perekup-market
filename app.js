@@ -25,6 +25,7 @@ let marketFilters = { query: "", min: null, max: null, saleType: "all", classNam
 let marketVisibleCount = 24;
 let modalCarId = null;
 let garageTaskTab = "inspect";
+let selectedRiskCarId = "";
 let modalMode = null;
 let lastCheckResult = null;
 let events = null;
@@ -384,9 +385,12 @@ async function inspectionChallenge(category, carId) {
     const finish = (value) => { root.hidden = true; root.innerHTML = ""; activeChallenge = null; resolve(value); };
     const requirement = state.inspectionRequirements[category];
     const base = (state.player.skills[requirement.skill] || 0) + (state.player.equipment[requirement.equipment] || 0);
+    const subject = [...(state.player.garage || []), ...(state.market || [])].find((item) => item.id === carId);
+    const costs = subject?.inspectionCosts || {};
     root.innerHTML = `<div class="challenge-panel"><div class="challenge-head"><h2>${escapeHtml(categoryNames[category])}</h2><button class="icon-button" data-cancel aria-label="Отменить">×</button></div><div class="inspection-methods">${Object.entries(state.inspectionMethods || {}).map(([key, method]) => {
       const confidence = Math.min(100, Math.round((base + method.depth) / 6 * 100));
-      return `<button class="secondary-button" data-method="${key}" ${state.player.availableCash < method.cost ? "disabled" : ""}><strong>${escapeHtml(method.name)}</strong><span>${method.cost ? money(method.cost) : "Бесплатно"}</span><small>Глубина ${Math.min(8, base + method.depth)}/8 · уверенность ${confidence}%</small></button>`;
+      const cost = costs[key] ?? method.cost;
+      return `<button class="secondary-button" data-method="${key}" ${state.player.availableCash < cost ? "disabled" : ""}><strong>${escapeHtml(method.name)}</strong><span>${cost ? money(cost) : "Бесплатно"}</span><small>Глубина ${Math.min(8, base + method.depth)}/8 · уверенность ${confidence}%</small></button>`;
     }).join("")}</div></div>`;
     root.hidden = false;
     root.querySelector("[data-cancel]").onclick = () => finish(null);
@@ -578,7 +582,8 @@ function renderMarket() {
   if ($("#career-mission")) $("#career-mission").innerHTML = activeContract ? `<div><p class="eyebrow">Ваш текущий контракт</p><strong>${escapeHtml(activeContract.title)}</strong><span>${escapeHtml(activeContract.description)}</span></div><b>Награда ${money(activeContract.reward)}</b>` : `<div><p class="eyebrow">Следующий шаг</p><strong>Найдите выгодную сделку</strong><span>Сравните цену, риск и будущего покупателя перед покупкой.</span></div>`;
   const shown = visible.slice(0, marketVisibleCount);
   $("#filter-result").textContent = `Найдено ${visible.length} · показано ${shown.length}`;
-  const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><span>Ваш уровень: автомобили до ${money(state.player.marketMaxPrice)}</span></div>` : "";
+  const starterNote = state.player?.starterMode ? `<span>Стартовый сегмент: ${state.market.filter((car) => car.starter && !car.sellerId).length} машин до ${money((state.fraudInfo?.starterBand || [0, 78000])[1])} — с ${money(state.fraudInfo?.startingCash || 0)} это единственный реалистичный вход</span>` : "";
+  const accessNote = state.player?.marketMaxPrice ? `<div class="market-access-note"><span>Ваш уровень: автомобили до ${money(state.player.marketMaxPrice)}</span>${starterNote}</div>` : "";
   const marketMarkup = accessNote + shown.map((car) => {
     const [label, className] = conditionLabel(car.condition);
     const [priceLabel, priceClass] = pricePosition(car);
@@ -593,6 +598,7 @@ function renderMarket() {
         <div class="car-meta"><span>${number(car.mileage)} км</span><span>${own ? "Ваше объявление" : playerNameButton(car.sellerId, car.seller)}</span></div>
         <div class="car-price-row"><strong>${money(car.price)}</strong><span class="condition ${className}">${label}</span></div>
         <span class="price-signal ${priceClass}">${priceLabel}${difference ? ` · ${difference > 0 ? "+" : ""}${difference}%` : ""}</span>
+        ${fraudMarketBadge(car)}
         ${car.marketTag ? `<span class="market-tag">${escapeHtml(car.marketTag)}</span>` : ""}
         ${auction ? `<div class="auction-note"><span>${car.bidCount ? `Ставок: ${car.bidCount}` : "Стартовая цена"}</span><span class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</span></div>` : car.offerCount ? `<div class="offer-note">Предложений: ${car.offerCount}</div>` : ""}
       </div>
@@ -687,15 +693,16 @@ function renderGarage() {
     const registration = car.registration || { registered: false, plate: null };
     const plates = state.player.plateInventory || [];
     const registrationControls = registration.registered && registration.plate
-      ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · 2 500 ₽</button>`
+      ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта · ${money(state.player.fees?.deregistration || 2500)}</button>`
       : plates.length
-        ? `<select id="car-plate-${car.id}" aria-label="Номер для ${vehicleLabel(car.model)}">${plates.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="${registration.registered ? "attach" : "register"}" data-car-id="${car.id}">${registration.registered ? "Установить номер" : "Поставить на учёт · 8 500 ₽"}</button>`
+        ? `<select id="car-plate-${car.id}" aria-label="Номер для ${vehicleLabel(car.model)}">${plates.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select><button class="primary-button" data-registration="${registration.registered ? "attach" : "register"}" data-car-id="${car.id}">${registration.registered ? "Установить номер" : `Поставить на учёт · ${money(state.player.fees?.registration || 8500)}`}</button>`
         : `<button class="secondary-button" data-garage-mode="plates">Сначала получить номер</button>`;
     const result = (car.saleEstimate?.expectedNpcPrice || 0) - car.invested;
     const phase = open.length ? "Нужен ремонт" : (car.inspection?.confidence || 0) < 100 ? "Нужен осмотр" : "Готова к продаже";
     return `<article class="garage-car">
       ${carArt(car)}
       <div class="garage-main"><span class="garage-phase">${phase}</span><h3>${vehicleLabel(car.model)}</h3><p>${car.year} год · ${number(car.mileage)} км<br>Вложено ${money(car.invested)}</p><small>Прогноз продажи ${money(car.saleEstimate?.expectedNpcPrice || 0)}</small><strong class="${result >= 0 ? "profit-positive" : "profit-negative"}">${result >= 0 ? "+" : ""}${money(result)}</strong></div>
+      ${garageFraudFlags(car)}
       <div class="garage-status">
         <div class="status-line"><span>Состояние</span><strong>${car.condition}%</strong></div>
         <div class="status-bar"><i style="width:${car.condition}%"></i></div>
@@ -731,8 +738,8 @@ function renderPlates() {
     const registration = car.registration || { registered: false, plate: null };
     const plateSelect = !registration.plate && inventory.length ? `<select id="car-plate-${car.id}" aria-label="Номер для ${vehicleLabel(car.model)}">${inventory.map((plate) => `<option value="${plate.id}">${escapeHtml(plate.number)} · ${escapeHtml(plate.rarityName)}</option>`).join("")}</select>` : "";
     const registrationAction = registration.registered
-      ? registration.plate ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта и вернуть номер · 2 500 ₽</button>` : `${plateSelect}<button class="primary-button" data-registration="attach" data-car-id="${car.id}">Завершить регистрацию</button>`
-      : inventory.length ? `${plateSelect}<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт с номером · 8 500 ₽</button>` : '<button class="primary-button" disabled>Сначала получите номер</button>';
+      ? registration.plate ? `<button class="secondary-button" data-registration="deregister" data-car-id="${car.id}">Снять с учёта и вернуть номер · ${money(state.player.fees?.deregistration || 2500)}</button>` : `${plateSelect}<button class="primary-button" data-registration="attach" data-car-id="${car.id}">Завершить регистрацию</button>`
+      : inventory.length ? `${plateSelect}<button class="primary-button" data-registration="register" data-car-id="${car.id}">Поставить на учёт с номером · ${money(state.player.fees?.registration || 8500)}</button>` : '<button class="primary-button" disabled>Сначала получите номер</button>';
     return `<article class="registration-car">${carArt(car)}<div><strong>${vehicleLabel(car.model)}</strong><span class="registration-status ${registration.registered && registration.plate ? "registered" : ""}">${registration.registered && registration.plate ? "Стоит на учёте" : "Снят с учёта"}</span><small>${registration.plate ? `Установлен ${escapeHtml(registration.plate.number)}` : "Для постановки на учёт выберите номер"}</small></div><div class="registration-actions">${registrationAction}</div></article>`;
   }).join("") : '<div class="plate-empty">В личном гараже пока нет автомобилей.</div>';
   const registrationSignature = JSON.stringify({ garage: garage.map((car) => ({ id: car.id, model: car.model, year: car.year, photoUrl: car.photoUrl, registration: car.registration })), plates: inventory.map((plate) => ({ id: plate.id, number: plate.number, rarityName: plate.rarityName })) });
@@ -937,12 +944,14 @@ function offerCard(offer, incoming) {
   return `<article class="offer-card ${offer.buyerType === "bot" ? "bot" : ""}">
     <div class="offer-head"><div><strong>${escapeHtml(incoming ? offer.buyerName : offer.sellerName || "Продавец")}</strong><p class="offer-car">${vehicleLabel(car.model)} · цена ${money(car.price || offer.amount)}</p></div><span>${money(offer.amount)}</span></div>
     <p class="offer-reason">${escapeHtml(offer.reason)}</p>
+    ${incoming ? offerRiskBlock(offer) : ""}
     ${offer.saleBlocked ? '<p class="trade-blocked">Продавец должен устранить неисправность перед продажей.</p>' : ''}
     ${offer.profile ? `<div class="npc-profile"><span>Бюджет <b>${money(offer.profile.budget)}</b></span><span>Интересы <b>${offer.profile.interests.map(key => ({ utility: "Практичность", comfort: "Комфорт", sport: "Спорт", classic: "Классика" }[key])).join(", ")}</b></span><span>Допустимый риск <b>${offer.profile.riskTolerance}/100</b></span><span>Попыток торга <b>${Math.max(0, offer.profile.patience - (offer.attempts || 0))}</b></span><span>Отношения <b>${offer.relationship > 0 ? "+" : ""}${offer.relationship}</b></span></div>` : ""}
     <div class="offer-actions">
       ${offer.profile?.inspectionSkills ? `<details class="npc-inspection-skills"><summary>Навыки осмотра</summary><div>${Object.entries(offer.profile.inspectionSkills).map(([key, value]) => `<span>${categoryNames[key]} <b>${value}/8</b></span>`).join('')}</div></details>` : ''}
       ${incoming ? `
-        <button class="primary-button" ${offer.saleBlocked ? "disabled" : ""} data-offer-action="accept" data-offer-id="${offer.id}">Принять</button>
+        ${offer.suspicion?.score >= 60 ? `<button class="danger-button" data-offer-action="expose" data-offer-id="${offer.id}">Раскусить развод</button>` : ""}
+        <button class="${offer.suspicion?.score >= 60 ? "secondary-button" : "primary-button"}" ${offer.saleBlocked ? "disabled" : ""} data-offer-action="accept" data-offer-id="${offer.id}" data-deposit="${offer.suspicion?.deposit || 0}">${offer.suspicion?.score >= 60 ? `Рискнуть и принять (−${money(offer.suspicion.deposit)})` : "Принять"}</button>
         <button class="secondary-button" data-offer-action="reject" data-offer-id="${offer.id}">Отказать</button>
         <div class="counter-row"><input id="counter-${offer.id}" type="number" step="1" min="1" max="${Math.max(1, (car.price || offer.amount) - 1)}" placeholder="Встречная цена"><button class="secondary-button" ${offer.saleBlocked ? "disabled" : ""} data-offer-action="counter" data-offer-id="${offer.id}">Ответить</button></div>
       ` : counter ? `<button class="primary-button" ${offer.saleBlocked ? "disabled" : ""} data-accept-counter="${offer.id}">Принять встречную цену</button>` : `<span class="condition mid">Ожидает ответа продавца</span>`}
@@ -1342,6 +1351,164 @@ function updateShell() {
   $("#admin-tab").hidden = !state.player.isAdmin;
 }
 
+
+// ─── Мошенничество: признаки, проверки, серые схемы ───
+function fraudSignals(car) {
+  const fraud = car?.fraud;
+  if (!fraud) return "";
+  if (fraud.status === "unknown") return `<div class="fraud-card muted"><strong>Проверок не было</strong><p>Юридическая проверка по базам за ${money(car.fraudCheckCost || 0)} покажет залог, обременение или перебитый VIN — но может и промахнуться: часть обмана вскрывает только полная диагностика в сервисе.</p></div>`;
+  if (fraud.status === "confirmed") return `<div class="fraud-card danger"><div><strong>Обман раскрыт: ${escapeHtml(fraud.name)}</strong><p>${escapeHtml(fraud.hint || "")}</p>${fraud.consequence ? `<p class="fraud-consequence">${escapeHtml(fraud.consequence)}</p>` : ""}${car.fraudLegalHold ? '<small class="fraud-block">Продажа и регистрация заблокированы, пока вопрос не закрыт.</small>' : ""}</div></div>`;
+  if (fraud.status === "clear") return `<div class="fraud-card calm"><strong>Проверка прошла чисто</strong><p>${escapeHtml(fraud.note || "")}</p></div>`;
+  if (fraud.status === "dirty") return `<div class="fraud-card dirty"><div><strong>Машина «подготовлена» к продаже</strong><ul class="fraud-signs">${(fraud.schemes || []).map((scheme) => `<li>${escapeHtml(scheme.name)} · +${scheme.bonus}% к цене</li>`).join("")}</ul><small>Прибавка к цене ${fraud.deceptionBonus || 0}% · шанс, что покупатель раскусит: ${fraud.risk || 0}%. ${fraud.schemesExposed ? "Часть «улучшений» уже заметили." : ""}</small></div></div>`;
+  return `<div class="fraud-card warn"><div><strong>Объявление выглядит подозрительно</strong><ul class="fraud-signs">${fraud.signs.map((sign) => `<li>${escapeHtml(sign)}</li>`).join("")}</ul><small>Юридическая проверка стоит ${money(car.fraudCheckCost || 0)} (шанс увидеть обман ~${state.player.fees?.legalCheckShare || 40}%), а сервис находит его всегда.</small></div></div>`;
+}
+
+function fraudActions(car, own, auction) {
+  if (own || auction || car.sellerId) return "";
+  if (car.fraud?.status === "confirmed") return `<button class="danger-button" data-fraud-expose="${car.id}">Разоблачить: снять лот и получить премию</button>`;
+  return `<button class="secondary-button" data-fraud-check="${car.id}">Проверка по базам · ${money(car.fraudCheckCost || 0)}</button>`;
+}
+
+function fraudMarketBadge(car) {
+  const fraud = car?.fraud;
+  if (!fraud) return "";
+  if (fraud.status === "confirmed") return '<span class="fraud-badge danger">🚨 обременение</span>';
+  if (fraud.status === "suspect") return `<span class="fraud-badge warn">⚠ подозрение ${fraud.level || 1}/4</span>`;
+  if (fraud.status === "clear") return '<span class="fraud-badge calm">✓ проверка чиста</span>';
+  return "";
+}
+
+function garageFraudFlags(car) {
+  const fraud = car?.fraud;
+  if (!fraud) return "";
+  const parts = [];
+  if (fraud.status === "confirmed") parts.push(`<div class="garage-fraud"><strong>${escapeHtml(fraud.name)}</strong><small>${escapeHtml(fraud.hint || "Юридическая проблема мешает продаже")}</small></div>`);
+  if (fraud.status === "dirty") parts.push(`<div class="garage-fraud dirty"><strong>Подготовка: ${(fraud.schemes || []).map((item) => escapeHtml(item.name)).join(", ")}</strong><small>+${fraud.deceptionBonus || 0}% к цене · шанс разоблачения ${fraud.risk || 0}%</small></div>`);
+  if (car.fraudLegalHold) parts.push(`<div class="garage-fraud hold"><strong>Обременение: ${escapeHtml(car.fraudLegalHold.name)}</strong><small>${escapeHtml(car.fraudLegalHold.note || "Продажа и регистрация заблокированы.")}</small><button class="secondary-button" data-fraud-claim="${car.id}">Подать претензию</button></div>`);
+  return parts.join("");
+}
+
+function offerRiskBlock(offer) {
+  const risk = offer.suspicion;
+  if (!risk || !risk.score || risk.score < 45) return "";
+  const level = risk.score >= 60 ? "danger" : "warn";
+  return `<div class="offer-risk ${level}">
+    <div class="offer-risk-head"><strong>${level === "danger" ? "Похоже на развод" : "Странный покупатель"} · ${risk.score}/100</strong>${risk.deposit ? `<span>требует предоплату ${money(risk.deposit)}</span>` : ""}</div>
+    ${risk.signs?.length ? `<ul>${risk.signs.map((sign) => `<li>${escapeHtml(sign)}</li>`).join("")}</ul>` : ""}
+    ${level === "danger" ? "<small>Депозит уходит «покупателю»: можно раскусить сделку и получить взыскание через рынок.</small>" : ""}
+  </div>`;
+}
+
+function fraudMeters(fraud, reputation) {
+  const rows = [["Подозрение рынка", fraud.suspicion || 0, (fraud.suspicion || 0) >= 70, "на 100 — выезд с проверкой и изъятие актива"], ["Тень на рынке", fraud.notoriety || 0, false, "открывает серые схемы, но отпугивает честных покупателей"], ["Репутация", reputation ?? 50, (reputation ?? 50) < 30, "доверие покупателей, банка и шанс выиграть претензию"]];
+  return `<div class="risk-meters">${rows.map(([label, value, hot, note]) => `<div class="risk-meter ${hot ? "hot" : ""}"><span>${label}<small>${escapeHtml(note)}</small></span><b>${Math.round(value)}</b><progress max="100" value="${Math.max(0, Math.min(100, value))}"></progress></div>`).join("")}</div>`;
+}
+
+// ─── Банк ───
+function renderBank() {
+  const bank = state.player.bank;
+  if (!bank) return;
+  const debt = bank.debt || 0;
+  const free = Math.max(0, (bank.limit || 0) - debt);
+  const summary = $("#bank-summary");
+  if (summary) {
+    summary.innerHTML = `<div class="bank-score"><span>Кредитный рейтинг</span><strong>${bank.rating}</strong><small>${escapeHtml(bank.ratingLabel || "")} · лимит ${money(bank.limit)}</small></div>
+      <div class="bank-score"><span>Капитал банка видит</span><strong>${compactMoney(bank.netWorth)}</strong><small>свободно ${compactMoney(free)} · долг ${compactMoney(debt)}</small></div>
+      <div class="bank-score"><span>Налог на сделки</span><strong>${Math.round((bank.tax?.rate || 0) * 100)}%</strong><small>${bank.tax?.holiday ? `каникулы: ещё ${bank.tax.holidayDealsLeft} сдел.` : `к уплате ${money(bank.tax?.tax || 0)}`}</small></div>`;
+  }
+  const products = $("#bank-product-list");
+  if (products) {
+    products.innerHTML = `<h3 class="panel-title">Кредитные продукты <small>период списания — ${Math.max(1, Math.round((bank.periodMs || 0) / 60000))} мин реального времени, до ${bank.maxActiveLoans} активных кредитов</small></h3><div class="bank-products">${(bank.products || []).map((product) => {
+      const max = Math.max(0, Math.min(product.maxAmount || 0, free));
+      return `<article class="bank-product ${product.available && max >= 1000 ? "" : "locked"}">
+        <header><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.tag || "")}</span></header>
+        <p>${escapeHtml(product.description || "")}</p>
+        <div class="bank-product-terms"><span>ставка <b>${product.ratePct}%</b> за период</span><span>срок <b>${product.periods}</b> периодов</span><span>комиссия <b>${money(product.fee)}</b></span><span>переплата <b>${money(product.overpayment)}</b></span></div>
+        ${product.available ? (max >= 1000 ? `<label class="bank-amount">Сумма кредита<input id="bank-amount-${product.key}" type="number" min="1000" max="${max}" step="500" value="${Math.max(1000, Math.round(Math.min(max, 25000) / 500) * 500)}"><small>доступно ${money(max)} · платёж ≈ ${money(product.payment)} за период</small></label><button class="primary-button" data-bank-loan="${product.key}">Взять кредит</button>` : `<p class="bank-locked">Свободного лимита не осталось: ${money(free)}.</p>`) : `<p class="bank-locked">${escapeHtml(product.reason || "Недоступно")}</p>`}
+      </article>`;
+    }).join("")}</div>`;
+  }
+  const loans = $("#bank-loan-list");
+  if (loans) {
+    const active = (bank.loans || []).filter((loan) => loan.status !== "closed");
+    const closed = (bank.loans || []).filter((loan) => loan.status === "closed");
+    loans.innerHTML = `<h3 class="panel-title">Мои кредиты <small>${bank.missedBeforeCollection} просроченных периодов подряд → взыскание за счёт активов</small></h3>` + (active.length ? active.map((loan) => `<article class="bank-loan ${loan.overdue ? "overdue" : ""}">
+        <header><strong>${escapeHtml(loan.name)}</strong><span>${loan.paidPeriods}/${loan.periods} периодов</span></header>
+        <div class="bank-loan-numbers"><span>осталось <b>${money(loan.balance)}</b></span><span>платёж <b>${money(loan.payment)}</b></span><span>просрочка <b>${loan.overdue}</b></span><span>полное погашение <b>${money(loan.payoff)}</b></span></div>
+        <progress max="${loan.periods}" value="${loan.paidPeriods}"></progress>
+        <div class="counter-row"><input id="repay-${loan.id}" type="number" min="500" max="${Math.max(500, loan.payoff)}" step="500" value="${Math.max(500, Math.min(loan.payoff, Math.round((state.player.availableCash * 0.4) / 500) * 500))}"><button class="secondary-button" data-bank-repay="${loan.id}">Внести</button><button class="primary-button" data-bank-repay-full="${loan.id}">Закрыть полностью</button></div>
+        <small class="bank-next">Автоплатёж через ${Math.max(0, Math.round((loan.nextPaymentAt - Date.now()) / 1000))} с — деньги спишутся с баланса, даже если вы забудете. Ставка ${loan.rate}% за период.</small>
+      </article>`).join("") : `<div class="no-offers">Активных кредитов нет${closed.length ? ` · закрыто ${closed.length}` : ""}. История: выдано ${bank.history?.issued || 0}, закрыто ${bank.history?.repaid || 0}, просрочек ${bank.history?.missed || 0}, взысканий ${bank.history?.seized || 0}.</div>`);
+  }
+  const info = $("#bank-info-list");
+  if (info) {
+    const ledger = (state.player.ledger || []).filter((entry) => String(entry.type || "").startsWith("loan") || ["tax", "fraud-bounty"].includes(entry.type)).slice(-10).reverse();
+    info.innerHTML = `<h3 class="panel-title">Банковские операции</h3>
+      <div class="bank-facts"><span>Доход за период <b>${money(bank.incomePerPeriod)}</b></span><span>Взыскание <b>${bank.collection ? "идёт" : "нет"}</b></span><span>Изъятие при просрочке <b>${Math.round((bank.garnishRate || 0) * 100)}% дохода</b></span></div>
+      <div class="bank-entries">${ledger.length ? ledger.map((entry) => `<div><span>${escapeHtml(entry.label || entry.type)}</span><b class="${entry.amount >= 0 ? "plus" : "minus"}">${entry.amount >= 0 ? "+" : ""}${money(entry.amount)}</b></div>`).join("") : "<small>Движений по счёту пока нет.</small>"}</div>
+      <p class="bank-hint">Рейтинг растёт от вовремя закрытых кредитов и падает из-за просрочек и серых схем — от него зависят лимит и ставка.</p>`;
+  }
+}
+
+// ─── Тени рынка ───
+function renderRisk() {
+  const fraud = state.player.fraud;
+  if (!fraud) return;
+  const summary = $("#risk-summary");
+  if (summary) {
+    summary.innerHTML = `<div class="risk-counters"><span>стадия <b>${escapeHtml(fraud.stage || "")}</b></span><span>разоблачений <b>${fraud.exposed || 0}</b></span><span>схем <b>${fraud.schemes || 0}</b></span><span>поймано <b>${fraud.caught || 0}</b></span><span>претензии <b>${fraud.claimsWon || 0}/${fraud.claims || 0}</b></span><span>кинули вас <b>${fraud.scammed || 0}</b> на ${compactMoney(fraud.scammedCash || 0)}</span></div>`;
+  }
+  const meters = $("#risk-meter-list");
+  if (meters) {
+    const blocked = fraud.blocked > 0;
+    meters.innerHTML = `${fraudMeters(fraud, state.player.reputation?.score)}
+      <p class="risk-note">${escapeHtml(fraud.stageNote || "")}</p>
+      <p class="risk-note ${blocked ? "danger" : "calm"}">${blocked ? `Рынок закрыт ещё ${Math.ceil(fraud.blocked / 60000)} мин: покупка, продажа и схемы недоступны.` : "Торговля открыта: подозрение остывает само, адвокат срезает его сразу."}</p>
+      ${fraud.schemeCooldown > 0 ? `<p class="risk-note">Следующая схема через ${Math.ceil(fraud.schemeCooldown / 1000)} с.</p>` : ""}
+      <div class="risk-lawyer"><div><strong>Адвокат и «тёплые» связи</strong><small>снимает подозрение и возвращает доверие рынка</small></div><button class="secondary-button" data-fraud-lawyer ${(fraud.suspicion || 0) < 8 ? "disabled" : ""}>${money(fraud.lawyerCost || 0)}</button></div>`;
+  }
+  const cars = state.player.garage || [];
+  const picker = $("#risk-car-list");
+  if (picker) {
+    if (!cars.length) {
+      selectedRiskCarId = "";
+      picker.innerHTML = '<h3 class="panel-title">Автомобиль для работы</h3><div class="no-offers">Нужен хотя бы один автомобиль в гараже.</div>';
+    } else {
+      if (!cars.some((car) => car.id === selectedRiskCarId)) selectedRiskCarId = cars[0].id;
+      picker.innerHTML = `<h3 class="panel-title">Автомобиль для работы <small>выберите, что «подготовить»</small></h3><div class="risk-car-picker">${cars.map((car) => {
+        const schemes = car.fraud?.schemes || [];
+        return `<button class="${car.id === selectedRiskCarId ? "active" : ""}" data-risk-car="${car.id}"><strong>${vehicleLabel(car.model)}</strong><span>${compactMoney(car.invested)} · ${number(car.mileage)} км${schemes.length ? ` · схем: ${schemes.length}` : ""}</span></button>`;
+      }).join("")}</div>`;
+    }
+  }
+  const schemes = $("#risk-scheme-list");
+  if (schemes) {
+    const car = cars.find((item) => item.id === selectedRiskCarId);
+    schemes.innerHTML = `<h3 class="panel-title">Серые схемы <small>повышают цену, но растёт подозрение</small></h3><div class="risk-schemes">${(fraud.schemeOptions || []).map((scheme) => {
+      const cost = car ? Math.max(scheme.minCost || 0, Math.round(((car.invested || 0) * (scheme.costShare || 0)) / 100) * 100) : scheme.minCost || 0;
+      const already = (car?.fraud?.schemes || []).some((item) => item.key === scheme.key);
+      return `<article class="risk-scheme ${scheme.unlocked ? "" : "locked"}">
+        <header><strong>${escapeHtml(scheme.name)}</strong><span>${scheme.priceBonus ? `+${scheme.priceBonus}% к цене · шанс разоблачения ${scheme.risk}% · подозрение +${scheme.suspicion}` : "без прибавки к цене"}</span></header>
+        <p>${escapeHtml(scheme.description)}</p>
+        <small class="risk-scheme-exposure">${escapeHtml(scheme.exposure)}</small>
+        <footer>${scheme.unlocked ? (car ? `<span>стоимость ${money(cost)}${already ? " · уже применено" : ""}</span><button class="secondary-button" data-fraud-scheme="${scheme.key}" data-risk-target="${car.id}" ${already || state.player.availableCash < cost ? "disabled" : ""}>Применить</button>` : "<span>нужен автомобиль в гараже</span>") : `<span>нужен ${scheme.requires?.level || 1} уровень и тень ${scheme.requires?.notoriety || 0}</span>`}</footer>
+      </article>`;
+    }).join("")}</div>`;
+  }
+  const threats = $("#risk-threat-list");
+  if (threats) {
+    const info = state.fraudInfo || {};
+    threats.innerHTML = `<h3 class="panel-title">Чем рискуют покупатели <small>то же ищут в вашей машине</small></h3><div class="risk-threats">${(info.threats || []).map((threat) => `<article class="risk-threat"><strong>${escapeHtml(threat.name)}</strong><p>${escapeHtml(threat.hint)}</p><small>${escapeHtml(threat.consequence)} · глубина проверки ${threat.depth}</small></article>`).join("")}</div>
+      <div class="risk-rules">${Object.values(info.rules || {}).map((rule) => `<p>${escapeHtml(rule)}</p>`).join("")}</div>
+      ${info.starterBand ? `<p class="risk-note">Сегмент новичка: ${money(info.starterBand[0])} — ${money(info.starterBand[1])}, лотов ${info.starterLots}.</p>` : ""}`;
+  }
+  const history = $("#risk-history-list");
+  if (history) {
+    const items = (fraud.history || []).slice(0, 14);
+    history.innerHTML = `<h3 class="panel-title">Хроника</h3>` + (items.length ? items.map((item) => `<div class="risk-event ${escapeHtml(item.kind || "")}"><time>${new Date(item.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(item.title || "")}</span>${item.amount ? `<b class="${item.amount >= 0 ? "plus" : "minus"}">${item.amount >= 0 ? "+" : ""}${compactMoney(item.amount)}</b>` : ""}</div>`).join("") : '<div class="no-offers">Хроника пуста — пока вы играете в открытую.</div>');
+  }
+}
+
 function renderView(view) {
   if (view === "market") { renderMarketStats(); renderMarket(); }
   if (view === "garage") {
@@ -1356,6 +1523,8 @@ function renderView(view) {
   if (view === "chat") renderChat();
   if (view === "assets") renderAssets();
   if (view === "exchange") renderExchange();
+  if (view === "bank") renderBank();
+  if (view === "risk") renderRisk();
   if (view === "wardrobe") renderWardrobe();
   if (view === "business") renderBusiness();
   if (view === "store") renderStore();
@@ -1448,6 +1617,7 @@ function marketModal(car) {
       <div><span>Предложения</span><strong>${car.offerCount || 0}</strong></div>
     </div>
     <p class="description">«${escapeHtml(car.description)}»</p>
+    ${car.sellerId ? "" : fraudSignals(car)}
     ${car.saleBlocked ? `<p class="trade-blocked">${escapeHtml(car.saleBlockReason)}</p>` : ''}
     <section class="market-inspection"><div class="workshop-heading"><div><p class="eyebrow">Проверка до покупки</p><h3>Осмотреть автомобиль</h3></div><span>Найденное увидят все участники</span></div><div class="inspection-actions">${state.inspectionCategories.map((category) => { const req = state.inspectionRequirements[category]; const record = car.publicInspectionRecords?.[category]; const score = state.player.skills[req.skill] + state.player.equipment[req.equipment]; const can = !record || Math.min(8, score + 6) > record.bestScore; return `<button class="inspection-button" title="Осмотр: ${state.skillInfo[req.skill].name}, ${state.equipmentInfo[req.equipment].name}" data-market-check="${category}" data-car-id="${car.id}" ${can ? "" : "disabled"}><strong>${categoryNames[category]}</strong><small>${record ? `проверено: ${record.confidence}%` : "не проверено"}</small></button>`; }).join("")}</div>${car.defects?.length ? `<div class="known-defects"><strong>Уже подтверждено другими:</strong> ${car.defects.map((defect) => escapeHtml(defect.name)).join(" · ")}</div>` : ""}</section>
     ${auction ? `<div class="auction-status"><strong>${car.highestBid ? `Текущая ставка ${money(car.highestBid)}` : `Стартовая цена ${money(car.startingPrice)}`}</strong><span>${car.highestBidderName ? `Лидирует ${escapeHtml(car.highestBidderName)} · ` : ""}До завершения <b class="auction-timer" data-auction-end="${car.auctionEnd}">${auctionTime(car.auctionEnd)}</b></span></div>` : ""}
@@ -1456,7 +1626,7 @@ function marketModal(car) {
       <div><span>Сейчас выставляют</span><strong>${money(stats.askingAverage)}</strong></div>
       <div><span>Оценка цены</span><strong class="price-signal ${priceClass}">${priceLabel}</strong></div>
     </div>` : ""}
-    <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>
+    <div class="modal-action-row"><div class="modal-price"><span>Цена продавца</span><strong>${money(car.price)}</strong></div>${fraudActions(car, own, auction)}
     ${own ? `<form class="edit-listing-form" data-edit-listing="${car.id}"><label>Новая цена<input name="price" type="number" min="1" max="2000000000" value="${car.price}" required></label><button class="primary-button" type="submit">Сохранить цену</button></form><button class="secondary-button" data-unlist="${car.id}" ${auction && car.bidCount && !car.saleBlocked ? "disabled" : ""}>${auction && car.bidCount ? "Аукцион уже идёт" : "Снять с продажи"}</button>` : auction ? "" : `<button class="danger-button" data-buy="${car.id}" ${car.saleBlocked || state.player.garage.length >= state.player.garageCapacity || state.player.availableCash < car.price ? "disabled" : ""}>${car.saleBlocked ? "Продажа приостановлена: нужен ремонт" : state.player.garage.length >= state.player.garageCapacity ? "Нет места в гараже" : state.player.availableCash < car.price ? "Недостаточно свободных денег" : "Купить сейчас"}</button>`}
     </div>
     ${auction && !own ? `<form id="bid-form" class="bid-form" data-car-id="${car.id}"><input id="modal-bid-${car.id}" name="amount" type="number" min="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" step="1" value="${car.highestBid ? car.highestBid + Math.max(1, Math.ceil(car.highestBid * .01)) : car.startingPrice}" required><button class="danger-button" type="submit">Сделать ставку</button></form>` : ""}
@@ -1504,6 +1674,8 @@ function garageModal(car) {
     <section class="upgrade-section"><div class="workshop-heading"><div><p class="eyebrow">Тюнинг своими силами или через ателье</p><h3>Улучшения автомобиля</h3></div><span>Подготовка для конкретного покупателя</span></div><div class="upgrade-options">${(car.upgradeOptions || []).map((upgrade) => { const price = upgrade.canUse ? upgrade.cost : upgrade.serviceCost; const profiles = { comfort: "Комфорт", utility: "Практичность", sport: "Спорт", classic: "Классика" }; const buyers = { endBuyer: "частный клиент", budget: "бюджетный покупатель", specialist: "специалист", dealer: "дилер", collector: "коллекционер" }; const demand = (upgrade.demand || []).map((item) => buyers[item] || item).join(", "); return `<article class="car-upgrade ${upgrade.installed ? "installed" : ""}"><div><strong>${escapeHtml(upgrade.name)}</strong><small>${escapeHtml(upgrade.description)}</small><small class="upgrade-profile">Профиль: ${escapeHtml(profiles[upgrade.profile] || upgrade.profile || "Подготовка")}</small><small>Лучший спрос: ${escapeHtml(demand || "рынок")} · ценность +${money(upgrade.value)}</small></div>${upgrade.installed ? `<b>Установлено</b>` : `<button class="primary-button" data-car-upgrade="${car.id}" data-upgrade="${upgrade.key}" ${state.player.cash >= price ? "" : "disabled"}>${upgrade.canUse ? "Установить самому" : "Заказать в ателье"} · ${money(price)}</button>`}</article>`; }).join("")}</div></section>
     ${result ? `<div class="inspection-summary"><strong>${categoryNames[result.category]}:</strong> новых проблем найдено ${result.found.length}. Уверенность проверки ${result.confidence}%. ${result.canImprove ? "Более точный осмотр поможет проверить узел глубже." : "Достигнута максимальная глубина личного осмотра."}</div>` : ""}
     <div class="defect-list">${car.defects.length ? car.defects.map((defect) => defectRow(car, defect)).join("") : '<div class="defect-row"><strong>Обнаруженных неисправностей пока нет</strong><span>Проверяйте узлы</span></div>'}</div>
+    ${fraudSignals(car)}
+    <div class="modal-action-row"><button class="secondary-button" data-open-risk="${car.id}">Серые схемы и риски</button>${car.fraudLegalHold ? `<button class="danger-button" data-fraud-claim="${car.id}">Подать претензию рынку</button>` : ""}</div>
     <section class="car-history"><h3>История автомобиля</h3>${(car.history || []).slice().reverse().map((entry) => `<div><time>${new Date(entry.at).toLocaleDateString("ru-RU")}</time><span>${escapeHtml(entry.text)}</span></div>`).join("")}</section>
     <p class="description">Проверки находят только те дефекты, для которых хватает навыка и оборудования. Чистый результат не всегда означает исправную машину.</p>
   </div>`;
@@ -1796,7 +1968,52 @@ document.addEventListener("click", async (event) => {
   const skill = event.target.closest("[data-skill]"); if (skill) return perform("/api/skill", { skill: skill.dataset.skill }, "Навык повышен");
   const equipment = event.target.closest("[data-equipment]"); if (equipment) return perform("/api/equipment", { equipment: equipment.dataset.equipment }, "Оборудование куплено");
   if (event.target.closest("[data-expand-garage]")) return perform("/api/garage/expand", {}, "В гараже появилось новое место");
-  if (event.target.closest("[data-training]")) return perform("/api/training", {}, "Задание выполнено: получены XP и 7 000 ₽");
+  const fraudCheck = event.target.closest("[data-fraud-check]");
+  if (fraudCheck) {
+    try {
+      const data = await request("/api/fraud/check", { method: "POST", body: JSON.stringify({ carId: fraudCheck.dataset.fraudCheck }) });
+      state = data; render();
+      const updated = state.market.find((item) => item.id === fraudCheck.dataset.fraudCheck);
+      if (updated && modalCarId === updated.id) openModal(marketModal(updated), updated.id, "market");
+      showToast(data.fraudCheck.revealed ? "Проверка вскрыла юридическую проблему" : `Формально чисто — шанс увидеть обман был ${data.fraudCheck.chance}%`, !data.fraudCheck.revealed);
+    } catch (error) { showToast(error.message, true); }
+    return;
+  }
+  const fraudExpose = event.target.closest("[data-fraud-expose]");
+  if (fraudExpose) { if (await perform("/api/fraud/expose", { carId: fraudExpose.dataset.fraudExpose }, "Лот снят с продажи, премия зачислена")) closeModal(); return; }
+  const fraudClaim = event.target.closest("[data-fraud-claim]");
+  if (fraudClaim) {
+    try {
+      const data = await request("/api/fraud/claim", { method: "POST", body: JSON.stringify({ carId: fraudClaim.dataset.fraudClaim }) });
+      state = data; render();
+      showToast(data.fraudResult.recovered ? `Рынок взыскал ${money(data.fraudResult.amount)} в вашу пользу` : `Претензия отклонена: выбили только ${money(data.fraudResult.amount)}`, !data.fraudResult.recovered);
+    } catch (error) { showToast(error.message, true); }
+    return;
+  }
+  const fraudScheme = event.target.closest("[data-fraud-scheme]");
+  if (fraudScheme) {
+    if (await perform("/api/fraud/scheme", { carId: fraudScheme.dataset.riskTarget, scheme: fraudScheme.dataset.fraudScheme }, "")) {
+      const result = state.fraudResult || {};
+      showToast(`Схема применена: подозрение ${Math.round(result.suspicion || 0)}, тень ${Math.round(result.notoriety || 0)}`);
+    }
+    return;
+  }
+  const fraudLawyer = event.target.closest("[data-fraud-lawyer]");
+  if (fraudLawyer) { if (await perform("/api/fraud/lawyer", {}, "")) showToast(`Подозрение снижено до ${Math.round(state.fraudResult?.suspicion || 0)}`); return; }
+  const riskCar = event.target.closest("[data-risk-car]");
+  if (riskCar) { selectedRiskCarId = riskCar.dataset.riskCar; renderRisk(); return; }
+  const openRisk = event.target.closest("[data-open-risk]");
+  if (openRisk) { closeModal(); selectedRiskCarId = openRisk.dataset.openRisk; setView("risk"); return; }
+  const bankLoan = event.target.closest("[data-bank-loan]");
+  if (bankLoan) {
+    const input = $(`#bank-amount-${bankLoan.dataset.bankLoan}`);
+    return perform("/api/bank/loan", { productKey: bankLoan.dataset.bankLoan, amount: Number(input?.value || 0) }, "Кредит зачислен на счёт");
+  }
+  const bankRepay = event.target.closest("[data-bank-repay]");
+  if (bankRepay) return perform("/api/bank/repay", { loanId: bankRepay.dataset.bankRepay, amount: Number($(`#repay-${bankRepay.dataset.bankRepay}`)?.value || 0) }, "Платёж проведён");
+  const bankRepayFull = event.target.closest("[data-bank-repay-full]");
+  if (bankRepayFull) return perform("/api/bank/repay", { loanId: bankRepayFull.dataset.bankRepayFull, full: true }, "Кредит закрыт, кредитная история улучшена");
+  if (event.target.closest("[data-training]")) return perform("/api/training", {}, `Задание выполнено: получены XP и ${money(state.player.fees?.training || 7000)}`);
   const buyParts = event.target.closest("[data-buy-parts]"); if (buyParts) return perform("/api/parts/buy", { type: buyParts.dataset.buyParts, model: $(buyParts.dataset.buyParts === "premium" ? "#parts-model-premium" : "#parts-model")?.value }, "Деталь для выбранной модели добавлена на склад");
   const carUpgrade = event.target.closest("[data-car-upgrade]"); if (carUpgrade) return perform("/api/car/upgrade", { carId: carUpgrade.dataset.carUpgrade, upgrade: carUpgrade.dataset.upgrade }, "Улучшение установлено, ценность автомобиля обновлена");
   const buyMarketPart = event.target.closest("[data-buy-part-market]"); if (buyMarketPart) return perform("/api/parts/buy-market", { partId: buyMarketPart.dataset.buyPartMarket }, "Запчасть куплена на рынке");
@@ -1857,7 +2074,13 @@ document.addEventListener("click", async (event) => {
   if (offerAction) {
     const action = offerAction.dataset.offerAction;
     const amount = action === "counter" ? $(`#counter-${offerAction.dataset.offerId}`)?.value : undefined;
-    return perform("/api/offer/respond", { offerId: offerAction.dataset.offerId, action, amount }, action === "accept" ? "Предложение принято" : action === "reject" ? "Предложение отклонено" : "Встречная цена отправлена");
+    if (action === "accept" && Number(offerAction.dataset.deposit) > 0 && offerAction.dataset.confirmed !== "1") {
+      offerAction.dataset.confirmed = "1";
+      offerAction.textContent = `Подтвердить предоплату ${money(offerAction.dataset.deposit)} и принять`;
+      showToast("Покупатель требует предоплату. Нажмите ещё раз, если готовы её потерять.", true);
+      return;
+    }
+    return perform("/api/offer/respond", { offerId: offerAction.dataset.offerId, action, amount, confirmDeposit: offerAction.dataset.confirmed === "1" || undefined }, action === "accept" ? "Предложение принято" : action === "reject" ? "Предложение отклонено" : action === "expose" ? "Развод раскрыт: покупатель заблокирован, премия на счету" : "Встречная цена отправлена");
   }
   const acceptCounter = event.target.closest("[data-accept-counter]");
   if (acceptCounter) { if (await perform("/api/offer/accept-counter", { offerId: acceptCounter.dataset.acceptCounter }, "Машина куплена по встречной цене")) setView("garage"); }

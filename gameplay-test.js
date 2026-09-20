@@ -75,8 +75,11 @@ async function run() {
     assert.equal(state.checkResult.confidence, 50);
     await request("/api/check", submission, 400);
     const before = state.player.cash;
+    const instrumentalCost = state.player.garage[0].inspectionCosts.instrumental;
     state = await request("/api/check", { carId: candidate.id, category: "engine", method: "instrumental" });
-    assert.equal(before-state.player.cash, 9000);
+    assert.equal(before-state.player.cash, instrumentalCost, "Instrumental inspection must charge exactly the per-car price");
+    assert.ok(instrumentalCost <= 9000 && instrumentalCost >= 100, `Per-car inspection price must stay inside the catalogue ceiling: ${instrumentalCost}`);
+    assert.ok(instrumentalCost < 9000 || candidate.price > 600000, `Cheap lots must not pay the full catalogue inspection price: ${instrumentalCost}`);
     state = await request("/api/service-diagnostic", { carId: candidate.id });
     const defect = state.player.garage[0].defects.filter((d) => !d.repaired).sort((a,b) => a.serviceRepairCost-b.serviceRepairCost)[0];
     assert.ok(defect.servicePlans.length === 3);

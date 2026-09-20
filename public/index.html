@@ -28,8 +28,8 @@
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
   <link rel="dns-prefetch" href="//images.unsplash.com">
   <link rel="dns-prefetch" href="//commons.wikimedia.org">
-  <link rel="stylesheet" href="styles.css?v=gameplay-2">
-  <link rel="stylesheet" href="design.css?v=trade-6">
+  <link rel="stylesheet" href="styles.css?v=fraud-1">
+  <link rel="stylesheet" href="design.css?v=fraud-1">
   <link rel="stylesheet" href="depth.css?v=1">
   <link rel="stylesheet" href="collection.css?v=1">
 </head>
@@ -68,7 +68,7 @@
         <button type="button" class="forgot-link" data-auth-mode="login">Вернуться ко входу</button>
       </form>
       <div class="join-stats">
-        <div><strong>650 000 ₽</strong><span>стартовый капитал</span></div>
+        <div><strong>50 000 ₽</strong><span>стартовый капитал</span></div>
         <div><strong>Расширяемый гараж</strong><span>места добавляются без верхнего лимита</span></div>
         <div><strong>навсегда</strong><span>сохранение прогресса</span></div>
       </div>
@@ -104,6 +104,9 @@
     <nav id="utility-nav" class="utility-nav" aria-label="Дополнительные разделы">
       <div class="utility-menu-head"><div><strong>Все разделы</strong><small>Выберите, куда перейти</small></div><button type="button" data-close-section-menu aria-label="Закрыть меню">×</button></div>
       <button data-view="assets" data-asset-mode="owned"><span>Недвижимость</span><small>Мои объекты и покупка</small></button>
+      <button data-view="bank"><span>Банк</span><small>Кредит, лимит, налоги</small></button>
+      <span class="utility-group-label">Риски</span>
+      <button data-view="risk"><span>Тени рынка</span><small>Проверки, серые схемы, претензии</small></button>
       <span class="utility-group-label">Работа</span>
       <button data-view="deals"><span>Мои сделки <b id="offers-count" class="badge">0</b></span><small>Предложения и контракты</small></button>
       <button data-view="parts"><span>Запчасти</span><small>Подбор, склад и продажа</small></button>
@@ -325,6 +328,22 @@
         <div id="exchange-owned" class="owned-assets"></div>
       </section>
 
+      <section id="bank-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Кредиты, лимит и налоги</p><h2>Банк «Перекуп»</h2></div><div class="bank-summary" id="bank-summary"></div></div>
+        <div id="bank-product-list" class="bank-panel"></div>
+        <div id="bank-loan-list" class="bank-panel"></div>
+        <div id="bank-info-list" class="bank-panel"></div>
+      </section>
+
+      <section id="risk-view" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Проверки, серые схемы и последствия</p><h2>Тени рынка</h2></div><div id="risk-summary"></div></div>
+        <div id="risk-meter-list" class="risk-panel"></div>
+        <div id="risk-car-list" class="risk-panel"></div>
+        <div id="risk-scheme-list" class="risk-panel"></div>
+        <div id="risk-threat-list" class="risk-panel"></div>
+        <div id="risk-history-list" class="risk-panel"></div>
+      </section>
+
       <section id="wardrobe-view" class="view">
         <div class="section-heading"><div><p class="eyebrow">Личная коллекция и мастерская</p><h2>Гардероб</h2></div></div>
         <section class="clothing-workshop"><div><p class="eyebrow">Стартовая мастерская</p><h3>Сшить случайную вещь</h3><span id="wardrobe-craft-status">Материалы стоят 1 200 ₽ · готовность 30–120 секунд</span></div><div class="clothing-craft-actions"><strong id="wardrobe-craft-timer"></strong><button class="primary-button" data-clothing-craft>Сшить вещь</button><button class="secondary-button" data-clothing-claim hidden>Забрать вещь</button></div></section>
@@ -445,6 +464,6 @@
   <script type="module" src="depth.js?v=1"></script>
   <script src="/runtime-config.js"></script>
   <script src="vehicle-names.js?v=catalog-5"></script>
-  <script src="app.js?v=trade-6"></script>
+  <script src="app.js?v=fraud-1"></script>
 </body>
 </html>

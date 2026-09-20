@@ -53,15 +53,18 @@ async function request(pathname, body, token) {
     const admin = await request("/api/join", { name: "federuk" });
     check(admin.status === 200 && admin.data.token, "админ вошёл");
     check(/^[A-Z2-9]{7}$/.test(admin.data.player.referral?.code || ""), `промокод сгенерирован: ${admin.data.player.referral?.code}`);
+    // Стартовый капитал и размер бонуса читаем у сервера: экономика настраивается переменными окружения.
+    const startCash = admin.data.player.cash;
+    const referralBonus = admin.data.player.referral.bonus;
 
     const friend = await request("/api/join", { name: "Drug", promo: admin.data.player.referral.code });
     check(friend.status === 200 && friend.data.referralApplied === true, "промокод применён при входе");
-    check(friend.data.player.cash === 650000 + 50000, `новичок получил бонус: ${friend.data.player.cash}`);
+    check(friend.data.player.cash === startCash + referralBonus, `новичок получил бонус: ${friend.data.player.cash}`);
     check(friend.data.player.referral.invitedBy === "federuk", "новичок видит, кто его пригласил");
 
     const stranger = await request("/api/join", { name: "Neznatok", promo: "XXXXXXX" });
     check(stranger.status === 200 && stranger.data.referralApplied === false && stranger.data.referralInvalid === true, "несуществующий промокод отклонён, вход не заблокирован");
-    check(stranger.data.player.cash === 650000, "бонус за неверный промокод не начислен");
+    check(stranger.data.player.cash === startCash, "бонус за неверный промокод не начислен");
 
     // После перезапуска бонусы и счётчики должны сохраниться (сессия живёт в базе)
     await stopServer();
@@ -69,12 +72,12 @@ async function request(pathname, body, token) {
 
     const adminAgain = await request("/api/state", null, admin.data.token);
     check(adminAgain.status === 200, "сессия пригласившего восстановилась после рестарта");
-    check(adminAgain.data.player.cash === 650000 + 50000, `бонус пригласившему сохранён после рестарта: ${adminAgain.data.player.cash}`);
-    check(adminAgain.data.player.referral.invited === 1 && adminAgain.data.player.referral.earned === 50000, "счётчики приглашений сохранены");
+    check(adminAgain.data.player.cash === startCash + referralBonus, `бонус пригласившему сохранён после рестарта: ${adminAgain.data.player.cash}`);
+    check(adminAgain.data.player.referral.invited === 1 && adminAgain.data.player.referral.earned === referralBonus, "счётчики приглашений сохранены");
 
     const state = await request("/api/admin/state", null, admin.data.token);
     check(state.status === 200, "админ-статус доступен");
-    check(state.data.referrals.total === 1 && state.data.referrals.paid === 50000, `сводка рефералов: пришло ${state.data.referrals.total}, выплачено ${state.data.referrals.paid}`);
+    check(state.data.referrals.total === 1 && state.data.referrals.paid === referralBonus, `сводка рефералов: пришло ${state.data.referrals.total}, выплачено ${state.data.referrals.paid}`);
     const topRow = (state.data.referrals.top || [])[0];
     check(topRow && topRow.name === "federuk" && topRow.count === 1 && topRow.code === admin.data.player.referral.code, "таблица промокодов: federuk, 1 приглашённый");
     check((topRow.recent || []).some((item) => item.name === "Drug"), "в таблице видно, кто пришёл");

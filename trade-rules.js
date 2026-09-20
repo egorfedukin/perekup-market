@@ -5,7 +5,7 @@ function randomInspectionSkills(random = Math.random) {
 }
 function knownFaults(car) {
   const known = new Set([...(car.discovered || []), ...(car.publicDiscovered || [])]);
-  return (car.defects || []).filter(defect => !defect.repaired && (known.has(defect.code) || car.serviceDiagnosed || car.saleType === 'auction'));
+  return (car.defects || []).filter(defect => !defect.repaired && (known.has(defect.code) || car.serviceDiagnosed));
 }
 function npcFaults(car, bot) {
   return (car.defects || []).filter(defect => !defect.repaired && (bot.inspectionSkills?.[defect.category] ?? 0) >= Number(defect.skill || 0) + Number(defect.equipmentLevel || 0));

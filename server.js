@@ -9,6 +9,9 @@ const { randomInspectionSkills, npcFaults, saleBlockReason } = require('./trade-
 const { createInspection, gradeInspection } = require("./inspection");
 const inspectionSessions = new Map();
 const { prerequisites, requiredSkillLevel, workplaceBenefits, npcProfile, npcFit, negotiate } = require("./progression");
+const balance = require("./balance");
+const fraud = require("./fraud");
+const bank = require("./bank");
 function useWorkplace(player, roles) {
   for (const asset of player?.ownedAssets || []) if (asset.rentalStatus === "workplace" && roles.includes(asset.propertyRole)) asset.maintenance = Math.max(20, (asset.maintenance ?? 100) - 1);
 }
@@ -27,15 +30,28 @@ const { DatabaseSync } = require("node:sqlite");
 const PORT = Number(process.env.PORT || 4173);
 const MAX_ADMIN_VALUE = Number.MAX_SAFE_INTEGER;
 const PUBLIC_DIR = path.join(__dirname, "public");
-const STARTING_CASH = 650000;
+// Игрок стартует с 50 000 ₽: весь ранний баланс (стартовый сегмент рынка, льготы на
+// услуги, награды контрактов, кредиты) выстроен вокруг этой цифры — см. balance.js.
+const STARTING_CASH = balance.STARTING_CASH;
 const MAX_GARAGE = 4;
 const BOT_BID_CHANCE = process.env.PEREKUP_BOT_ALWAYS === "1" ? 1 : 0.48;
 const AUCTION_EXTENSION_MS = Math.max(1000, Number(process.env.PEREKUP_ANTI_SNIPE_MS) || 30000);
 const NPC_ROTATION_MS = Math.max(60000, Number(process.env.PEREKUP_ROTATION_MS) || 180000);
 const NPC_ROTATION_COUNT = 10;
+// Мошенничество: кулдаун серых схем, скорость остывания подозрения и длительность блока рынка.
+const FRAUD_FAST = process.env.PEREKUP_FRAUD_FAST === "1";
+// Доля обманных лотов на рынке: по умолчанию считается по цене и состоянию, тесты могут задать свою.
+const FRAUD_RATE = process.env.PEREKUP_FRAUD_RATE === undefined ? null : Math.max(0, Math.min(1, Number(process.env.PEREKUP_FRAUD_RATE)));
+// Доля «покупателей», приходящих с разводом на предоплате. По умолчанию — по репутации и уровню продавца.
+const SCAM_RATE = process.env.PEREKUP_SCAM_RATE === undefined ? null : Math.max(0, Math.min(1, Number(process.env.PEREKUP_SCAM_RATE)));
+const FRAUD_SCHEME_COOLDOWN_MS = FRAUD_FAST ? 0 : 45000;
+const FRAUD_BLOCK_MS = FRAUD_FAST ? 5000 : 10 * 60000;
+const FRAUD_RAID_INTERVAL_MS = FRAUD_FAST ? 500 : 15000;
+const FRAUD_EXPOSE_COOLDOWN_MS = FRAUD_FAST ? 0 : 20000;
 const GROUP_JOB_TIME_SCALE = process.env.PEREKUP_FAST_JOBS === "1" ? 0.02 : 1;
 const ASSET_INCOME_CYCLE_MS = process.env.PEREKUP_FAST_ASSETS === "1" ? 600 : 60000;
-const REFERRAL_BONUS_CASH = Math.max(0, Number(process.env.PEREKUP_REFERRAL_BONUS_CASH ?? 50000));
+const TRAINING_REWARD_CASH = Math.max(0, Number(process.env.PEREKUP_TRAINING_REWARD_CASH ?? 7000));
+const REFERRAL_BONUS_CASH = Math.max(0, Number(process.env.PEREKUP_REFERRAL_BONUS_CASH ?? 15000));
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ADMIN_NAMES = new Set(String(process.env.PEREKUP_ADMIN_NAMES || "Егор пк, federuk-new").split(",").map((name) => name.trim().toLocaleLowerCase("ru-RU")).filter(Boolean));
 const CONFIGURED_ADMIN_LOGIN = "federuk";
@@ -196,7 +212,7 @@ const budgetMakes = new Set(["Lada", "Dacia", "Daewoo", "Proton", "Daihatsu", "T
 const valueMakes = new Set(["Fiat", "Renault", "Peugeot", "Citroën", "Škoda", "Suzuki", "Hyundai", "Kia", "Opel", "SEAT", "Vauxhall", "Chery", "Geely", "Haval", "BYD", "SsangYong"]);
 const premiumMakes = new Set(["Audi", "BMW", "Mercedes-Benz", "Lexus", "Infiniti", "Acura", "Cadillac", "Lincoln", "Genesis", "Land Rover", "Range Rover", "Jaguar", "Alfa Romeo", "Maserati", "Tesla", "Polestar", "Rivian", "Lucid"]);
 const exoticMakes = new Set(["Porsche", "Ferrari", "Lamborghini", "Bentley", "Rolls-Royce", "Aston Martin", "McLaren", "Bugatti", "Pagani", "Koenigsegg", "Lotus", "Alpine", "Maybach"]);
-const VEHICLE_PRICING_VERSION = 7;
+const VEHICLE_PRICING_VERSION = 8;
 const MAX_VEHICLE_VALUE = 2000000000;
 
 function parseVehicleCatalog() {
@@ -763,6 +779,20 @@ function ensurePlayerDefaults(player) {
   }
   player.businesses ||= [];
   player.reputation ||= { score: 50, completed: 0, failed: 0 };
+  // Банк: кредиты, кредитная история и налог с продажи. Состояние живёт на игроке,
+  // все формулы — в bank.js, чтобы их можно было проверять без сервера.
+  player.loans ||= [];
+  player.credit ||= { repaid: 0, missed: 0, seized: 0, blockedUntil: 0, income: [] };
+  player.credit.income ||= [];
+  for (const loan of player.loans) {
+    loan.overdue ??= 0; loan.missed ??= 0; loan.missedTotal ??= 0; loan.paidPeriods ??= 0;
+    loan.interestPaid ??= 0; loan.penaltyPaid ??= 0; loan.history ||= [];
+    loan.nextPaymentAt ??= Date.now() + bank.LOAN_PERIOD_MS;
+    if (!["active", "collection", "closed"].includes(loan.status)) loan.status = "active";
+  }
+  // Мошенничество: тёмная сторона карьеры. notoriety — «авторитет» среди серых схем,
+  // suspicion — насколько внимательно смотрит рынок; на 100 приходит «обыск».
+  ensurePlayerFraud(player);
   player.garageCapacity = Math.max(MAX_GARAGE, Number(player.garageCapacity) || MAX_GARAGE);
   player.parts ||= { common: 0, premium: 0 };
   player.garage ||= [];
@@ -874,6 +904,35 @@ function ensureCarDefaults(car) {
   car.registration.plate ??= null;
   if (car.registration.plate) car.registration.plate = ensurePlate(car.registration.plate);
   car.plateIncluded ??= false;
+  // Мошенничество: obman продавца (null = машина чистая), раскрытие по игрокам и «серые схемы».
+  car.fraud ??= null;
+  if (car.fraud && typeof car.fraud === "object") {
+    car.fraud.type = fraudSpecKey(car.fraud.type);
+    car.fraud.revealed ??= false;
+    car.fraud.applied ??= false;
+    car.fraudCheckedBy ||= {};
+  }
+  car.fraudCheckedBy ||= {};
+  car.schemes ||= [];
+  car.schemesExposed ??= false;
+  car.scamDeposit ??= 0;
+  car.starter ??= false;
+}
+
+function fraudSpecKey(key) { return fraud.fraudSpec(key) ? String(key) : null; }
+
+// Дешёвые машины живут по своим ценам: каталожный ремонт за 118 000 ₽ на «копейке»
+// за 60 000 ₽ означал бы, что с 50 000 ₽ стартовать невозможно. Поэтому repair и impact
+// дефектов масштабируются от стоимости автомобиля (см. balance.defectScales).
+function scaleDefectNumbers(car) {
+  const scales = balance.defectScales(car.cleanValue);
+  if (scales.repair >= 0.999 && scales.impact >= 0.999) return;
+  for (const defect of car.defects) {
+    if (defect.valueScaleApplied) continue;
+    defect.repair = Math.max(balance.STARTER.repairFloor, Math.round(defect.repair * scales.repair / 100) * 100);
+    defect.impact = Math.max(500, Math.round(defect.impact * scales.impact / 100) * 100);
+    defect.valueScaleApplied = true;
+  }
 }
 
 function notifyOutbid(playerId, lotType, lotName, amount, lotId) {
@@ -1115,12 +1174,13 @@ function detachPlate(player, car, reason = "Номер снят") {
   return plate;
 }
 
-function generateContracts() {
+function generateContracts(player = null) {
+  const level = levelForXp(player?.xp || 0);
   const contractId = () => `contract_${crypto.randomBytes(7).toString("hex")}`;
   return [
-    { id: contractId(), title: "Быстрый оборот", description: "Купите и продайте автомобиль с прибылью", kind: "profit", reward: 42000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
-    { id: contractId(), title: "Честный подбор", description: "Продайте автомобиль, честно указав его проблемы", kind: "honest", reward: 36000, expiresAt: Date.now() + 7 * 86400000, status: "active" },
-    { id: contractId(), title: "Сервисная история", description: "Продайте диагностированную и отремонтированную машину", kind: "restored", reward: 58000, expiresAt: Date.now() + 7 * 86400000, status: "active" }
+    { id: contractId(), title: "Первая перепродажа", description: "Купите и продайте автомобиль с прибылью", kind: "profit", reward: balance.contractReward(42000, level), expiresAt: Date.now() + 7 * 86400000, status: "active" },
+    { id: contractId(), title: "Честный подбор", description: "Продайте автомобиль, честно указав его проблемы", kind: "honest", reward: balance.contractReward(36000, level), expiresAt: Date.now() + 7 * 86400000, status: "active" },
+    { id: contractId(), title: "Сервисная история", description: "Продайте диагностированную и отремонтированную машину", kind: "restored", reward: balance.contractReward(58000, level), expiresAt: Date.now() + 7 * 86400000, status: "active" }
   ];
 }
 
@@ -1175,8 +1235,11 @@ function addXp(player, amount) {
 
 function currentValue(car) {
   ensureCarDefaults(car);
+  scaleDefectNumbers(car);
   const unresolved = car.defects.filter((defect) => !defect.repaired).reduce((sum, defect) => sum + defect.impact, 0);
-  const salvageFloor = Math.max(40000, Math.round(car.cleanValue * 0.3 / 1000) * 1000);
+  const salvageFloor = car.starter
+    ? Math.max(balance.STARTER.salvageFloor, Math.round(car.cleanValue * 0.22 / 1000) * 1000)
+    : Math.max(40000, Math.round(car.cleanValue * 0.3 / 1000) * 1000);
   return Math.max(salvageFloor, Math.round((car.cleanValue + car.upgradeValue - unresolved) / 1000) * 1000);
 }
 
@@ -1259,9 +1322,11 @@ function upgradeOptions(car, player) {
       const after = npcFit({ ...car, upgrades: [...new Set([...car.upgrades, upgrade.key])] }, bot, upgradeCatalog).multiplier;
       return { name: bot.name, change: Math.round((after - before) * 1000) / 10 };
     }),
+    cost: Math.max(500, Math.round(upgrade.cost * balance.upgradeScale(car) / 100) * 100),
+    scaledValue: Math.max(500, Math.round(upgrade.value * balance.upgradeScale(car) / 100) * 100),
     installed: car.upgrades.includes(upgrade.key),
-    canAfford: Boolean(player && player.cash >= upgrade.cost),
-    serviceCost: Math.round(upgrade.cost * 1.55 * (1 - (player?.skills.tuning || 0) * .04) / 1000) * 1000,
+    canAfford: Boolean(player && player.cash >= Math.max(500, Math.round(upgrade.cost * balance.upgradeScale(car) / 100) * 100)),
+    serviceCost: Math.max(500, Math.round(upgrade.cost * balance.upgradeScale(car) * 1.55 * (1 - (player?.skills.tuning || 0) * .04) / 100) * 100),
     canUse: Boolean(player && player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel)
   }));
 }
@@ -1301,13 +1366,480 @@ function recordMarketSale(car, amount) {
 }
 
 function serviceDiagnosticCost(car) {
-  return Math.round((5000 + car.cleanValue * 0.006) / 500) * 500;
+  return Math.max(500, Math.round((balance.serviceDiagnosticBase(car) + car.cleanValue * 0.006) / 100) * 100);
+}
+
+// Стоимость осмотра привязана к цене машины: «осмотр всех систем» на автомобиле за
+// 30 000 ₽ не должен стоить дороже самого автомобиля, иначе проверка документов
+// и диагностика становятся непозволительной роскошью для того, кто стартует с нуля.
+function inspectionCosts(car) {
+  const scale = balance.inspectionScale(car);
+  const value = Math.max(6000, Number(car?.cleanValue) || Number(car?.price) || Number(car?.invested) || 6000);
+  const cap = Math.max(200, Math.round(value * 0.022 / 100) * 100);
+  return Object.fromEntries(Object.entries(inspectionMethods).map(([key, option]) => [key, option.cost ? Math.max(100, Math.round(Math.min(option.cost * scale, cap) / 100) * 100) : 0]));
 }
 
 function serviceDiagnosticPrice(player, car) {
   const discount = groupEmployeeRating(player, "diagnostics") / 100 * 0.2;
-  return Math.max(1000, Math.round(serviceDiagnosticCost(car) * (1 - discount) / 500) * 500);
+  return Math.max(100, Math.round(serviceDiagnosticCost(car) * (1 - discount) / 100) * 100);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// БАНК: кредиты, налоговая и взыскание. Формулы живут в bank.js, здесь —
+// состояние игрока, расписание платежей и удержания из выручки.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function playerNetWorth(player) {
+  if (!player) return 0;
+  const garage = (player.garage || []).reduce((sum, car) => sum + Math.max(0, Number(car.invested) || Number(car.price) || 0), 0);
+  const listed = market.filter((car) => car.sellerId === player.id).reduce((sum, car) => sum + Math.max(0, Number(car.invested) || Number(car.price) || 0), 0);
+  const assets = (player.ownedAssets || []).reduce((sum, asset) => sum + Math.max(0, Number(asset.fairValue) || Number(asset.purchasePrice) || 0), 0);
+  const plates = (player.plateInventory || []).reduce((sum, plate) => sum + Math.max(0, Number(plate.estimatedValue) || 0), 0);
+  const parts = (player.parts?.common || 0) * 9000 + (player.parts?.premium || 0) * 21000;
+  return Math.max(0, Math.round(player.cash + garage + listed + assets + plates + parts - bank.activeDebt(player)));
+}
+
+// Доход за один платёжный период: сглаженное среднее поступлений за три последних периода.
+function incomePerPeriod(player) {
+  const samples = player.credit?.income || [];
+  const window = bank.LOAN_PERIOD_MS * 3;
+  const since = Date.now() - window;
+  const total = samples.reduce((sum, item) => (item.at >= since ? sum + Math.max(0, item.amount) : sum), 0);
+  return Math.round(total / 3);
+}
+
+function rememberIncome(player, amount, kind = "sale") {
+  if (!player) return;
+  player.credit ||= { repaid: 0, missed: 0, seized: 0, blockedUntil: 0, income: [] };
+  player.credit.income ||= [];
+  player.credit.income.push({ at: Date.now(), amount: Math.max(0, Math.round(amount)), kind });
+  if (player.credit.income.length > 60) player.credit.income.splice(0, player.credit.income.length - 60);
+}
+
+function bankContext(player) {
+  const level = levelForXp(player.xp);
+  const rating = bank.creditRating(player, level);
+  const limit = bank.creditLimit(player, level, rating);
+  return { level, rating, limit, netWorth: playerNetWorth(player), incomePerPeriod: incomePerPeriod(player) };
+}
+
+function bankView(player) {
+  const { level, rating, limit, netWorth, incomePerPeriod: income } = bankContext(player);
+  const products = bank.loanProducts.map((product) => {
+    const availability = bank.productAvailability(product, player, level, rating, limit, { netWorth, incomePerPeriod: income });
+    const quoteAmount = Math.max(10000, availability.maxAmount);
+    const quote = bank.loanQuote(product, quoteAmount, rating);
+    return {
+      key: product.key, name: product.name, tag: product.tag, description: product.description,
+      periods: product.periods, minLevel: product.minLevel, minRating: product.minRating,
+      ratePct: quote.ratePct, available: availability.available, reason: availability.reason,
+      maxAmount: availability.maxAmount, limiting: availability.decision.limiting,
+      leverage: availability.decision.leverage, payment: quote.payment, fee: quote.fee, total: quote.total, overpayment: quote.overpayment
+    };
+  });
+  const loans = (player.loans || []).map((loan) => ({
+    id: loan.id, productKey: loan.productKey, name: loan.name, status: loan.status, principal: loan.principal,
+    balance: loan.balance, overdue: loan.overdue, payment: loan.payment, fee: loan.fee, rate: loan.rate, periods: loan.periods,
+    paidPeriods: loan.paidPeriods, missed: loan.missed, missedTotal: loan.missedTotal, nextPaymentAt: loan.nextPaymentAt,
+    payoff: bank.payoffAmount(loan), issuedAt: loan.issuedAt, closedAt: loan.closedAt || null, history: (loan.history || []).slice(-6)
+  })).sort((a, b) => (a.status === "closed") - (b.status === "closed") || b.issuedAt - a.issuedAt);
+  const collection = bank.inCollection(player);
+  return {
+    rating, ratingLabel: bank.ratingLabel(rating), limit, netWorth, incomePerPeriod: income,
+    debt: bank.activeDebt(player), collection, garnishRate: bank.GARNISH_RATE, periodMs: bank.LOAN_PERIOD_MS,
+    maxActiveLoans: bank.MAX_ACTIVE_LOANS, missedBeforeCollection: bank.MISSED_BEFORE_COLLECTION,
+    blockedUntil: player.credit?.blockedUntil || 0, loanCount: loans.length, products,
+    loans: loans.slice(0, 8),
+    history: { repaid: player.credit?.repaid || 0, missed: player.credit?.missed || 0, seized: player.credit?.seized || 0, issued: player.credit?.issued || 0 },
+    tax: { ...bank.carSaleTax({ amount: 0, invested: 0, deals: player.deals || 0, level, showroomBonus: workplaceBenefits(player).sales }), ...bank.carTax }
+  };
+}
+
+function createBankLoan(player, productKey, requestedAmount) {
+  const product = bank.loanProducts.find((item) => item.key === String(productKey || ""));
+  if (!product) throw new Error("Кредитный продукт не найден");
+  const { level, rating, limit, netWorth, incomePerPeriod: income } = bankContext(player);
+  const availability = bank.productAvailability(product, player, level, rating, limit, { netWorth, incomePerPeriod: income });
+  if (!availability.available) throw new Error(availability.reason);
+  const amount = Math.round(Number(requestedAmount) || availability.maxAmount);
+  if (!Number.isFinite(amount) || amount < 10000) throw new Error("Минимальная сумма кредита — 10 000 ₽");
+  if (amount > availability.maxAmount) throw new Error(`Банк одобрил максимум ${availability.maxAmount.toLocaleString("ru-RU")} ₽ по вашему капиталу, доходу и рейтингу. Уменьшите сумму.`);
+  const loan = bank.createLoan(product, amount, rating, Date.now(), () => id("loan_"));
+  player.loans.push(loan);
+  player.cash += loan.principal - loan.fee;
+  player.credit ||= { repaid: 0, missed: 0, seized: 0, blockedUntil: 0, income: [] };
+  player.credit.issued = (player.credit.issued || 0) + 1;
+  addLedger(player, "loan-issue", `Кредит «${loan.name}»`, loan.principal - loan.fee, { debt: bank.activeDebt(player), category: "Банк" });
+  player.notifications.push({ id: id("notification_"), type: "bank", title: "Кредит выдан", text: `${loan.principal.toLocaleString("ru-RU")} ₽ на счёте. Платёж ${loan.payment.toLocaleString("ru-RU")} ₽ каждые ${Math.round(bank.LOAN_PERIOD_MS / 60000)} мин.`, createdAt: Date.now(), read: false });
+  return loan;
+}
+
+function repayBankLoan(player, loanId, amount, full) {
+  const loan = (player.loans || []).find((item) => item.id === String(loanId || ""));
+  if (!loan || loan.status === "closed") { const error = new Error("Кредит уже закрыт или не найден"); error.status = 404; throw error; }
+  const payoff = bank.payoffAmount(loan);
+  const payment = full ? payoff : Math.round(Number(amount) || 0);
+  if (!Number.isFinite(payment) || payment < 1000) throw new Error("Минимальное частичное погашение — 1 000 ₽");
+  const available = Math.max(0, player.cash - reservedCash(player));
+  if (available < Math.min(payment, payoff)) throw new Error(`Не хватает денег: для полного погашения нужно ${payoff.toLocaleString("ru-RU")} ₽`);
+  const result = bank.applyEarlyRepayment(loan, Math.min(payment, payoff, available), Date.now());
+  player.cash -= result.paid;
+  if (loan.status === "closed") {
+    player.credit.repaid = (player.credit.repaid || 0) + 1;
+    player.credit.blockedUntil = 0;
+    player.notifications.push({ id: id("notification_"), type: "bank", title: "Кредит закрыт", text: `«${loan.name}» погашен полностью, кредитная история улучшена.`, createdAt: Date.now(), read: false });
+  }
+  addLedger(player, "loan-repay", `Погашение «${loan.name}»`, -result.paid, { category: "Банк", debt: bank.activeDebt(player) });
+  return result;
+}
+
+// Плановые платежи и взыскание: раз в несколько секунд банк списывает всё, что наступило.
+function serviceBankLoans() {
+  const now = Date.now();
+  let changed = false;
+  for (const player of players.values()) {
+    if (!player.loans?.length) continue;
+    for (const loan of player.loans.filter((item) => ["active", "collection"].includes(item.status))) {
+      let guard = 0;
+      while (loan.nextPaymentAt <= now && guard < 12) {
+        guard += 1;
+        const dueAt = loan.nextPaymentAt;
+        const available = Math.max(0, player.cash - reservedCash(player));
+        const result = bank.applyScheduledPayment(loan, available, now);
+        if (result.charged > 0) {
+          player.cash -= result.charged;
+          addLedger(player, "loan-payment", `Платёж «${loan.name}»`, -result.charged, { category: "Банк", interest: result.interest });
+          changed = true;
+        }
+        if (result.missed) {
+          player.credit.missed = (player.credit.missed || 0) + 1;
+          player.notifications.push({ id: id("notification_"), type: "bank", title: "Пропущен платёж", text: `«${loan.name}»: просрочка ${Math.round(loan.overdue).toLocaleString("ru-RU")} ₽. При трёх пропусках подряд банк начинает взыскание.`, createdAt: now, read: false });
+          changed = true;
+        }
+        if (result.closed && result.charged > 0) player.credit.repaid = (player.credit.repaid || 0) + 1;
+        if (result.collection && loan.status === "active") { loan.status = "collection"; changed = true; changed = seizeForCollection(player) || changed; }
+        if (dueAt === loan.nextPaymentAt) break;
+      }
+    }
+    if (player.credit?.blockedUntil && player.credit.blockedUntil < now) player.credit.blockedUntil = 0;
+  }
+  if (changed) { broadcast(); persistState(); }
+}
+
+// Взыскание: банк забирает автомобили и реализует их ниже рынка в счёт долга.
+function seizeForCollection(player) {
+  let changed = false;
+  const limit = 3;
+  for (let taken = 0; taken < limit; taken += 1) {
+    const loan = (player.loans || []).find((item) => item.status === "collection");
+    if (!loan) break;
+    const owed = bank.payoffAmount(loan);
+    if (owed <= 0) { loan.status = "closed"; player.credit.blockedUntil = Date.now() + bank.COLLECTION_COOLDOWN_MS; changed = true; break; }
+    const car = [...(player.garage || [])].sort((a, b) => (b.invested || b.price || 0) - (a.invested || a.price || 0))[0];
+    if (!car) { player.credit.blockedUntil = Date.now() + bank.COLLECTION_COOLDOWN_MS; break; }
+    const index = player.garage.indexOf(car);
+    player.garage.splice(index, 1);
+    detachPlate(player, car, "Автомобиль изъят банком");
+    const value = Math.max(1000, Math.round(Math.min(Math.max(1000, car.invested || car.price || 0), saleEstimate(car).expectedNpcPrice) * bank.COLLECTION_PRICE_FACTOR / 1000) * 1000);
+    const applied = Math.min(value, owed);
+    bank.applyEarlyRepayment(loan, applied, Date.now());
+    if (applied > owed) player.cash += applied - owed;
+    player.credit.seized = (player.credit.seized || 0) + 1;
+    player.reputation.score = Math.max(0, player.reputation.score - 4);
+    car.seller = "Банк (взыскание)"; car.sellerId = null; car.ownerId = null; car.price = value; car.invested = value; car.purchasePrice = value;
+    car.history.push({ type: "seized", text: "Автомобиль изъят банком и продан в счёт долга", at: Date.now() });
+    car.discovered = []; car.checkedCategories = []; car.inspectionRecords = {}; car.publicDiscovered = []; car.publicInspectionRecords = {};
+    car.schemes = []; car.fraud = null; car.scamDeposit = 0;
+    market.push(car);
+    addLedger(player, "loan-seizure", `Изъятие автомобиля: ${car.model}`, -applied, { category: "Банк", value, carId: null });
+    player.notifications.push({ id: id("notification_"), type: "bank", title: "Автомобиль изъят", text: `${car.model} реализован за ${value.toLocaleString("ru-RU")} ₽ в счёт долга. После закрытия кредита банк не кредитует ${Math.round(bank.COLLECTION_COOLDOWN_MS / 3600000)} ч.`, createdAt: Date.now(), read: false });
+    if (bank.payoffAmount(loan) <= 0) { loan.status = "closed"; player.credit.blockedUntil = Date.now() + bank.COLLECTION_COOLDOWN_MS; }
+    changed = true;
+  }
+  return changed;
+}
+
+// Налог с продажи и удержания в пользу банка. Вызывается после закрытия сделки.
+function settleSaleWithBank(seller, car, amount, invested, dealIndex) {
+  const level = levelForXp(seller.xp);
+  const tax = bank.carSaleTax({ amount, invested, deals: dealIndex, level, showroomBonus: workplaceBenefits(seller).sales });
+  let withheld = 0;
+  if (tax.tax > 0) {
+    const paid = Math.min(tax.tax, Math.max(0, seller.cash));
+    seller.cash -= paid; withheld += paid;
+    addLedger(seller, "tax", `Налог с продажи: ${car.model}`, -paid, { profit: tax.profit, rate: tax.rate, category: "Банк" });
+  } else if (tax.holiday && tax.holidayDealsLeft > 0) {
+    seller.notifications.push({ id: id("notification_"), type: "bank", title: "Налоговые каникулы", text: `Сделка без НДФЛ. Осталось льготных сделок: ${tax.holidayDealsLeft}.`, createdAt: Date.now(), read: false });
+  }
+  if (bank.inCollection(seller)) {
+    const debt = bank.activeDebt(seller);
+    const garnish = Math.min(Math.max(0, seller.cash), Math.round(amount * bank.GARNISH_RATE), debt);
+    if (garnish > 0) {
+      seller.cash -= garnish; withheld += garnish;
+      let left = garnish;
+      for (const loan of seller.loans.filter((item) => item.status === "collection")) {
+        if (left <= 0) break;
+        const applied = Math.min(left, bank.payoffAmount(loan));
+        bank.applyEarlyRepayment(loan, applied, Date.now());
+        left -= applied;
+        if (bank.payoffAmount(loan) <= 0) { loan.status = "closed"; seller.credit.repaid = (seller.credit.repaid || 0) + 1; seller.credit.blockedUntil = Date.now() + bank.COLLECTION_COOLDOWN_MS; }
+      }
+      addLedger(seller, "loan-garnish", "Удержание из выручки в счёт долга", -garnish, { category: "Банк" });
+    }
+  }
+  rememberIncome(seller, Math.max(0, amount - withheld));
+  return tax;
+}
+
+setInterval(serviceBankLoans, 3000).unref();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// МОШЕННИЧЕСТВО: обманутые NPC-объявления, юридические проверки, серые схемы игрока,
+// подозрение и «развод с депозитом» от жадного покупателя.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ensureFraudDefaults(player) { ensurePlayerFraud(player); }
+function ensurePlayerFraud(player) {
+  player.fraud ||= {};
+  const defaults = { notoriety: 0, suspicion: 0, schemes: 0, caught: 0, exposed: 0, claims: 0, claimsWon: 0, scammed: 0, scammedCash: 0, seizedCars: 0, finesPaid: 0, extraValue: 0, lastSchemeAt: 0, lastExposeAt: 0, blockedUntil: 0, suspicionAt: 0 };
+  for (const [key, fallback] of Object.entries(defaults)) player.fraud[key] ??= fallback;
+  player.fraud.history ||= [];
+  player.fraud.suspicionAt ||= Date.now();
+  return player.fraud;
+}
+
+function pushFraudHistory(player, entry) {
+  ensurePlayerFraud(player);
+  player.fraud.history.unshift({ id: id("fraud_event_"), at: Date.now(), ...entry });
+  if (player.fraud.history.length > 40) player.fraud.history.length = 40;
+}
+
+function addSuspicion(player, amount) {
+  const state = ensurePlayerFraud(player);
+  state.suspicion = fraud.decaySuspicion(state.suspicion, Date.now() - state.suspicionAt);
+  state.suspicionAt = Date.now();
+  state.suspicion = Math.max(0, Math.min(100, Math.round((state.suspicion + Number(amount) || 0) * 10) / 10));
+}
+
+// Обманутые объявления: раскрытие через осмотр документов, юридическую проверку или диагностику.
+function revealListingFraud(car, viewerId, source) {
+  if (!car?.fraud) return false;
+  car.fraud.revealed = true;
+  car.fraudCheckedBy ||= {};
+  car.fraudCheckedBy[viewerId] = { at: Date.now(), revealed: true, source };
+  const spec = fraud.fraudSpec(car.fraud.type);
+  if (!spec) return true;
+  const defect = fraud.fraudDefect(spec, car);
+  if (!car.defects.some((item) => item.code === defect.code)) {
+    car.defects.push({ ...defect, valueScaleApplied: true });
+    car.condition = Math.max(18, car.condition - spec.severity * 6);
+  }
+  for (const code of [defect.code]) {
+    if (!car.publicDiscovered.includes(code)) car.publicDiscovered.push(code);
+    if (!car.discovered.includes(code)) car.discovered.push(code);
+    car.buyerFindings ||= {};
+    car.buyerFindings[viewerId] = [...new Set([...(car.buyerFindings[viewerId] || []), code])];
+  }
+  car.history.push({ type: "fraud", text: `Раскрыто: ${spec.name}. ${spec.hint}`, at: Date.now() });
+  return true;
+}
+
+// Раскрыли обман уже после покупки — машина приезжает с юридической проблемой в гараж.
+function applyHiddenFraud(player, car) {
+  if (!car.fraud || car.fraud.revealed || car.fraud.applied) return false;
+  const spec = fraud.fraudSpec(car.fraud.type);
+  if (!spec) { car.fraud = null; return false; }
+  car.fraud.applied = true;
+  const defect = fraud.fraudDefect(spec, car);
+  car.defects.push({ ...defect, valueScaleApplied: true });
+  for (const code of [defect.code]) if (!car.discovered.includes(code)) car.discovered.push(code);
+  car.condition = Math.max(15, car.condition - spec.severity * 7);
+  if (spec.mileageFactor && car.fraud.realMileage) car.mileage = Math.round(car.fraud.realMileage);
+  const extra = [];
+  for (let index = 0; index < (spec.extraDefects || 0); index += 1) {
+    const pool = defectCatalog.filter((item) => item.category === "electrics" && !car.defects.some((existing) => existing.code === item.code));
+    if (!pool.length) break;
+    const picked = pool[randomInt(0, pool.length - 1)];
+    const scales = balance.defectScales(car.cleanValue);
+    const clone = { ...picked, repair: Math.max(balance.STARTER.repairFloor, Math.round(picked.repair * scales.repair / 100) * 100), impact: Math.max(500, Math.round(picked.impact * scales.impact / 100) * 100), valueScaleApplied: true, repaired: false, fraudFollowUp: spec.key };
+    car.defects.push(clone);
+    if (!car.discovered.includes(clone.code)) car.discovered.push(clone.code);
+    extra.push(clone.name);
+  }
+  if (spec.blocksRegistration) car.legalHold = { type: spec.key, name: spec.name, note: spec.hint };
+  car.sellerHistory ||= {};
+  car.sellerHistory[player.id] = { boughtAt: Date.now(), price: car.price, fraud: spec.key };
+  car.history.push({ type: "fraud", text: `После покупки вскрылось: ${spec.name}${extra.length ? ` (дополнительно: ${extra.join(", ")})` : ""}`, at: Date.now() });
+  player.notifications.push({ id: id("notification_"), type: "fraud", title: "Вас обманули с машиной", text: `${spec.name}. ${spec.hint} Проблема в документах блокирует продажу — закройте её в сервисе или подайте претензию.`, carId: car.id, createdAt: Date.now(), read: false });
+  pushFraudHistory(player, { kind: "victim", title: `Обманули при покупке: ${spec.name}`, carId: car.id, amount: -car.price });
+  player.fraud.scammed += 1;
+  // Считаем реальную потерю: во что обходится устранение обмана, а не вся цена машины.
+  player.fraud.scammedCash += (car.defects || []).filter((item) => item.fraud && !item.repaired).reduce((sum, item) => sum + (item.impact || 0), 0);
+  return true;
+}
+
+// Достаточно ли глубокий осмотр выбранной системы, чтобы увидеть обман.
+function revealsFraudIn(car, { category, score = 0, serviceDiagnosed = false } = {}) {
+  const spec = car?.fraud ? fraud.fraudSpec(car.fraud.type) : null;
+  if (!spec || car.fraud.revealed) return false;
+  return fraud.revealsFraud(spec, { category, score, serviceDiagnosed });
+}
+
+function fraudViewForCar(car, viewer) {
+  const spec = car?.fraud ? fraud.fraudSpec(car.fraud.type) : null;
+  const checked = viewer && car?.fraudCheckedBy?.[viewer.id];
+  const own = viewer && (car.sellerId === viewer.id || car.ownerId === viewer.id);
+  const confirmed = Boolean(car?.fraud && (car.fraud.revealed || checked?.revealed));
+  const result = { status: "unknown", level: 0, signs: [] };
+  if (confirmed && spec) {
+    result.status = "confirmed"; result.name = spec.name; result.hint = spec.hint;
+    result.consequence = spec.unregistrable ? "Регистрация невозможна, продажа заблокирована до закрытия вопроса."
+      : spec.blocksRegistration ? "Пока обременение не снято, машину нельзя ни поставить на учёт, ни продать."
+      : "Реальное состояние хуже заявленного: проверьте смету ремонта.";
+    result.severity = spec.severity;
+  } else if (checked && !confirmed) {
+    result.status = "clear"; result.at = checked.at;
+    result.note = checked.source === "legal" ? "Юридическая проверка: явных следов обмана не найдено. Гарантий это не даёт." : "Проверка документов прошла чисто.";
+  } else if (spec && own) {
+    result.status = "confirmed"; result.name = spec.name; result.hint = spec.hint;
+  } else if (!car.sellerId && car.saleType !== "auction") {
+    // Косвенные признаки — только по открытым данным объявления, без подсказок о типе обмана.
+    let score = 0;
+    const condition = Number(car.condition) || 0;
+    const yearlyMileage = Math.max(0, (Number(car.mileage) || 0) / Math.max(1, 2026 - (Number(car.year) || 2026)));
+    if (["Срочная продажа", "Под восстановление"].includes(car.marketTag) && condition >= 55) { score += 2; result.signs.push("Цена «срочной продажи» при хорошем состоянии"); }
+    if (yearlyMileage && yearlyMileage < 6000) { score += 2; result.signs.push(`Пробег подозрительно мал для возраста: ~${Math.round(yearlyMileage).toLocaleString("ru-RU")} км в год`); }
+    if (/сел и поехал|не бита|родной пробег|без вложений/i.test(car.description || "") && condition < 52) { score += 1; result.signs.push("Текст обещает «сел и поехал», а состояние проседает"); }
+    if ((Number(car.listedAt) || 0) > Date.now() - 4 * 60000) { score += 1; result.signs.push("Продавец торопится: объявление появилось минуту назад"); }
+    if (score >= 3) { result.status = "suspect"; result.level = Math.min(4, Math.round(score / 1.5)); }
+  }
+  if (own) {
+    const schemes = (car.schemes || []).map((item) => fraud.schemeSpec(item.key || item)).filter(Boolean);
+    result.schemes = schemes.map((item) => ({ key: item.key, name: item.name, bonus: item.priceBonus, risk: item.risk }));
+    result.schemesExposed = Boolean(car.schemesExposed);
+    if (schemes.length) {
+      result.status = "dirty";
+      result.deceptionBonus = Math.round(fraud.deceptionBonus(car) * 1000) / 10;
+      result.risk = Math.round(fraud.detectionChance({ car, appraisal: viewer?.skills?.appraisal || 0, reputation: viewer?.reputation?.score || 50, suspicion: viewer?.fraud?.suspicion || 0, notoriety: viewer?.fraud?.notoriety || 0 }) * 100);
+    }
+  }
+  return result;
+}
+
+// Покупатель (NPC или живой игрок) может раскусить «подготовку» уже после сделки.
+function buyerAwareness(buyer) {
+  if (!buyer) {
+    const bot = bots[randomInt(0, bots.length - 1)];
+    return { skill: (bot?.skill || 2) + ((bot?.inspectionSkills?.documents || 0) / 2), label: bot?.name || "покупатель" };
+  }
+  return { skill: levelForXp(buyer.xp) * 0.6 + (buyer.skills?.appraisal || 0) * 1.2 + (buyer.equipment?.historyTerminal || 0) * 0.6, label: buyer.name };
+}
+
+// Возврат сделки, если серую схему раскрыли. Возвращаем деньги покупателю, машину — продавцу.
+function revertFraudulentSale(seller, buyer, car, amount, investedBeforeSale) {
+  const awareness = buyerAwareness(buyer);
+  const chance = fraud.detectionChance({
+    car, buyerSkill: awareness.skill, appraisal: buyer?.skills?.appraisal || 0,
+    reputation: seller.reputation?.score || 50, suspicion: seller.fraud?.suspicion || 0, notoriety: seller.fraud?.notoriety || 0
+  });
+  if (Math.random() >= chance) {
+    const reward = fraud.schemeReward(car, levelForXp(seller.xp));
+    ensurePlayerFraud(seller);
+    seller.fraud.notoriety += reward.notoriety;
+    seller.fraud.extraValue += Math.max(0, amount - investedBeforeSale);
+    addXp(seller, reward.xp);
+    seller.reputation.score = Math.max(0, seller.reputation.score + reward.reputation);
+    addSuspicion(seller, Math.round((car.schemes || []).length * 6));
+    car.schemes = [];
+    car.schemesExposed = false;
+    pushFraudHistory(seller, { kind: "scheme-passed", title: "Сделка прошла", carId: null, car: car.model, amount: Math.max(0, amount - investedBeforeSale) });
+    seller.notifications.push({ id: id("notification_"), type: "fraud", title: "Покупатель ничего не заметил", text: `«${car.model}» ушёл по подготовленной цене. Подозрение рынка выросло.`, createdAt: Date.now(), read: false });
+    return { caught: false };
+  }
+  const penalty = fraud.schemePenalty(car, { profit: Math.max(0, amount - investedBeforeSale), level: levelForXp(seller.xp), suspicion: seller.fraud?.suspicion || 0 });
+  // Деньги покупателю, машина — продавцу (или изъятие, если гараж забит).
+  if (buyer) buyer.cash += amount;
+  const marketIndex = market.findIndex((item) => item.id === car.id);
+  if (marketIndex >= 0) market.splice(marketIndex, 1);
+  if (buyer && buyer.garage) {
+    const buyerIndex = buyer.garage.findIndex((item) => item.id === car.id);
+    if (buyerIndex >= 0) buyer.garage.splice(buyerIndex, 1);
+    buyer.stats.purchases = Math.max(0, (buyer.stats.purchases || 0) - 1);
+    addLedger(buyer, "fraud-refund", `Возврат по претензии: ${car.model}`, amount, { counterparty: seller.name, category: "Гараж" });
+    buyer.notifications.push({ id: id("notification_"), type: "fraud", title: "Сделка расторгнута", text: `Вы заметили подготовку в «${car.model}» и вернули деньги. Продавцу выписан штраф.`, createdAt: Date.now(), read: false });
+  }
+  seller.cash = Math.max(0, seller.cash - amount);
+  seller.deals = Math.max(0, seller.deals - 1);
+  seller.profit = Math.round(seller.profit - Math.max(0, amount - investedBeforeSale));
+  seller.reputation.score = Math.max(0, seller.reputation.score + penalty.reputation);
+  ensurePlayerFraud(seller);
+  seller.fraud.caught += 1;
+  const fine = Math.min(penalty.fine, Math.max(0, seller.cash));
+  seller.cash -= fine;
+  seller.fraud.finesPaid += fine;
+  addSuspicion(seller, penalty.suspicion);
+  car.schemes = []; car.schemesExposed = true; car.plateIncluded = false;
+  car.saleType = "fixed"; car.startingPrice = null; car.auctionEnd = null; car.highestBid = 0;
+  car.highestBidderId = null; car.highestBidderName = null; car.highestBidderType = null; car.bidCount = 0; car.participantIds = [];
+  car.seller = seller.name; car.sellerId = null; car.ownerId = seller.id;
+  car.price = Math.max(1000, investedBeforeSale); car.invested = investedBeforeSale; car.purchasePrice = investedBeforeSale;
+  car.history.push({ type: "fraud", text: `Сделка расторгнута: покупатель раскусил подготовку. Штраф ${fine.toLocaleString("ru-RU")} ₽`, at: Date.now() });
+  if (seller.garage.length < seller.garageCapacity) {
+    seller.garage.push(car);
+    car.ownerId = seller.id;
+  } else {
+    seller.fraud.seizedCars += 1;
+    car.sellerId = null; car.ownerId = null; car.seller = "Возврат на рынок"; car.marketTag = "Конфисковано рынком";
+    car.price = Math.max(1000, Math.round(car.price * 0.85 / 1000) * 1000);
+    car.listedAt = Date.now(); car.history.push({ type: "listed", text: "Машина вернулась на рынок: гараж продавца заполнен", at: Date.now() });
+    market.unshift(car);
+  }
+  seller.fraud.notoriety = Math.max(0, seller.fraud.notoriety - 6);
+  addLedger(seller, "fraud-fine", "Штраф за расторгнутую сделку", -fine, { category: "Риск" });
+  pushFraudHistory(seller, { kind: "scheme-caught", title: "Схему раскрыли", car: car.model, amount: -fine, text: penalty.text });
+  seller.notifications.push({ id: id("notification_"), type: "fraud", title: "Сделка сорвалась", text: penalty.text, createdAt: Date.now(), read: false });
+  if (buyer) buyer.notifications.push({ id: id("notification_"), type: "fraud", title: "Вам вернули деньги", text: `Продавец «${car.model}» подделывал подготовку. Деньги возвращены.`, createdAt: Date.now(), read: false });
+  return { caught: true, fine };
+}
+
+// «Обыск»: срабатывает, когда подозрение дошло до ста.
+function serviceFraudRisk() {
+  const now = Date.now();
+  let changed = false;
+  for (const player of players.values()) {
+    const state = ensurePlayerFraud(player);
+    const decayed = fraud.decaySuspicion(state.suspicion, now - (state.suspicionAt || now));
+    if (Math.abs(decayed - state.suspicion) >= 0.5) { state.suspicion = decayed; state.suspicionAt = now; changed = true; }
+    if (state.suspicion < 100) continue;
+    const penalty = fraud.raidPenalty({ cash: player.cash, netWorth: playerNetWorth(player), level: levelForXp(player.xp) });
+    const fine = Math.min(penalty.fine, Math.max(0, player.cash));
+    player.cash -= fine;
+    state.finesPaid += fine;
+    player.reputation.score = Math.max(0, player.reputation.score + penalty.reputation);
+    state.suspicion = penalty.suspicionAfter;
+    state.suspicionAt = now;
+    state.blockedUntil = now + (FRAUD_FAST ? FRAUD_BLOCK_MS : penalty.blockMs);
+    if (penalty.seizesCar && player.garage.length) {
+      const car = [...player.garage].sort((a, b) => (b.invested || 0) - (a.invested || 0))[0];
+      player.garage.splice(player.garage.indexOf(car), 1);
+      detachPlate(player, car, "Автомобиль изъят до разбирательства");
+      const value = Math.max(1000, Math.round((car.invested || car.price || 1000) * 0.55 / 1000) * 1000);
+      player.cash += value;
+      state.seizedCars += 1;
+      car.schemes = []; car.fraud = null; car.legalHold = null;
+      car.history.push({ type: "fraud", text: `Автомобиль изъят до разбирательства, выплачено ${value.toLocaleString("ru-RU")} ₽`, at: now });
+      addLedger(player, "fraud-seizure", `Изъятие автомобиля: ${car.model}`, value, { category: "Риск", profit: 0 });
+    }
+    addLedger(player, "fraud-fine", "Штраф по делу о мошенничестве", -fine, { category: "Риск" });
+    pushFraudHistory(player, { kind: "raid", title: "Обыск", amount: -fine, text: penalty.text });
+    player.notifications.push({ id: id("notification_"), type: "fraud", title: "Дело дошло до обыска", text: `${penalty.text} Рынок и торги закрыты на ${Math.max(1, Math.round((state.blockedUntil - now) / 60000))} мин.`, createdAt: now, read: false });
+    changed = true;
+  }
+  if (changed) { broadcast(); persistState(); }
+}
+
+setInterval(serviceFraudRisk, FRAUD_RAID_INTERVAL_MS).unref();
+
 
 function average(values) {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
@@ -1373,37 +1905,91 @@ function npcPricingProfile(roll = Math.random()) {
   return { key: "optimistic", tag: "Есть торг", min: 1.05, max: 1.14 };
 }
 
-function makeCar(index, seller = "Авторынок") {
+function makeCar(index, seller = "Авторынок", options = {}) {
+  const starter = Boolean(options.starter);
   const item = catalog[index % catalog.length];
   const age = 2026 - item.year;
   const annualMileage = ["premium", "coupe", "roadster", "electric"].includes(item.className) ? [4, 11] : item.className === "classic" ? [3, 9] : ["van", "pickup"].includes(item.className) ? [12, 26] : [8, 18];
   const mileage = randomInt(Math.max(1, age * annualMileage[0]), Math.max(8, age * annualMileage[1])) * 1000;
-  const pricing = npcPricingProfile();
+  const pricing = starter ? (Math.random() < 0.6 ? { key: "urgent", tag: "Срочная продажа" } : { key: "project", tag: "Под восстановление" }) : npcPricingProfile();
   const naturalDefects = randomInt(1, Math.min(4, Math.floor(age / 4) + 1));
-  const count = pricing.key === "project" ? Math.max(3, naturalDefects) : naturalDefects;
-  const pool = [...defectCatalog].sort(() => Math.random() - 0.5).slice(0, count);
-  if (!pool.some((defect) => defectPartCatalog[defect.code])) {
+  const count = starter ? randomInt(1, 2) : pricing.key === "project" ? Math.max(3, naturalDefects) : naturalDefects;
+  const pool = starter ? starterDefectPool(count) : [...defectCatalog].sort(() => Math.random() - 0.5).slice(0, count);
+  if (!starter && !pool.some((defect) => defectPartCatalog[defect.code])) {
     const physicalDefects = defectCatalog.filter((defect) => defectPartCatalog[defect.code]);
     pool[0] = physicalDefects[randomInt(0, physicalDefects.length - 1)];
   }
   const wear = Math.min(0.4, mileage / 850000);
-  const cleanValue = Math.round(item.base * (1 - wear) / 1000) * 1000;
-  const provisional = { cleanValue, defects: pool.map((d) => ({ ...d, repaired: false })) };
+  const rawCleanValue = starter ? randomInt(balance.STARTER.valueMin, balance.STARTER.valueMax) : item.base * (1 - wear);
+  const cleanValue = Math.round(rawCleanValue / 1000) * 1000;
+  const provisional = { starter, cleanValue, defects: pool.map((defect) => ({ ...defect, repaired: false })) };
+  scaleDefectNumbers(provisional);
   const fair = currentValue(provisional);
-  const indexed = marketIndices[item.model]?.price;
-  const pricingBase = clamp(indexed || fair, fair * 0.78, fair * 1.28);
-  const asking = npcAskingPrice({ ...provisional, model: item.model, year: item.year, mileage, catalogRevision: VEHICLE_PRICING_VERSION, condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92) }, pricing.key);
+  const condition = clamp(95 - Math.round(wear * 100) - count * 7, starter ? 34 : 28, starter ? 78 : 92);
+  const asking = npcAskingPrice({ ...provisional, model: item.model, year: item.year, mileage, catalogRevision: VEHICLE_PRICING_VERSION, condition }, pricing.key);
+  const price = starter ? Math.min(asking, balance.starterPriceBand().max) : asking;
+  // Часть «слишком хороших» объявлений — обманутые продавцы. Обман вскрывается
+  // проверкой документов, юридической проверкой или полной диагностикой сервиса.
+  const fraudKey = fraud.rollFraud({ askingRatio: price / Math.max(1, fair), condition, level: 1, forceChance: FRAUD_RATE });
   const listedAt = Date.now();
-  return {
-    id: id("car_"), make: item.make, photoQuery: item.photoQuery, photoUrl: item.photoUrl, photoSource: item.photoSource, model: item.model, year: item.year, mileage, price: asking,
-    purchasePrice: asking, invested: asking, seller, sellerId: null, ownerId: null,
-    color: item.color, className: item.className, cleanValue,
-    condition: clamp(95 - Math.round(wear * 100) - count * 7, 28, 92),
+  const car = {
+    id: id("car_"), make: item.make, photoQuery: item.photoQuery, photoUrl: item.photoUrl, photoSource: item.photoSource, model: item.model, year: item.year, mileage, price,
+    purchasePrice: price, invested: price, seller, sellerId: null, ownerId: null, starter,
+    color: item.color, className: item.className, cleanValue, condition,
     defects: provisional.defects, discovered: [], checkedCategories: [], inspectionRecords: {}, serviceDiagnosed: false, repairs: [],
-    description: pricing.key === "project" ? "Цена снижена: автомобиль под восстановление, состояние проверяйте внимательно." : count <= 1 ? "Ухоженная машина, сел и поехал." : ["Едет бодро, есть возрастные моменты.", "Продажа без спешки. Торг у капота.", "На ходу каждый день, требует внимания."][randomInt(0, 2)],
+    fraud: fraudKey ? { type: fraudKey, revealed: false, applied: false, realMileage: mileage } : null,
+    description: starter
+      ? ["Отдаю почти даром, времени возиться нет.", "Снял с себя, забирайте — и разберётесь.", "Машина старая, но на ходу. Торг уместен."][randomInt(0, 2)]
+      : pricing.key === "project" ? "Цена снижена: автомобиль под восстановление, состояние проверяйте внимательно." : count <= 1 ? "Ухоженная машина, сел и поехал." : ["Едет бодро, есть возрастные моменты.", "Продажа без спешки. Торг у капота.", "На ходу каждый день, требует внимания."][randomInt(0, 2)],
     marketTag: pricing.tag, listedAt, npcPricingVersion: VEHICLE_PRICING_VERSION, catalogRevision: VEHICLE_PRICING_VERSION,
     history: [{ type: "listed", text: "Первичное объявление на рынке", at: listedAt }]
   };
+  if (fraudKey === "odometer") car.mileage = Math.max(1000, Math.round(mileage / (fraud.fraudSpec("odometer")?.mileageFactor || 2) / 1000) * 1000);
+  if (fraudKey === "odometer") car.description = "Один владелец, родной пробег, сел и поехал.";
+  if (fraudKey === "salvage") car.description = "Не бита, не крашена, хранится в сухом гараже.";
+  if (fraudKey === "ghost") car.description = "Срочно, оформлю всё за час.";
+  return car;
+}
+
+// Для стартового сегмента берём «житейские» поломки: они ощутимы относительно цены,
+// но закрываются своими руками — именно на этом поднимаются с нуля.
+function starterDefectPool(count) {
+  const wanted = ["oil_low", "brakes", "bearing", "puncture", "turn_signal", "generator", "uneven_tires", "paint", "oil_leak"];
+  const pool = defectCatalog.filter((defect) => wanted.includes(defect.code));
+  const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.max(1, count));
+  if (shuffled.length >= count) return shuffled;
+  const filler = defectCatalog.filter((defect) => !shuffled.includes(defect)).sort(() => Math.random() - 0.5).slice(0, count - shuffled.length);
+  return [...shuffled, ...filler];
+}
+
+let starterCatalogCache = null;
+function starterCatalogIndices() {
+  if (starterCatalogCache) return starterCatalogCache;
+  const candidates = catalog.map((item, index) => ({ item, index }))
+    .filter(({ item }) => !item.collectible && item.base <= 420000 && (budgetMakes.has(item.make) || /lada|moskvich|uaz|gaz|zaz|iatz|razdany|dafi|tatra|trabant|tarpan|wartburg/i.test(item.model)))
+    .sort((a, b) => a.item.base - b.item.base);
+  const picked = [];
+  const seen = new Set();
+  // Дешёвые модели в каталоге идут длинными блоками по маркам, поэтому берём их кругами
+  // по кузовам: на доске новичка должны быть и седаны, и хэтчбеки, и фургоны с пикапами.
+  const groups = new Map();
+  const stride = Math.max(1, Math.floor(candidates.length / 60));
+  candidates.forEach((candidate, position) => {
+    if (position % stride) return;
+    const key = candidate.item.className || "other";
+    const list = groups.get(key) || [];
+    if (list.length < 8) groups.set(key, [...list, candidate]);
+  });
+  for (let round = 0; round < 8 && picked.length < 40; round += 1) {
+    for (const list of groups.values()) {
+      const candidate = list[round];
+      if (!candidate || seen.has(candidate.item.model)) continue;
+      seen.add(candidate.item.model);
+      picked.push(candidate.index);
+    }
+  }
+  starterCatalogCache = picked.length >= 6 ? picked : catalog.slice(0, 40).map((item, index) => index);
+  return starterCatalogCache;
 }
 
 function npcAskingPrice(car, kind, unit = Math.random()) {
@@ -1462,6 +2048,12 @@ function publicDefect(defect, car = null) {
   };
 }
 
+// «Сначала устраните известные неисправности» — правило продавца: игрок не может выставить
+// машину, дефекты которой уже найдены. Для NPC-объялений оно сыграло бы злую шутку: бот,
+// осмотрев дешёвый лот и найдя неисправность, навсегда снял бы его с рынка — а именно с таких
+// лотов начинается старт с 50 000 ₽. Такие машины покупаются как есть: чинишь и продаёшь.
+function listingBlockReason(car) { return car?.sellerId || car?.ownerId ? saleBlockReason(car) : null; }
+
 function publicCar(car, ownerView = false, viewer = null) {
   ensureCarDefaults(car);
   const visibleCodes = new Set([
@@ -1471,12 +2063,12 @@ function publicCar(car, ownerView = false, viewer = null) {
   ]);
   const result = {
     id: car.id, make: car.make, photoQuery: car.photoQuery, photoUrl: car.photoUrl, photoSource: car.photoSource, model: car.model, year: car.year, mileage: car.mileage, price: car.price,
-    saleBlocked: Boolean(saleBlockReason(car)), saleBlockReason: saleBlockReason(car),
+    saleBlocked: Boolean(listingBlockReason(car)), saleBlockReason: listingBlockReason(car),
     seller: car.seller, sellerId: car.sellerId, color: car.color, className: car.className,
     condition: car.condition, description: car.description, repairs: car.repairs,
     registration: { registered: Boolean(car.registration.registered), plate: car.registration.plate ? { ...car.registration.plate } : null },
     plateIncluded: Boolean(car.plateIncluded),
-    marketTag: car.sellerId ? null : car.marketTag, listedAt: car.listedAt,
+    marketTag: car.sellerId ? null : car.marketTag, listedAt: car.listedAt, starter: Boolean(car.starter),
     offerCount: [...offers.values()].filter((offer) => offer.carId === car.id && ["active", "counter"].includes(offer.status)).length,
     saleType: car.saleType || "fixed", auctionEnd: car.auctionEnd || null,
     startingPrice: car.startingPrice || null, highestBid: car.highestBid || 0,
@@ -1485,6 +2077,10 @@ function publicCar(car, ownerView = false, viewer = null) {
     viewerParticipated: Boolean(viewer && car.participantIds.includes(viewer.id))
   };
   result.publicInspectionRecords = car.publicInspectionRecords || {};
+  result.inspectionCosts = inspectionCosts(car);
+  result.fraud = fraudViewForCar(car, viewer || (car.sellerId ? players.get(car.sellerId) : null));
+  if (viewer && (car.sellerId === viewer.id || car.ownerId === viewer.id)) result.fraudLegalHold = car.legalHold ? { name: car.legalHold.name, note: car.legalHold.note } : null;
+  if (viewer) result.fraudCheckCost = fraud.legalCheckCost(car);
   result.citableDefects = viewer ? car.defects.filter(defect => !defect.repaired && car.buyerFindings?.[viewer.id]?.includes(defect.code)).map(defect => ({ code: defect.code, name: defect.name })) : [];
   if (car.groupContributorId) { result.groupContributorId = car.groupContributorId; result.groupContributorName = car.groupContributorName; }
   if (ownerView || (viewer && car.ownerId === viewer.id)) {
@@ -1527,10 +2123,21 @@ function playerPartNeeds(player) {
   });
 }
 
-function offerView(offer) {
+// Признаки развода показываем «со скидкой на точность»: игрок видит косвенные
+// признаки и сумму депозита, но не знает наверняка — иначе «раскрыть» было бы бесплатно.
+function offerView(offer, viewer = null) {
   const car = market.find((item) => item.id === offer.carId);
   const bot = bots.find(item => item.id === offer.buyerId);
-  return { ...offer, saleBlocked: car ? Boolean(saleBlockReason(car)) : false, profile: bot ? { ...npcProfile(bot), inspectionSkills: bot.inspectionSkills } : null, relationship: bot ? players.get(offer.sellerId)?.npcRelations?.[bot.id] || 0 : null, car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car };
+  const { kind, signs, ...rest } = offer;
+  const suspicion = fraud.scamSuspicionScore(offer, { level: levelForXp(viewer?.xp || 0), price: car?.price || offer.amount, reputation: viewer?.reputation?.score || 50 });
+  return {
+    ...rest,
+    suspicion: { score: suspicion, deposit: offer.deposit || 0, signs: suspicion >= 45 ? (signs || []).slice(0, 2) : [] },
+    saleBlocked: car ? Boolean(listingBlockReason(car)) : false,
+    profile: bot ? { ...npcProfile(bot), inspectionSkills: bot.inspectionSkills } : null,
+    relationship: bot ? players.get(offer.sellerId)?.npcRelations?.[bot.id] || 0 : null,
+    car: car ? { id: car.id, model: car.model, price: car.price, color: car.color, year: car.year } : offer.car
+  };
 }
 
 function assetResaleValue(asset, player) {
@@ -1669,14 +2276,21 @@ function publicGroupView(group, viewer) {
 function playerView(player) {
   ensureActivityDefaults(player);
   const reserved = reservedCash(player);
+  const playerLevel = levelForXp(player.xp);
+  const equipmentPrices = Object.fromEntries(Object.entries(equipmentInfo).map(([key, info]) => {
+    const next = (player.equipment[key] || 0) + 1;
+    if (next > 3) return [key, null];
+    return [key, next === 1 ? balance.equipmentPrice(info.prices, playerLevel) : info.prices[next]];
+  }));
   return {
     career: careerProgress(player), dealStyles: player.dealStyles || {}, appearance: profileAppearance(player, levelForXp(player.xp)),
     id: player.id, name: player.name, avatar: player.avatar || "", cash: player.cash, profit: player.profit, deals: player.deals, isAdmin: isAdmin(player), profileBadge: player.profileBadge || (isAdmin(player) ? "Администратор" : ""), purchasedCash: player.purchasedCash, supporterTier: player.supporterTier, supporterBenefits: supporterTierBenefits[player.supporterTier] || [], training: player.training,
     availableCash: player.cash - reserved, reservedCash: reserved,
     xp: player.xp, level: levelForXp(player.xp), levelStartXp: xpForLevel(levelForXp(player.xp)), nextLevelXp: levelForXp(player.xp) >= 30 ? player.xp : xpForLevel(levelForXp(player.xp) + 1),
     marketMaxPrice: maxVehiclePriceForLevel(levelForXp(player.xp)), auctionUnlockLevel: AUCTION_UNLOCK_LEVEL, auctionUnlocked: levelForXp(player.xp) >= AUCTION_UNLOCK_LEVEL,
+    fees: { plateIssue: balance.fee(12000, playerLevel), registration: balance.fee(8500, playerLevel), deregistration: balance.fee(2500, playerLevel, 50), training: TRAINING_REWARD_CASH, legalCheckShare: Math.round(fraud.legalCheckChance({ level: playerLevel, appraisal: player.skills?.appraisal || 0, historyTerminal: player.equipment?.historyTerminal || 0, reputation: player.reputation?.score || 50 }) * 100) },
     referral: { code: player.referralCode, invited: player.referralCount || 0, earned: player.referralCash || 0, bonus: REFERRAL_BONUS_CASH, invitedBy: player.referredBy ? players.get(player.referredBy)?.name || null : null },
-    skillPoints: player.skillPoints, skills: player.skills, skillPaths, equipment: player.equipment, stats: player.stats,
+    skillPoints: player.skillPoints, skills: player.skills, skillPaths, equipment: player.equipment, equipmentPrices, garageExpandCost: balance.garageExpandPrice(player.garageCapacity, playerLevel), starterMode: playerLevel < 3, stats: player.stats,
     reputation: player.reputation, contracts: player.contracts, garageCapacity: player.garageCapacity, parts: player.parts,
     group: player.groupId && groups.get(player.groupId) ? publicGroupView(groups.get(player.groupId), player) : null, groupRole: player.groupRole,
     garage: player.garage.map((car) => publicCar(car, true, player)), partInventory: player.partInventory, plateInventory: player.plateInventory,
@@ -1684,20 +2298,49 @@ function playerView(player) {
     businesses: player.businesses.map((business) => ({ ...business, state: businessState(business) })),
     clothingCraft: clothingCrafts.get(player.id) || null,
     assetIncomeAvailable: assetIncomeAvailable(player), businessCatalog, clothingCatalog: clothingCatalog.filter((_, index) => index < 200).map((item) => ({ ...item, rarityName: clothingRarityNames[item.rarity] })),
-    incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
-    outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map(offerView),
+    incomingOffers: [...offers.values()].filter((offer) => offer.sellerId === player.id && ["active", "counter"].includes(offer.status)).map((offer) => offerView(offer, player)),
+    outgoingOffers: [...offers.values()].filter((offer) => offer.buyerId === player.id && ["active", "counter"].includes(offer.status)).map((offer) => offerView(offer, player)),
     containerRewards: player.containerRewards.filter((reward) => !reward.acknowledged).slice(-3),
     notifications: player.notifications.slice(-20).reverse(), unreadNotifications: player.notifications.filter((item) => !item.read).length,
     achievements: { unlocked: player.achievements.unlocked, catalog: achievementCatalog.map(({ test, ...item }) => ({ ...item, unlocked: player.achievements.unlocked.includes(item.key) })) },
-    ledger: player.ledger.slice(-100).reverse()
+    ledger: player.ledger.slice(-100).reverse(),
+    bank: bankView(player),
+    fraud: {
+      ...ensurePlayerFraud(player),
+      // pushFraudHistory кладёт свежие события в начало — значит клиенту нужны первые, а не последние.
+      history: player.fraud.history.slice(0, 12),
+      blocked: Math.max(0, (player.fraud.blockedUntil || 0) - Date.now()),
+      schemeCooldown: Math.max(0, (player.fraud.lastSchemeAt || 0) + FRAUD_SCHEME_COOLDOWN_MS - Date.now()),
+      stage: fraudStageLabel(player.fraud.notoriety),
+      // `schemes` — счётчик прокатанных схем (его показывает статистика), а список-каталог живёт в schemeOptions.
+      schemeOptions: fraud.schemeCatalog.map((item) => ({
+        key: item.key, name: item.name, description: item.description, exposure: item.exposure,
+        priceBonus: Math.round(item.priceBonus * 100), risk: Math.round(item.risk * 100), suspicion: item.suspicion,
+        unlocked: levelForXp(player.xp) >= item.requires.level && player.fraud.notoriety >= item.requires.notoriety,
+        requires: item.requires, costShare: item.costShare, minCost: item.minCost
+      })),
+      lawyerCost: fraud.lawyerCost(playerNetWorth(player)),
+      stageNote: player.fraud.suspicion >= 70 ? "Рынок смотрит слишком внимательно: снизьте подозрение через адвоката, прежде чем рисковать снова." : player.fraud.notoriety > 0 ? "Авторитет открывает серые схемы, но каждое расторжение сделки бьёт по репутации." : "Чистая репутация даёт скидки у банка и больше доверия покупателей."
+    }
   };
+}
+
+function fraudStageLabel(notoriety) {
+  const value = Number(notoriety) || 0;
+  if (value <= 0) return "Чистый игрок";
+  if (value < 20) return "Мелкий шулер";
+  if (value < 60) return "Тёмный перекуп";
+  if (value < 140) return "Авторитет рынка";
+  return "Легенда серого рынка";
 }
 
 function leaderboardView(viewer) {
   const isActive = (candidate) => candidate.deals > 0 || candidate.profit !== 0 || candidate.xp > 0
     || candidate.stats?.purchases > 0 || candidate.stats?.bids > 0 || candidate.stats?.inspections > 0
     || candidate.stats?.assetsBought > 0 || candidate.training?.completed > 0;
-  const participants = [...players.values()].filter((candidate) => !banMessage(candidate))
+  // Доска почёта — только для тех, кто уже сыграл хотя бы одну сделку; сам игрок виден всегда,
+  // иначе новичок не видит собственную позицию и «пустышки» засоряют рейтинг.
+  const participants = [...players.values()].filter((candidate) => !banMessage(candidate) && (isActive(candidate) || candidate.id === viewer?.id))
     .sort((a, b) => b.profit - a.profit || b.deals - a.deals || b.xp - a.xp || a.name.localeCompare(b.name, "ru"));
   const rows = participants.map((candidate, index) => ({
     id: candidate.id, name: candidate.name, profit: candidate.profit, deals: candidate.deals,
@@ -1756,6 +2399,19 @@ function snapshot(player) {
     partComponents,
     marketRotation: { nextAt: marketRotationNextAt, intervalSeconds: Math.round(NPC_ROTATION_MS / 1000), replaceCount: NPC_ROTATION_COUNT },
     groups: [...groups.values()].map((group) => ({ id: group.id, name: group.name, rating: group.rating, members: group.members.length })),
+    fraudInfo: {
+      startingCash: STARTING_CASH,
+      starterBand: balance.starterPriceBand(),
+      starterLots: balance.STARTER.lots,
+      schemes: fraud.schemeCatalog.map((item) => ({ key: item.key, name: item.name, description: item.description, exposure: item.exposure, risk: Math.round(item.risk * 100), priceBonus: Math.round(item.priceBonus * 100), requires: item.requires })),
+      threats: fraud.fraudCatalog.map((item) => ({ key: item.key, name: item.name, hint: item.hint, category: item.category, depth: item.depth, consequence: item.unregistrable ? "Регистрация невозможна" : item.blocksRegistration ? "Сделка и учёт под вопросом" : "Реальное состояние хуже заявленного" })),
+      rules: {
+        check: "Юридическая проверка перед покупкой стоит ~1,4% цены, но шанс увидеть обман зависит от навыка «Оценщик» и «Терминала истории».",
+        expose: "Раскрытый обман можно сдать рынку: лот снимается, вы получаете премию, репутацию и опыт.",
+        suspicion: "Каждая серая схема добавляет подозрение. На 100 приходит «обыск»: штраф, изъятие машины и пауза на сделках.",
+        decay: "Подозрение остывает само, а адвокат срезает его сразу за процент от капитала."
+      }
+    },
     npcProfiles: bots.map((bot) => ({ id: bot.id, name: bot.name, type: bot.type, rating: Math.round((bot.risk * 80 + bot.skill * 4) * 10) / 10, budget: bot.budget })),
     employeeCandidates, groupJobCatalog: Object.values(groupJobCatalog),
     store: { enabled: Boolean(YOOKASSA_SHOP_ID && YOOKASSA_SECRET_KEY), provider: "YooKassa", packages: stylePackages.map(pack => ({ ...pack, owned: pack.cosmetics.every(id => ownsCosmetic(player, cosmetics.find(item => item.id === id), levelForXp(player.xp))) })) },
@@ -1817,6 +2473,10 @@ setInterval(finalizeGroupJobs, 1000).unref();
 
 function seedMarket() {
   for (const itemIndex of balancedNpcCatalogIndices(100)) market.push(makeCar(itemIndex));
+  ensureStarterSegment();
+  // Торги должны быть на рынке с первой секунды: иначе вкладка «Торги» у новичка пустая,
+  // пока не дойдёт первый ротационный тик NPC.
+  ensureNpcAuctions();
   for (const item of catalog) {
     const comparable = market.find((car) => car.model === item.model);
     const anchor = comparable ? currentValue(comparable) : Math.round(item.base * 0.78 / 1000) * 1000;
@@ -1907,6 +2567,8 @@ function refreshLegacyNpcCatalog() {
     market.push(makeCar(itemIndex));
     occupiedModels.add(item.model);
   }
+  ensureStarterSegment();
+  ensureNpcAuctions();
   marketStatsCache = null;
   loadedVehiclePricingVersion = VEHICLE_PRICING_VERSION;
   persistState();
@@ -1958,7 +2620,7 @@ if (s3Sync.configured()) {
   s3Timer.unref?.();
 }
 
-const AUCTION_UNLOCK_LEVEL = 3;
+const AUCTION_UNLOCK_LEVEL = Math.max(1, Number(process.env.PEREKUP_AUCTION_UNLOCK_LEVEL ?? 3));
 const MARKET_LEVEL_CAPS = [1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000, MAX_VEHICLE_VALUE];
 function maxVehiclePriceForLevel(level) {
   return MARKET_LEVEL_CAPS[Math.min(MARKET_LEVEL_CAPS.length - 1, Math.max(0, Number(level || 1) - 1))];
@@ -2119,7 +2781,35 @@ function applyReferralPromo(rawCode, newPlayer) {
 function restock() {
   const npcCount = market.filter((car) => !car.sellerId).length;
   for (let i = npcCount; i < 100; i += 1) market.push(makeCar(randomInt(0, catalog.length - 1)));
+  ensureStarterSegment();
   ensureNpcAuctions();
+}
+
+// Стартовый сегмент: всегда держим на рынке несколько лотов по карману игроку с 50 000 ₽.
+// Без них «подъём с нуля» превращается в ожидание: первые машины просто недоступны по деньгам.
+function ensureStarterSegment() {
+  const band = balance.starterPriceBand();
+  const indices = starterCatalogIndices();
+  let starters = market.filter((car) => !car.sellerId && car.starter && car.saleType !== "auction");
+  // Дешёвые лоты не должны «застревать» дороже стартового кармана.
+  for (const car of starters) {
+    if (car.price > band.max) {
+      car.price = band.max;
+      car.purchasePrice = band.max;
+      car.invested = band.max;
+    }
+  }
+  let guard = 0;
+  while (starters.length < balance.STARTER.lots && guard < 40) {
+    guard += 1;
+    const index = indices[(market.length + guard) % Math.max(1, indices.length)];
+    const car = makeCar(index, "Авторынок", { starter: true });
+    if (!car) break;
+    if (car.price > band.max) { car.price = band.max; car.purchasePrice = band.max; car.invested = band.max; }
+    if (car.price < band.min) { car.price = band.min; car.purchasePrice = band.min; car.invested = band.min; }
+    market.push(car);
+    starters = market.filter((item) => !item.sellerId && item.starter && item.saleType !== "auction");
+  }
 }
 
 function configureNpcAuction(car) {
@@ -2142,10 +2832,19 @@ function configureNpcAuction(car) {
 }
 
 function ensureNpcAuctions() {
-  const target = 10;
+  const target = 14;
   const active = market.filter((car) => !car.sellerId && car.saleType === "auction" && car.auctionEnd > Date.now()).length;
-  const candidates = market.filter((car) => !car.sellerId && car.saleType !== "auction").sort(() => Math.random() - 0.5);
-  candidates.slice(0, Math.max(0, target - active)).forEach(configureNpcAuction);
+  const missing = Math.max(0, target - active);
+  if (!missing) return;
+  const pool = market.filter((car) => !car.sellerId && car.saleType !== "auction");
+  // Половину торгов отдаём дешёвому сегменту: иначе на «Торгах» новичок видит пустой список,
+  // потому что лоты с молотка уходят за миллионы.
+  const band = balance.starterPriceBand();
+  const cheap = pool.filter((car) => car.starter || Number(car.price) <= band.max);
+  const rest = pool.filter((car) => !cheap.includes(car));
+  const shuffle = (list) => list.sort(() => Math.random() - 0.5);
+  const chosen = [...shuffle(cheap).slice(0, Math.ceil(missing * 0.6)), ...shuffle(rest).slice(0, missing)].slice(0, missing);
+  chosen.forEach(configureNpcAuction);
 }
 
 function createContainerAuction(tierKey) {
@@ -2323,7 +3022,7 @@ async function readBody(req) {
 }
 
 function completeSale(car, buyer, amount) {
-  if (saleBlockReason(car)) return false;
+  if (listingBlockReason(car)) return false;
   const marketIndex = market.findIndex((item) => item.id === car.id);
   if (marketIndex < 0) return false;
   if (buyer && (buyer.cash < amount || buyer.garage.length >= buyer.garageCapacity)) return false;
@@ -2356,7 +3055,7 @@ function completeSale(car, buyer, amount) {
       if (qualifies) { contract.status = "completed"; seller.cash += contract.reward; seller.profit += contract.reward; seller.reputation.score = clamp(seller.reputation.score + 2, 0, 100); }
     }
     if (honest && seller.deals % 3 === 0 && !seller.contracts.some(item => item.repeatCustomer && item.status === "active" && item.expiresAt > Date.now())) {
-      seller.contracts.push({ id: id("contract_"), title: "По рекомендации", description: `Подготовьте ещё один ${car.model}: полный осмотр и ремонт`, kind: "restored", model: car.model, reward: Math.min(80000, Math.max(15000, Math.round(amount * .04))), expiresAt: Date.now() + 7 * 86400000, status: "active", repeatCustomer: true });
+      seller.contracts.push({ id: id("contract_"), title: "По рекомендации", description: `Подготовьте ещё один ${car.model}: полный осмотр и ремонт`, kind: "restored", model: car.model, reward: Math.min(80000, Math.max(1500, Math.round(amount * .04))), expiresAt: Date.now() + 7 * 86400000, status: "active", repeatCustomer: true });
       seller.notifications.push({ id: id("notice_"), type: "deal", title: "Вас рекомендовали знакомым", text: `Новый заказ на ${car.model} появился в сделках.`, at: Date.now(), read: false });
     }
   }
@@ -2384,12 +3083,28 @@ function completeSale(car, buyer, amount) {
   car.highestBidderName = null;
   car.highestBidderType = null;
   car.bidCount = 0;
+  car.scamDeposit = 0;
+  // Мусор из прошлой сделки не должен переезжать к новому владельцу.
+  car.buyerFindings = {};
+  car.fraudCheckedBy = {};
+  if (car.fraud?.revealed || car.fraud?.applied) car.fraud = null;
+  let fraudOutcome = null;
+  if (seller && (car.schemes || []).length) {
+    fraudOutcome = revertFraudulentSale(seller, buyer, car, amount, sellerInvestment);
+    if (!fraudOutcome.caught) settleSaleWithBank(seller, car, amount, sellerInvestment, Math.max(0, seller.deals - 1));
+  } else if (seller) {
+    settleSaleWithBank(seller, car, amount, sellerInvestment, Math.max(0, seller.deals - 1));
+  }
+  // Купили вслепую — обман продавца раскрывается уже в вашем гараже.
+  if (!fraudOutcome?.caught && buyer && car.fraud && !car.fraud.revealed) applyHiddenFraud(buyer, car);
+  car.schemes = [];
+  car.schemesExposed = false;
   restock();
   return true;
 }
 
 function inspectForNpc(car, bot) {
-  const found = npcFaults(car, bot);
+  const found = fraud.concealedFromBuyer(car) ? [] : npcFaults(car, bot);
   if (!found.length) return false;
   car.publicDiscovered ||= [];
   car.discovered ||= [];
@@ -2414,16 +3129,19 @@ function evaluateBots(car) {
   const lie = /вложений не требует|идеал|без проблем/i.test(car.description) && car.defects.some((defect) => !defect.repaired);
   const contacted = new Set([...offers.values()].filter(offer => offer.carId === car.id && (["active", "counter"].includes(offer.status) || offer.status === "rejected" && Date.now() - (offer.lastOfferAt || offer.createdAt) < 120000)).map(offer => offer.buyerId));
   const types = new Set();
+  const seller = players.get(car.sellerId);
   const candidates = [...bots].filter(bot => !contacted.has(bot.id)).sort((a, b) => botAuctionCeiling(car, b) - botAuctionCeiling(car, a)).filter(bot => {
     if (types.has(bot.type)) return false;
     types.add(bot.type); return true;
   }).slice(0, 3);
   for (const bot of candidates) {
     if (bot.budget < car.price * .65) continue;
+    if (seller?.npcMuted?.[bot.id] > Date.now()) continue;
     if (inspectForNpc(car, bot)) break;
     const detected = npcFaults(car, bot);
     const ceiling = botAuctionCeiling(car, bot);
     if (ceiling < 1) continue;
+    const scam = fraud.rollScamOffer({ price: car.price, sellerReputation: seller?.reputation?.score || 50, level: levelForXp(seller?.xp || 0), scamChance: SCAM_RATE });
     const amount = clamp(Math.round(Math.min(car.price * 0.97, ceiling) / 1000) * 1000, 1, car.price - 1);
     if (amount >= car.price) continue;
     const issue = detected.sort((a, b) => b.impact - a.impact)[0];
@@ -2434,8 +3152,10 @@ function evaluateBots(car) {
           : car.price > saleEstimate(car).expectedNpcPrice ? "Цена выше моей оценки. Предлагаю сумму ближе к реальной стоимости." : "Готов быстро оформить сделку без дальнейшего торга.";
     const offer = {
       id: id("offer_"), carId: car.id, sellerId: car.sellerId,
-      buyerId: bot.id, buyerName: bot.name, buyerType: "bot", amount,
-      status: "active", reason, createdAt: Date.now(), attempts: 0, lastOfferAt: Date.now()
+      buyerId: bot.id, buyerName: bot.name, buyerType: "bot",
+      amount: scam ? Math.max(amount, Math.min(bot.budget, scam.amount)) : amount,
+      status: "active", reason: scam ? scam.text : reason, createdAt: Date.now(), attempts: 0, lastOfferAt: Date.now(),
+      kind: scam ? "scam" : "offer", deposit: scam ? scam.deposit : 0, signs: scam ? scam.signs : [], expiresAt: scam ? Date.now() + 240000 : null
     };
     offers.set(offer.id, offer);
   }
@@ -2447,6 +3167,7 @@ function scheduleBots(car) {
 }
 
 function refreshNpcOffers() {
+  for (const [id, offer] of offers) if (offer.kind === "scam" && offer.expiresAt && offer.expiresAt < Date.now()) { offer.status = "expired"; }
   for (const car of market.filter((item) => item.sellerId && item.saleType === "fixed")) {
     const active = [...offers.values()].filter((offer) => offer.carId === car.id && offer.buyerType === "bot" && ["active", "counter"].includes(offer.status));
     if (active.length >= 2) continue;
@@ -2460,7 +3181,7 @@ function finalizeAuctions() {
   const expired = market.filter((car) => car.saleType === "auction" && car.auctionEnd <= Date.now());
   if (!expired.length) return;
   for (const car of expired) {
-    if (saleBlockReason(car)) {
+    if (listingBlockReason(car)) {
       car.highestBid = 0; car.highestBidderId = null; car.highestBidderType = null; car.highestBidderName = null;
     }
     if (car.highestBidderType === "bot" && car.highestBid > 0) {
@@ -2501,13 +3222,15 @@ function finalizeAuctions() {
 setInterval(finalizeAuctions, 1000).unref();
 
 function botAuctionCeiling(car, bot) {
-  if (saleBlockReason(car)) return 0;
+  if (listingBlockReason(car)) return 0;
   const estimate = saleEstimate(car);
   const unresolved = car.defects.filter(defect => !defect.repaired);
-  const unknownCount = unresolved.filter(defect => !npcFaults(car, bot).includes(defect)).length;
+  const detected = fraud.concealedFromBuyer(car) ? [] : npcFaults(car, bot);
+  const unknownCount = unresolved.filter(defect => !detected.includes(defect)).length;
   const seller = players.get(car.sellerId);
   const classic = new Date().getFullYear() - car.year >= 25 || ["classic", "coupe", "roadster", "premium"].includes(car.className);
-  const price = buyerPrice({ value: estimate.expectedNpcPrice, fit: npcFit(car, bot, upgradeCatalog).multiplier, type: bot.type, unknownCount, lied: /идеал|без проблем|вложений не требует/i.test(car.description) && unresolved.length > 0, relationship: seller?.npcRelations?.[bot.id] || 0, repaired: car.repairs.length > 0, classic });
+  const value = Math.max(1000, Math.round(estimate.expectedNpcPrice * (1 + fraud.deceptionBonus(car, Boolean(car.schemesExposed))) / 1000) * 1000);
+  const price = buyerPrice({ value, fit: npcFit(car, bot, upgradeCatalog).multiplier, type: bot.type, unknownCount, lied: /идеал|без проблем|вложений не требует/i.test(car.description) && unresolved.length > 0, relationship: seller?.npcRelations?.[bot.id] || 0, repaired: car.repairs.length > 0, classic });
   return Math.min(bot.budget, Math.max(1000, price));
 }
 
@@ -2516,7 +3239,7 @@ function runAuctionBots() {
   const now = Date.now();
   const active = market.filter((car) => car.saleType === "auction" && car.auctionEnd > now + 1500);
   for (const car of active) {
-    if (saleBlockReason(car)) continue;
+    if (listingBlockReason(car)) continue;
     const humanInterest = car.participantIds.length > 0;
     const idleFor = now - (car.lastPlayerBidAt || car.listedAt || now);
     const npcCooldown = car.lastNpcBidAt ? now - car.lastNpcBidAt : Infinity;
@@ -2715,20 +3438,29 @@ async function api(req, res, pathname) {
     if (name.length < 2) return json(res, 400, { error: "Введите имя от 2 символов" });
     if (ADMIN_NAMES.has(name.toLocaleLowerCase("ru-RU"))) return json(res, 409, { error: "Этот логин зарезервирован" });
     const token = id("session_");
-    const player = createPlayer(name);
-    if (name.toLocaleLowerCase("ru-RU") === CONFIGURED_ADMIN_LOGIN) player.adminGranted = true;
-    players.set(player.id, player);
-    const referral = applyReferralPromo(body.promo, player);
+    const pin = /^[0-9]{4,8}$/.test(String(body.pin || "")) ? String(body.pin) : null;
+    // Гость с тем же ником и пином продолжает прежний аккаунт, а не заводит второй:
+    // иначе вход по нику и PIN после перезапуска находится «в никуда».
+    const resumeName = name.toLocaleLowerCase("ru-RU");
+    const resumed = pin ? [...players.values()].find((candidate) => (candidate.normalizedName || candidate.name.toLocaleLowerCase("ru-RU")) === resumeName && candidate.pinHash && verifyPin(pin, candidate)) : null;
+    const player = resumed || createPlayer(name, pin);
+    if (resumeName === CONFIGURED_ADMIN_LOGIN) player.adminGranted = true;
+    if (!resumed) players.set(player.id, player);
+    const referral = resumed ? { applied: false, invalid: false } : applyReferralPromo(body.promo, player);
     sessions.set(token, player.id);
     persistState();
     broadcast();
-    return json(res, 200, { token, referralApplied: referral.applied, referralInvalid: Boolean(referral.invalid), ...snapshot(player) });
+    return json(res, 200, { token, resumed: Boolean(resumed), referralApplied: referral.applied, referralInvalid: Boolean(referral.invalid), ...snapshot(player) });
   }
 
   const player = getPlayer(req);
   if (!player) return json(res, 401, { error: "Сессия не найдена" });
   const blocked = banMessage(player);
   if (blocked) return json(res, 403, { error: blocked });
+  // Пока идёт разбирательство по делу о мошенничестве, торговля приостановлена.
+  if ((player.fraud?.blockedUntil || 0) > Date.now() && ["/api/buy", "/api/bid", "/api/offer", "/api/offer/respond", "/api/list", "/api/fraud/scheme"].includes(pathname)) {
+    return json(res, 403, { error: `Вы под разбирательством: сделки закрыты ещё на ${Math.max(1, Math.ceil((player.fraud.blockedUntil - Date.now()) / 1000))} сек.` });
+  }
   if (req.method === "GET" && pathname === "/api/state") return json(res, 200, snapshot(player));
   if (req.method === "POST" && pathname === "/api/profile/appearance") {
     const body = await readBody(req);
@@ -2950,7 +3682,7 @@ async function api(req, res, pathname) {
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/plates/issue") {
-    const cost = 12000;
+    const cost = balance.fee(12000, levelForXp(player.xp));
     if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для выдачи номера нужно ${cost.toLocaleString("ru-RU")} ₽` });
     player.cash -= cost;
     const plate = makePlate(); player.plateInventory.push(plate);
@@ -2979,9 +3711,10 @@ async function api(req, res, pathname) {
     const action = String(body.action || "");
     if (action === "register") {
       if (car.registration.registered) return json(res, 409, { error: "Автомобиль уже стоит на учёте" });
+      if (car.legalHold) return json(res, 409, { error: `Регистрация приостановлена: ${car.legalHold.name}. ${car.legalHold.note} Закройте вопрос в сервисе или подайте претензию продавцу.` });
       const plateIndex = player.plateInventory.findIndex((plate) => plate.id === String(body.plateId || ""));
       if (plateIndex < 0) return json(res, 400, { error: "Для постановки на учёт выберите номер" });
-      const cost = 8500;
+      const cost = balance.fee(8500, levelForXp(player.xp));
       if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для постановки на учёт нужно ${cost.toLocaleString("ru-RU")} ₽` });
       const plate = player.plateInventory.splice(plateIndex, 1)[0];
       player.cash -= cost; car.registration.registered = true; car.registration.registeredAt = Date.now(); car.registration.plate = plate;
@@ -2989,7 +3722,7 @@ async function api(req, res, pathname) {
       addLedger(player, "registration", `Постановка на учёт: ${car.model}`, -cost, { carId: car.id, category: "Гараж" });
     } else if (action === "deregister") {
       if (!car.registration.registered) return json(res, 409, { error: "Автомобиль уже снят с учёта" });
-      const cost = 2500;
+      const cost = balance.fee(2500, levelForXp(player.xp), 50);
       if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Для снятия с учёта нужно ${cost.toLocaleString("ru-RU")} ₽` });
       player.cash -= cost; detachPlate(player, car, "При снятии с учёта возвращён номер"); car.registration.registered = false; car.registration.registeredAt = null;
       car.history.push({ type: "registration", text: "Автомобиль снят с регистрационного учёта", at: Date.now() });
@@ -3353,13 +4086,13 @@ async function api(req, res, pathname) {
       .sort(() => Math.random() - 0.5).slice(0, Math.max(3, Math.min(6, car.defects.length + 2)));
     const salvaged = donorDefects.map((defect) => makeSpecificPart(car, defect, "restored", randomInt(38, Math.max(45, car.condition)), `Разбор ${car.model}`));
     player.garage.splice(index, 1); player.cash += Math.round(payout * 0.38); player.parts.common += salvaged.length; player.partInventory.push(...salvaged);
-    car.history.push({ type: "dismantled", text: `Разобрана на запчасти, получено ${Math.round(payout * 0.62)} ₽`, at: Date.now() });
+    car.history.push({ type: "dismantled", text: `Разобрана на запчасти: ${Math.round(payout * 0.38).toLocaleString("ru-RU")} ₽ и ${salvaged.length} деталей`, at: Date.now() });
     broadcast(); return json(res, 200, snapshot(player));
   }
   if (req.method === "POST" && pathname === "/api/buy") {
     const car = market.find((item) => item.id === body.carId);
     if (!car) return json(res, 404, { error: "Лот уже продан или снят с рынка. Обновите список автомобилей." });
-    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
+    if (listingBlockReason(car)) return json(res, 409, { error: listingBlockReason(car) });
     if (car.sellerId === player.id) return json(res, 400, { error: "Это ваше объявление" });
     if (car.saleType === "auction") return json(res, 400, { error: "Эту машину можно купить только через ставку" });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
@@ -3368,6 +4101,191 @@ async function api(req, res, pathname) {
     if (!completeSale(car, player, car.price)) return json(res, 409, { error: "Лот только что купил другой игрок. Обновите рынок." });
     broadcast();
     return json(res, 200, snapshot(player));
+  }
+
+  // ── Банк: кредиты, погашение ────────────────────────────────────────────────
+  if (req.method === "POST" && pathname === "/api/bank/loan") {
+    try { createBankLoan(player, body.productKey, body.amount); }
+    catch (error) { return json(res, error.status || 400, { error: error.message }); }
+    broadcast(); persistState();
+    return json(res, 200, snapshot(player));
+  }
+
+  if (req.method === "POST" && pathname === "/api/bank/repay") {
+    try { repayBankLoan(player, body.loanId, body.amount, body.full === true); }
+    catch (error) { return json(res, error.status || 400, { error: error.message }); }
+    broadcast(); persistState();
+    return json(res, 200, snapshot(player));
+  }
+
+  // ── Мошенничество: защита покупателя ────────────────────────────────────────
+  if (req.method === "POST" && pathname === "/api/fraud/check") {
+    const car = market.find((item) => item.id === body.carId);
+    if (!car) return json(res, 404, { error: "Автомобиль недоступен: лот мог уйти с рынка" });
+    if (player.garage.some((item) => item.id === car.id)) return json(res, 400, { error: "Проверка доступна для объявлений на рынке" });
+    const cost = fraud.legalCheckCost(car);
+    if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Юридическая проверка стоит ${cost.toLocaleString("ru-RU")} ₽` });
+    player.cash -= cost;
+    const spec = fraud.fraudSpec(car.fraud?.type);
+    const chance = fraud.legalCheckChance({
+      appraisal: player.skills.appraisal, terminal: player.equipment.historyTerminal,
+      reputation: player.reputation?.score || 50, depth: spec?.depth || 3
+    });
+    const lucky = Math.random() < chance;
+    const revealed = lucky && Boolean(spec);
+    if (revealed) {
+      revealListingFraud(car, player.id, "legal");
+      player.notifications.push({ id: id("notification_"), type: "fraud", title: "Проверка вскрыла обман", text: `${spec.name}. ${spec.hint}`, carId: car.id, createdAt: Date.now(), read: false });
+    } else {
+      car.fraudCheckedBy ||= {};
+      car.fraudCheckedBy[player.id] = { at: Date.now(), revealed: false, source: "legal" };
+    }
+    addXp(player, revealed ? 26 : 8);
+    addLedger(player, "fraud-check", `Юридическая проверка: ${car.model}`, -cost, { carId: car.id, result: revealed ? "found" : "clean", category: "Риск" });
+    broadcast(); persistState();
+    return json(res, 200, {
+      ...snapshot(player),
+      fraudCheck: { revealed, carId: car.id, cost, chance: Math.round(chance * 100), fraud: revealed && spec ? { name: spec.name, hint: spec.hint } : null }
+    });
+  }
+
+  if (req.method === "POST" && pathname === "/api/fraud/expose") {
+    const carIndex = market.findIndex((item) => item.id === body.carId);
+    if (carIndex < 0) return json(res, 404, { error: "Объявление уже снято с рынка" });
+    const car = market[carIndex];
+    if (car.sellerId) return json(res, 400, { error: "Жалоба на игрока рассматривает администратор: используйте жалобу в профиле" });
+    if (!car.fraud || !car.fraud.revealed) return json(res, 400, { error: "Сначала докажите обман: проверка документов или юридическая экспертиза" });
+    ensurePlayerFraud(player);
+    if (player.fraud.lastExposeAt > Date.now() - FRAUD_EXPOSE_COOLDOWN_MS) return json(res, 429, { error: "Жалобы оформляются реже: подождите немного" });
+    const spec = fraud.fraudSpec(car.fraud.type);
+    const reward = fraud.exposeReward(car, levelForXp(player.xp));
+    player.fraud.lastExposeAt = Date.now();
+    player.fraud.exposed += 1;
+    player.fraud.notoriety = Math.max(0, player.fraud.notoriety - 2);
+    player.cash += reward.cash;
+    player.reputation.score = Math.min(100, player.reputation.score + reward.reputation);
+    addXp(player, reward.xp);
+    car.history.push({ type: "fraud", text: `Объявление снято с рынка по жалобе: ${spec?.name || "мошенничество"}`, at: Date.now() });
+    market.splice(carIndex, 1);
+    for (const offer of offers.values()) if (offer.carId === car.id && ["active", "counter"].includes(offer.status)) offer.status = "closed";
+    restock();
+    addLedger(player, "fraud-bounty", `Премия рынка за разоблачение: ${car.model}`, reward.cash, { category: "Риск" });
+    pushFraudHistory(player, { kind: "exposed", title: `Разоблачён продавец: ${spec?.name || "мошенник"}`, amount: reward.cash, car: car.model });
+    player.notifications.push({ id: id("notification_"), type: "fraud", title: reward.title, text: reward.text, createdAt: Date.now(), read: false });
+    broadcast(); persistState();
+    return json(res, 200, { ...snapshot(player), fraudResult: { exposed: true, bounty: reward.cash, xp: reward.xp, reputation: reward.reputation, model: car.model } });
+  }
+
+  if (req.method === "POST" && pathname === "/api/fraud/claim") {
+    const car = player.garage.find((item) => item.id === body.carId);
+    if (!car) return json(res, 404, { error: "Машины нет в гараже" });
+    if (!car.fraud?.applied && !car.legalHold) return json(res, 400, { error: "Претензия подаётся, только если после покупки вскрылся обман продавца" });
+    if (car.fraudClaimed) return json(res, 409, { error: "Претензия по этой машине уже подана" });
+    const fee = Math.max(500, Math.round(fraud.legalCheckCost(car) * 0.6 / 100) * 100);
+    if (player.cash - reservedCash(player) < fee) return json(res, 400, { error: `На юриста нужно ${fee.toLocaleString("ru-RU")} ₽` });
+    player.cash -= fee;
+    const evidence = Boolean(car.serviceDiagnosed || Object.keys(car.publicInspectionRecords || {}).length || (car.defects || []).some((defect) => defect.fraud && car.discovered.includes(defect.code)));
+    const chance = fraud.claimChance({ appraisal: player.skills.appraisal, reputation: player.reputation?.score || 50, evidence });
+    const success = Math.random() < chance;
+    const share = success ? 0.55 + Math.min(0.2, (player.skills.appraisal || 0) * 0.04) : 0.06;
+    const payout = fraud.claimPayout(car, share);
+    player.cash += payout;
+    ensurePlayerFraud(player);
+    player.fraud.claims += 1;
+    if (success) {
+      player.fraud.claimsWon += 1;
+      player.reputation.score = Math.min(100, player.reputation.score + 1);
+      if (car.legalHold) { car.legalHold = null; const defect = car.defects.find((item) => item.fraud && !item.repaired); if (defect) { defect.repaired = true; defect.repairQuality = "Юридическое сопровождение"; defect.repairReliability = 95; car.repairs.push(defect.name); car.condition = Math.min(100, car.condition + 4); } }
+    }
+    car.fraudClaimed = true;
+    car.history.push({ type: "fraud", text: success ? `Претензия удовлетворена: вернули ${payout.toLocaleString("ru-RU")} ₽` : `Претензия отклонена: компенсация ${payout.toLocaleString("ru-RU")} ₽`, at: Date.now() });
+    addXp(player, success ? 34 : 14);
+    addLedger(player, "fraud-claim", `Претензия продавцу: ${car.model}`, payout - fee, { payout, fee, success, category: "Риск" });
+    pushFraudHistory(player, { kind: "claim", title: success ? "Претензию выиграли" : "Претензию отклонили", amount: payout - fee, car: car.model });
+    player.notifications.push({ id: id("notification_"), type: "fraud", title: success ? "Деньги вернули" : "Отказ", text: success ? `Продавец вернул ${payout.toLocaleString("ru-RU")} ₽, юридическая проблема закрыта.` : `Удалось выбить только ${payout.toLocaleString("ru-RU")} ₽. Соберите больше доказательств: осмотр документов и диагностика сервиса повышают шансы.`, carId: car.id, createdAt: Date.now(), read: false });
+    broadcast(); persistState();
+    return json(res, 200, { ...snapshot(player), fraudResult: { recovered: success, amount: payout, fee, model: car.model } });
+  }
+
+  // ── Мошенничество: серые схемы игрока ────────────────────────────────────────
+  if (req.method === "POST" && pathname === "/api/fraud/scheme") {
+    ensurePlayerFraud(player);
+    if (player.fraud.blockedUntil > Date.now()) return json(res, 403, { error: "Пока идёт разбирательство, серые схемы недоступны" });
+    // Готовить машину можно и прямо под покупателя: объявление с машины не снимается,
+    // иначе «задаток у другого» и «чистая история» были бы недоступны именно там, где они нужны.
+    const car = player.garage.find((item) => item.id === body.carId) || market.find((item) => item.id === body.carId && item.sellerId === player.id);
+    if (!car) return json(res, 404, { error: "Машины нет в гараже: снимите объявление" });
+    const spec = fraud.schemeSpec(body.scheme || body.key);
+    if (!spec) return json(res, 400, { error: "Такой схемы не существует" });
+    const level = levelForXp(player.xp);
+    if (level < spec.requires.level) return json(res, 403, { error: `Схема «${spec.name}» откроется с ${spec.requires.level} уровня` });
+    if (player.fraud.notoriety < spec.requires.notoriety) return json(res, 403, { error: `Нужен криминальный авторитет ${spec.requires.notoriety}: текущий ${Math.round(player.fraud.notoriety)}` });
+    if (spec.skill && (player.skills[spec.skill.key] || 0) < spec.skill.level) return json(res, 400, { error: `Нужен навык «${skillInfo[spec.skill.key].name}» ${spec.skill.level} уровня` });
+    if ((car.schemes || []).some((item) => (item.key || item) === spec.key)) return json(res, 409, { error: "Эту схему уже применили к автомобилю" });
+    if (player.fraud.lastSchemeAt > Date.now() - FRAUD_SCHEME_COOLDOWN_MS) return json(res, 429, { error: "Рынок заметит слишком частые «улучшения»: подождите" });
+    const cost = fraud.schemeCost(car, spec);
+    if (spec.needsOpenDefects && !car.defects.some((defect) => !defect.repaired)) return json(res, 400, { error: "Прятать нечего: сначала найдите неисправность" });
+    if (spec.needsPlayerOffer) {
+      const target = [...offers.values()].filter((offer) => offer.carId && market.some((item) => item.id === offer.carId && item.sellerId === player.id) && ["active", "counter"].includes(offer.status)).sort((a, b) => b.amount - a.amount)[0];
+      if (!target) return json(res, 400, { error: "Нужно живое предложение по вашей машине: сначала выставьте объявление" });
+      const deposit = Math.max(1000, Math.round(target.amount * spec.depositShare / 100) * 100);
+      player.cash += deposit;
+      target.status = "closed";
+      target.reason = "Продавец взял задаток у другого покупателя и пропал";
+      const victim = players.get(target.buyerId);
+      if (victim && target.buyerType === "player") {
+        victim.cash += deposit;
+        victim.reputation.score = Math.min(100, victim.reputation.score + 1);
+        victim.notifications.push({ id: id("notification_"), type: "fraud", title: "Рынок вернул ваш задаток", text: `Сделка с «${car.model}» сорвалась по вине продавца, предоплату компенсировали: +${deposit.toLocaleString("ru-RU")} ₽.`, createdAt: Date.now(), read: false });
+      }
+      car.scamDeposit = deposit;
+    } else if (player.cash - reservedCash(player) < cost) {
+      return json(res, 400, { error: `На подготовку нужно ${cost.toLocaleString("ru-RU")} ₽` });
+    } else {
+      player.cash -= cost;
+    }
+    if (spec.key === "odometer") {
+      car.fraudCover = { originalMileage: car.mileage, at: Date.now() };
+      car.mileage = Math.max(1000, Math.round(car.mileage * 0.4 / 1000) * 1000);
+    }
+    if (spec.key === "cleanHistory") {
+      car.publicInspectionRecords = {};
+      car.publicDiscovered = [];
+      car.serviceDiagnosed = true;
+    }
+    if (spec.key === "fakeDocs") {
+      car.legalHold = null;
+      for (const defect of car.defects.filter((item) => item.fraud && !item.repaired)) {
+        defect.repaired = true; defect.repairQuality = "Дубликат ПТС"; defect.repairReliability = 42;
+        car.repairs.push(defect.name);
+      }
+    }
+    car.schemes = [...(car.schemes || []), { key: spec.key, at: Date.now(), name: spec.name, bonus: spec.priceBonus }];
+    player.fraud.schemes += 1;
+    player.fraud.lastSchemeAt = Date.now();
+    player.fraud.notoriety += Math.round(spec.notoriety * 0.6);
+    addSuspicion(player, spec.suspicion);
+    car.history.push({ type: "fraud", text: `Подготовка: ${spec.name}. Покупатель увидит ${spec.key === "odometer" ? `пробег ${car.mileage.toLocaleString("ru-RU")} км` : "лучшую машину, чем есть на самом деле"}. ${spec.exposure}`, at: Date.now() });
+    addLedger(player, "fraud-scheme", `Серая схема: ${spec.name}`, -cost, { carId: car.id, risk: Math.round(spec.risk * 100), category: "Риск" });
+    pushFraudHistory(player, { kind: "scheme", title: `Подготовили машину: ${spec.name}`, amount: -cost, car: car.model, text: spec.exposure });
+    addXp(player, 12);
+    broadcast(); persistState();
+    return json(res, 200, { ...snapshot(player), fraudResult: { scheme: spec.key, cost, mileage: spec.key === "odometer" ? car.mileage : null, suspicion: Math.round(player.fraud.suspicion), notoriety: Math.round(player.fraud.notoriety) } });
+  }
+
+  if (req.method === "POST" && pathname === "/api/fraud/lawyer") {
+    ensurePlayerFraud(player);
+    const cost = fraud.lawyerCost(playerNetWorth(player));
+    if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: `Услуги адвоката стоят ${cost.toLocaleString("ru-RU")} ₽` });
+    if (player.fraud.suspicion <= 0) return json(res, 400, { error: "Дело не открыто — адвокат не нужен" });
+    player.cash -= cost;
+    player.fraud.suspicion = Math.max(0, player.fraud.suspicion - fraud.lawyerRelief());
+    player.fraud.suspicionAt = Date.now();
+    addLedger(player, "fraud-lawyer", "Договорной адвокат: дело замято", -cost, { category: "Риск" });
+    pushFraudHistory(player, { kind: "lawyer", title: "Адвокат снизил подозрение", amount: -cost });
+    player.notifications.push({ id: id("notification_"), type: "fraud", title: "Дело притихло", text: `Подозрение снижено до ${Math.round(player.fraud.suspicion)}.`, createdAt: Date.now(), read: false });
+    broadcast(); persistState();
+    return json(res, 200, { ...snapshot(player), fraudResult: { cost, suspicion: Math.round(player.fraud.suspicion) } });
   }
 
   if (req.method === "POST" && pathname === "/api/inspection/start") {
@@ -3391,7 +4309,7 @@ async function api(req, res, pathname) {
     const requirement = inspectionRequirements[category];
     const method = body.method || "visual";
     if (!Object.hasOwn(inspectionMethods, method)) return json(res, 400, { error: "Неизвестный метод осмотра" });
-    const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment]);
+    const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment], balance.inspectionScale(car));
     const baseScore = quote.depth;
     let result;
     try { result = inspectionResult(player, car, category, body, quote); } catch (error) { return json(res, 400, { error: error.message }); }
@@ -3399,7 +4317,7 @@ async function api(req, res, pathname) {
     const interactionScore = result.accuracy;
     const previous = car.inspectionRecords[category];
     if (previous && score <= previous.bestScore) return json(res, 400, { error: "Новых данных нет. Попробуйте более точный осмотр; деньги не списаны" });
-    const cost = quote.cost;
+    const cost = inspectionCosts(car)[method];
     if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Не хватает денег на расходники" });
     player.cash -= cost;
     player.stats.inspections += 1;
@@ -3416,7 +4334,7 @@ async function api(req, res, pathname) {
     if (cost) addLedger(player, "inspection", `Осмотр: ${car.model} · ${category}`, -cost, { carId: car.id, score: interactionScore, category: "Гараж" });
     broadcast();
     persistState();
-    return json(res, 200, { ...snapshot(player), checkResult: { category, found: newFound.map((defect) => publicDefect(defect, car)), confidence, accuracy: interactionScore, improvedFrom: previous?.bestScore || 0, canImprove: score < 8 } });
+    return json(res, 200, { ...snapshot(player), checkResult: { category, cost, found: newFound.map((defect) => publicDefect(defect, car)), confidence, accuracy: interactionScore, improvedFrom: previous?.bestScore || 0, canImprove: score < 8 } });
   }
 
   if (req.method === "POST" && pathname === "/api/market-check") {
@@ -3428,7 +4346,7 @@ async function api(req, res, pathname) {
     const requirement = inspectionRequirements[category];
     const method = body.method || "visual";
     if (!Object.hasOwn(inspectionMethods, method)) return json(res, 400, { error: "Неизвестный метод осмотра" });
-    const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment]);
+    const quote = inspectionQuote(method, player.skills[requirement.skill], player.equipment[requirement.equipment], balance.inspectionScale(car));
     const baseScore = quote.depth;
     let result;
     try { result = inspectionResult(player, car, category, body, quote); } catch (error) { return json(res, 400, { error: error.message }); }
@@ -3436,7 +4354,7 @@ async function api(req, res, pathname) {
     const interactionScore = result.accuracy;
     const previous = car.publicInspectionRecords[category];
     if (previous && score <= previous.bestScore) return json(res, 400, { error: "Новых данных нет; деньги не списаны. Выберите более точный осмотр" });
-    const cost = quote.cost;
+    const cost = inspectionCosts(car)[method];
     if (player.cash - reservedCash(player) < cost) return json(res, 400, { error: "Недостаточно средств на осмотр" });
     player.cash -= cost;
     player.stats.inspections += 1;
@@ -3450,8 +4368,13 @@ async function api(req, res, pathname) {
     if (found.length) for (const offer of offers.values()) if (offer.carId === car.id && offer.buyerType === 'bot') offer.status = 'rejected';
     const confidence = Math.min(100, Math.round(score / 6 * 100));
     car.publicInspectionRecords[category] = { bestScore: score, confidence, inspector: player.name, at: Date.now(), interactionScore };
+    const fraudRevealed = revealsFraudIn(car, { category, score }) && revealListingFraud(car, player.id, "inspection");
+    if (fraudRevealed) {
+      const spec = fraud.fraudSpec(car.fraud?.type);
+      player.notifications.push({ id: id("notification_"), type: "fraud", title: "В объявлении нашли обман", text: `${spec?.name}. ${spec?.hint} Продажа лота остановлена: оформите жалобу и получите премию рынка.`, carId: car.id, createdAt: Date.now(), read: false });
+    }
     if (interactionScore === 100) player.stats.perfectInspections += 1;
-    addXp(player, 12 + newFound.length * 10 + (interactionScore >= 80 ? 6 : 0));
+    addXp(player, 12 + newFound.length * 10 + (interactionScore >= 80 ? 6 : 0) + (fraudRevealed ? 30 : 0));
     if (cost) addLedger(player, "inspection", `Предпродажный осмотр: ${car.model}`, -cost, { carId: car.id, score: interactionScore, category: "Рынок" });
     broadcast();
     persistState();
@@ -3540,6 +4463,11 @@ async function api(req, res, pathname) {
     car.repairs.push(defect.name);
     if (installedPart) car.installedParts.push(installedPart);
     car.history.push({ type: "repair", text: `Ремонт: ${defect.name}${installedPart ? ` · ${installedPart.brand} ${installedPart.name}, ресурс ${installedPart.conditionPct}%, надёжность ${installedPart.reliability}%` : ""}`, at: Date.now() });
+    if (defect.fraud) {
+      car.legalHold = null;
+      player.reputation.score = Math.min(100, player.reputation.score + 1);
+      player.notifications.push({ id: id("notification_"), type: "fraud", title: "Юридический вопрос закрыт", text: `Документы на ${car.model} приведены в порядок: продажу и регистрацию это больше не блокирует.`, carId: car.id, createdAt: Date.now(), read: false });
+    }
     if (selfRepair) player.stats.selfRepairs += 1;
     else if (assistedRepair) player.stats.assistedRepairs += 1;
     else player.stats.workshopRepairs += 1;
@@ -3581,7 +4509,7 @@ async function api(req, res, pathname) {
     const now = Date.now(); const cooldown = 45000;
     if (now - player.training.lastAt < cooldown) return json(res, 429, { error: `Следующее задание будет доступно через ${Math.ceil((cooldown - (now - player.training.lastAt)) / 1000)} сек.` });
     player.training.lastAt = now; player.training.completed += 1;
-    player.cash += 7000; addXp(player, 75);
+    player.cash += TRAINING_REWARD_CASH; addXp(player, 75);
     if (player.training.completed % 4 === 0) player.skillPoints += 1;
     broadcast(); return json(res, 200, snapshot(player));
   }
@@ -3594,8 +4522,8 @@ async function api(req, res, pathname) {
     if (!info) return json(res, 400, { error: "Оборудование не найдено" });
     const nextLevel = player.equipment[equipment] + 1;
     if (nextLevel > 3) return json(res, 400, { error: "Оборудование уже максимального уровня" });
-    const price = info.prices[nextLevel];
-    if (player.cash < price) return json(res, 400, { error: "Не хватает денег на оборудование" });
+    const price = nextLevel === 1 ? balance.equipmentPrice(info.prices, levelForXp(player.xp)) : info.prices[nextLevel];
+    if (player.cash < price) return json(res, 400, { error: `Нужно ${price.toLocaleString("ru-RU")} ₽ — не хватает ${Math.max(0, price - player.cash).toLocaleString("ru-RU")} ₽` });
     player.cash -= price;
     player.equipment[equipment] = nextLevel;
     broadcast();
@@ -3603,8 +4531,8 @@ async function api(req, res, pathname) {
   }
 
   if (req.method === "POST" && pathname === "/api/garage/expand") {
-    const price = 140000 + (player.garageCapacity - MAX_GARAGE) * 65000;
-    if (player.cash < price) return json(res, 400, { error: "Не хватает денег на расширение гаража" });
+    const price = balance.garageExpandPrice(player.garageCapacity, levelForXp(player.xp));
+    if (player.cash < price) return json(res, 400, { error: `Расширение гаража стоит ${price.toLocaleString("ru-RU")} ₽` });
     player.cash -= price;
     player.garageCapacity += 1;
     broadcast();
@@ -3614,7 +4542,7 @@ async function api(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/parts/buy") {
     const type = body.type === "premium" ? "premium" : "common";
     const model = catalog.some((item) => item.model === body.model) ? body.model : catalog[randomInt(0, catalog.length - 1)].model;
-    const price = type === "premium" ? 42000 : 18000;
+    const price = balance.fee(type === "premium" ? 42000 : 18000, levelForXp(player.xp));
     if (player.cash < price) return json(res, 400, { error: "Не хватает денег на комплект деталей" });
     player.cash -= price;
     player.parts[type] += 1; player.stats.partsBought += 1;
@@ -3644,13 +4572,14 @@ async function api(req, res, pathname) {
     ensureCarDefaults(car);
     if (car.upgrades.includes(upgrade.key)) return json(res, 400, { error: "Это улучшение уже установлено" });
     const canSelf = player.skills[upgrade.skill] >= upgrade.skillLevel && player.equipment[upgrade.equipment] >= upgrade.equipmentLevel;
-    const upgradeCost = canSelf ? upgrade.cost : Math.round(upgrade.cost * 1.55 * (1 - (player.skills.tuning || 0) * .04) / 1000) * 1000;
+    const scaledCost = upgrade.cost * balance.upgradeScale(car);
+    const upgradeCost = Math.max(500, Math.round((canSelf ? scaledCost : scaledCost * 1.55 * (1 - (player.skills.tuning || 0) * .04)) / 100) * 100);
     if (player.cash < upgradeCost) return json(res, 400, { error: "Не хватает денег на улучшение" });
     player.cash -= upgradeCost;
     car.invested += upgradeCost;
     car.upgrades.push(upgrade.key);
     car.upgradeStage = car.upgrades.length;
-    car.upgradeValue += upgrade.value;
+    car.upgradeValue += Math.max(500, Math.round(upgrade.value * balance.upgradeScale(car) / 100) * 100);
     car.condition = Math.min(100, car.condition + upgrade.condition);
     car.history.push({ type: "upgrade", text: `${upgrade.name}${canSelf ? " самостоятельно" : " в тюнинг-ателье"}: +${upgrade.value.toLocaleString("ru-RU")} ₽ к ценности`, at: Date.now() });
     player.stats.upgrades += 1;
@@ -3666,7 +4595,10 @@ async function api(req, res, pathname) {
     if (!Number.isFinite(price) || price < 1 || price > MAX_VEHICLE_VALUE) return json(res, 400, { error: `Цена должна быть от 1 ₽ до ${MAX_VEHICLE_VALUE.toLocaleString("ru-RU")} ₽` });
     const car = player.garage[index];
     const saleType = body.saleType === "auction" ? "auction" : "fixed";
-    const block = saleBlockReason({ ...car, saleType });
+    // Торги раскрывают все найденные дефекты прямо в карточке лота, но блокировать продажу
+    // можно только по известным продавцу: иначе «невидимая» неисправность превращает
+    // запрет в вечный — игрок не может ни починить то, о чём не знает, ни продать машину.
+    const block = saleBlockReason(car);
     if (block) return json(res, 409, { error: block });
     if (saleType === "auction" && levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const includePlate = body.includePlate === true && Boolean(car.registration?.registered && car.registration?.plate);
@@ -3751,7 +4683,7 @@ async function api(req, res, pathname) {
     if (levelForXp(player.xp) < AUCTION_UNLOCK_LEVEL) return json(res, 403, { error: `Аукционы откроются с ${AUCTION_UNLOCK_LEVEL} уровня.` });
     const car = market.find((item) => item.id === body.carId && item.saleType === "auction");
     if (!car || car.auctionEnd <= Date.now()) return json(res, 404, { error: "Аукцион уже завершён" });
-    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
+    if (listingBlockReason(car)) return json(res, 409, { error: listingBlockReason(car) });
     if (car.sellerId === player.id) return json(res, 400, { error: "Нельзя делать ставки на свою машину" });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.garage.length >= player.garageCapacity) return json(res, 400, { error: "Освободите место в гараже перед ставкой" });
@@ -3807,7 +4739,7 @@ async function api(req, res, pathname) {
     const cited = body.defectCode ? car.defects.find(defect => defect.code === body.defectCode && !defect.repaired && car.buyerFindings?.[player.id]?.includes(defect.code)) : null;
     if (body.defectCode && !cited) return json(res, 400, { error: 'Можно сослаться только на неисправность, подтверждённую вашим осмотром' });
     for (const old of offers.values()) if (old.carId === car.id && old.buyerId === player.id && ["active", "counter"].includes(old.status)) old.status = "closed";
-    if (!car.sellerId && !saleBlockReason(car)) {
+    if (!car.sellerId && !listingBlockReason(car)) {
       const estimate = saleEstimate(car);
       const sellerFloor = Math.max(1, Math.round(Math.min(car.price * 0.94, estimate.expectedNpcPrice * 0.97) / 1000) * 1000);
       const negotiationFloor = Math.max(1, Math.round(sellerFloor * 0.86 / 1000) * 1000);
@@ -3838,6 +4770,30 @@ async function api(req, res, pathname) {
       const bot = bots.find(item => item.id === offer.buyerId);
       if (bot && inspectForNpc(car, bot)) { broadcast(); persistState(); return json(res, 409, { error: saleBlockReason(car) }); }
     }
+    if (body.action === "expose") {
+      ensurePlayerFraud(player);
+      offer.status = "rejected";
+      player.npcMuted ||= {};
+      if (offer.kind === "scam") {
+        const bounty = Math.max(1500, Math.round((offer.deposit || 0) * 0.6 / 100) * 100);
+        player.cash += bounty;
+        player.fraud.exposed += 1;
+        player.reputation.score = Math.min(100, player.reputation.score + 2);
+        if (offer.buyerType === "bot") player.npcMuted[offer.buyerId] = Date.now() + 15 * 60000;
+        addXp(player, 34);
+        addLedger(player, "fraud-bounty", "Развод раскрыт: премия", bounty, { counterparty: offer.buyerName, category: "Риск" });
+        pushFraudHistory(player, { kind: "exposed-offer", title: `Раскусили «покупателя» ${offer.buyerName}`, amount: bounty });
+        player.notifications.push({ id: id("notification_"), type: "fraud", title: "Развод раскрыт", text: `${offer.buyerName} пытался выманить депозит. Покупатель заблокирован на 15 минут, премия ${bounty.toLocaleString("ru-RU")} ₽.`, createdAt: Date.now(), read: false });
+        broadcast(); persistState();
+        return json(res, 200, { ...snapshot(player), fraudResult: { success: true, bounty, text: "Вы отказались от сделки и сообщили о разводе." } });
+      }
+      player.reputation.score = Math.max(0, player.reputation.score - 2);
+      player.npcRelations ||= {};
+      player.npcRelations[offer.buyerId] = (player.npcRelations[offer.buyerId] || 0) - 2;
+      player.notifications.push({ id: id("notification_"), type: "fraud", title: "Покупатель обиделся", text: `${offer.buyerName} был честен: обвинение в разводе стоило вам доверия.`, createdAt: Date.now(), read: false });
+      broadcast(); persistState();
+      return json(res, 200, { ...snapshot(player), fraudResult: { success: false, text: "Предложение оказалось настоящим: репутация подмочена." } });
+    }
     if (body.action === "reject") offer.status = "rejected";
     else if (body.action === "counter") {
       const amount = Math.round(Number(body.amount));
@@ -3865,6 +4821,22 @@ async function api(req, res, pathname) {
         offer.reason = "Продавец предложил встречную цену";
       }
     } else if (body.action === "accept") {
+      if (offer.kind === "scam" && offer.deposit) {
+        if (body.confirmDeposit !== true) return json(res, 409, { error: `Похоже на развод: ${offer.buyerName} просит депозит ${offer.deposit.toLocaleString("ru-RU")} ₽ до сделки. Подтвердите ещё раз, если готовы потерять деньги.` });
+        if (player.cash - reservedCash(player) < offer.deposit) return json(res, 400, { error: "Свободных денег на депозит не хватает" });
+        player.cash -= offer.deposit;
+        offer.status = "closed";
+        offer.reason = "Покупатель получил депозит и пропал";
+        ensurePlayerFraud(player);
+        player.fraud.scammed += 1;
+        player.fraud.scammedCash += offer.deposit;
+        player.reputation.score = Math.max(0, player.reputation.score - 1);
+        addLedger(player, "fraud-loss", "Депозит мошеннику", -offer.deposit, { counterparty: offer.buyerName, category: "Риск" });
+        pushFraudHistory(player, { kind: "scammed", title: `Развод: ${offer.buyerName}`, amount: -offer.deposit });
+        player.notifications.push({ id: id("notification_"), type: "fraud", title: "Вас развели", text: `${offer.buyerName} забрал депозит ${offer.deposit.toLocaleString("ru-RU")} ₽ и исчез. В следующий раз проверяйте покупателя до сделки.`, createdAt: Date.now(), read: false });
+        broadcast(); persistState();
+        return json(res, 200, snapshot(player));
+      }
       if (offer.buyerType === "bot") completeSale(car, null, offer.amount);
       else {
         const buyer = players.get(offer.buyerId);
@@ -3882,7 +4854,7 @@ async function api(req, res, pathname) {
     if (!offer || offer.buyerId !== player.id || offer.status !== "counter") return json(res, 404, { error: "Встречное предложение недоступно" });
     const car = market.find((item) => item.id === offer.carId);
     if (!car) return json(res, 404, { error: "Автомобиль уже продан" });
-    if (saleBlockReason(car)) return json(res, 409, { error: saleBlockReason(car) });
+    if (listingBlockReason(car)) return json(res, 409, { error: listingBlockReason(car) });
     if (!canAccessCar(player, car)) return json(res, 403, { error: carUnlockMessage(player, car) });
     if (player.cash - reservedCash(player) < offer.amount || !completeSale(car, player, offer.amount)) return json(res, 400, { error: "Не хватает свободных денег или места в гараже" });
     broadcast();
@@ -3909,7 +4881,13 @@ const server = http.createServer(async (req, res) => {
     const requested = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
     const filePath = path.resolve(PUBLIC_DIR, requested);
     if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) { res.writeHead(404); return res.end("Not found"); }
-    res.writeHead(200, { "Content-Type": mime[path.extname(filePath)] || "application/octet-stream" });
+    const stat = fs.statSync(filePath);
+    // no-cache + ETag: клиент всегда узнаёт, что файл свежий (правка интерфейса видна сразу),
+    // но при неизменном ассете получает 304 и не качает 260 КБ заново.
+    const etag = `W/"${stat.size.toString(16)}-${Math.round(stat.mtimeMs).toString(16)}"`;
+    const headers = { "Content-Type": mime[path.extname(filePath)] || "application/octet-stream", "Cache-Control": "no-cache", ETag: etag };
+    if (String(req.headers["if-none-match"] || "") === etag) { res.writeHead(304, headers); return res.end(); }
+    res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   } catch (error) {
     console.error(error);

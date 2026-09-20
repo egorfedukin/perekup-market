@@ -2796,3 +2796,91 @@ body:has(#join-screen:not([hidden])) {
 .referral-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .referral-table code { font-family: ui-monospace, "Cascadia Mono", monospace; letter-spacing: 0.08em; font-weight: 700; }
 @media (max-width: 720px) { .referral-actions { display: grid; } .referral-table { display: block; overflow-x: auto; } }
+
+/* ─── Мошенничество: проверки, серые схемы, риски ─── */
+.fraud-card { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-left-width: 4px; border-radius: var(--radius-m); background: var(--surface); box-shadow: var(--shadow-card); font-size: 13px; line-height: 1.45; }
+.fraud-card strong { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.01em; }
+.fraud-card p { margin: 0; color: var(--muted); }
+.fraud-card.warn { border-left-color: var(--yellow); background: #fdf6e4; }
+.fraud-card.danger { border-left-color: #c2413a; background: #fbeceb; }
+.fraud-card.danger .fraud-consequence { color: #8f2d27; font-weight: 600; }
+.fraud-card.calm { border-left-color: var(--green); }
+.fraud-card.muted { border-left-style: dashed; }
+.fraud-card.dirty { border-left-color: var(--accent-dark); background: #f6efe1; }
+.fraud-signs { margin: 4px 0 0; padding-left: 18px; color: var(--ink); display: grid; gap: 2px; }
+.fraud-block, .fraud-consequence { display: block; margin-top: 4px; font-size: 12px; }
+.fraud-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+.fraud-badge.warn { background: #f7e6bd; color: #7a5410; }
+.fraud-badge.danger { background: #f4d3d0; color: #8f2d27; }
+.fraud-badge.calm { background: #d8ecdf; color: #1d5c39; }
+.garage-fraud { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-m); background: #fbeceb; border: 1px solid #ecc6c2; font-size: 12px; }
+.garage-fraud strong { color: #8f2d27; }
+.garage-fraud small { color: var(--muted); flex: 1 1 220px; }
+.garage-fraud.dirty { background: #f6efe1; border-color: #e3d3b4; }
+.garage-fraud.hold { background: #f7e6e4; }
+.offer-risk { margin: 8px 0; padding: 10px 12px; border-radius: var(--radius-m); font-size: 12px; }
+.offer-risk.danger { background: #fbeceb; border: 1px solid #e6b7b2; }
+.offer-risk.warn { background: #fdf6e4; border: 1px solid #ecd7a5; }
+.offer-risk.calm { color: var(--muted); }
+.offer-risk-head { display: flex; justify-content: space-between; gap: 10px; font-weight: 700; }
+.offer-risk-head strong { color: #8f2d27; }
+.offer-risk.calm .offer-risk-head strong { color: var(--green); }
+.offer-risk ul { margin: 6px 0; padding-left: 16px; display: grid; gap: 2px; }
+.offer-risk small { color: var(--muted); display: block; margin-top: 4px; }
+.deposit-warn { display: block; margin-top: 6px; color: #8f2d27; font-weight: 600; }
+
+.panel-list, .bank-panel, .risk-panel { display: grid; gap: 12px; margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); box-shadow: var(--shadow-card); }
+.panel-title { margin: 0; font-family: var(--font-display); font-size: 17px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.panel-title small { font-family: var(--font-body); font-size: 12px; font-weight: 400; color: var(--muted); }
+.bank-summary { display: flex; flex-wrap: wrap; gap: 10px; }
+.bank-score { min-width: 150px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+.bank-score strong { font-family: var(--font-display); font-size: 20px; color: var(--ink); }
+.bank-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.bank-product, .bank-loan, .risk-scheme, .risk-threat { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-m); background: #fffdf7; display: grid; gap: 8px; font-size: 13px; }
+.bank-product header, .bank-loan header, .risk-scheme header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.bank-product header span, .risk-scheme header span { color: var(--muted); font-size: 12px; text-align: right; }
+.bank-product p, .risk-scheme p { margin: 0; color: var(--muted); }
+.bank-product.locked, .risk-scheme.locked { opacity: 0.62; }
+.bank-product-terms, .bank-loan-numbers, .bank-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.bank-product-terms b, .bank-loan-numbers b, .bank-facts b { color: var(--ink); }
+.bank-amount { display: grid; gap: 4px; font-size: 12px; }
+.bank-amount input { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-s); font: inherit; }
+.bank-amount small, .bank-next, .bank-hint { color: var(--muted); font-size: 11.5px; }
+.bank-locked { margin: 0; padding: 8px; border-radius: var(--radius-s); background: #f0ece1; color: var(--muted); font-size: 12px; text-align: center; }
+.bank-loan.overdue { border-color: #e0b0aa; background: #fdf3f1; }
+.bank-loan progress { width: 100%; }
+.bank-entries { display: grid; gap: 4px; font-size: 12.5px; }
+.bank-entries div, .risk-event { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-bottom: 1px dashed var(--line); }
+.bank-entries b.plus, .risk-event b.plus { color: var(--green); }
+.bank-entries b.minus, .risk-event b.minus { color: #a3372f; }
+
+.risk-counters { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+.risk-counters span { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.risk-counters b { color: var(--ink); }
+.risk-meters { display: grid; gap: 10px; }
+.risk-meter { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; font-size: 13px; }
+.risk-meter small { display: block; color: var(--muted); font-size: 11.5px; }
+.risk-meter progress { grid-column: 1 / -1; width: 100%; height: 8px; }
+.risk-meter.hot b { color: #a3372f; }
+.risk-meter.hot progress { accent-color: #c2413a; }
+.risk-note { margin: 0; font-size: 12.5px; color: var(--muted); }
+.risk-note.danger { color: #8f2d27; font-weight: 600; }
+.risk-note.calm { color: var(--green); }
+.risk-lawyer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--radius-m); font-size: 13px; }
+.risk-lawyer small { display: block; color: var(--muted); font-size: 11.5px; }
+.risk-car-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.risk-car-picker button { padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); display: grid; gap: 2px; cursor: pointer; font: inherit; text-align: left; }
+.risk-car-picker button span { font-size: 11.5px; color: var(--muted); }
+.risk-car-picker button.active { border-color: var(--accent-dark); background: #fbf3e0; box-shadow: inset 0 0 0 1px var(--accent); }
+.risk-schemes, .risk-threats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.risk-scheme-exposure { color: #8f2d27; font-size: 11.5px; }
+.risk-scheme footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.risk-threat p { margin: 0 0 4px; color: var(--muted); font-size: 12.5px; }
+.risk-threat small { font-size: 11px; color: var(--muted); }
+.risk-rules { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.risk-rules p { margin: 0; }
+.risk-event time { color: var(--muted); font-size: 11px; }
+.risk-event.raid span, .risk-event.scammed span, .risk-event.victim span { color: #8f2d27; }
+.risk-event.exposed span, .risk-event.claim span { color: var(--green); }
+.market-access-note span { display: block; }
+@media (max-width: 720px) { .bank-products, .risk-schemes, .risk-threats { grid-template-columns: 1fr; } .bank-summary { width: 100%; } }
